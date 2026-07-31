@@ -1,0 +1,17 @@
+appId: dev.joe.joe_todo
+name: Kalender-Monatsansicht mit Tagesdetail
+---
+- launchApp:
+    clearState: true
+- tapOn: "Kalender"
+- assertVisible: "(?s)Juli 2026.*"
+# Tagesdetail des heutigen Tages zeigt die Aufgaben
+- assertVisible: "(?s)Blumen gießen.*"
+- takeScreenshot: shots/04_calendar
+# Monat wechseln
+- tapOn: "Nächster Monat"
+- assertVisible: "(?s)August 2026.*"
+- takeScreenshot: shots/04_calendar_next_month
+- tapOn: "Voriger Monat"
+- assertVisible: "(?s)Juli 2026.*"
+- back

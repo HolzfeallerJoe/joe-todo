@@ -1,0 +1,20 @@
+appId: dev.joe.joe_todo
+name: Notiz anlegen und wiederfinden
+---
+- launchApp:
+    clearState: true
+- scrollUntilVisible:
+    element: "Notizen"
+    direction: DOWN
+    centerElement: true
+- tapOn: "Notizen"
+- assertVisible: "(?s)Willkommen bei Joe.*"
+- tapOn: "Neue Notiz"
+- tapOn: "Titel"
+- inputText: "Einkaufsliste"
+- tapOn: "Schreib etwas auf …"
+- inputText: "Brot, Butter, Honig"
+- hideKeyboard
+- back
+- assertVisible: "(?s)Einkaufsliste.*Brot, Butter, Honig.*"
+- takeScreenshot: shots/05_notes

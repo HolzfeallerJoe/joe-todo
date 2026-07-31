@@ -1,0 +1,25 @@
+appId: dev.joe.joe_todo
+name: Aufgabe anlegen, abhaken, in Historie sehen
+---
+- launchApp:
+    clearState: true
+# Neue einmalige Aufgabe anlegen
+- tapOn: "Hinzufügen"
+- tapOn: "Neue Aufgabe"
+- inputText: "Milch kaufen"
+- hideKeyboard
+- tapOn: "Speichern"
+- assertVisible: "Milch kaufen"
+# Abhaken
+- tapOn: "Milch kaufen"
+- takeScreenshot: shots/02_task_checked
+# Erledigte Aufgabe bleibt sichtbar
+- assertVisible: "Milch kaufen"
+# In der Historie nachsehen
+- scrollUntilVisible:
+    element: "Historie"
+    direction: DOWN
+- tapOn: "Historie"
+- assertVisible: "Milch kaufen"
+- takeScreenshot: shots/02_history
+- back

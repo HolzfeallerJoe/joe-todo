@@ -1,0 +1,15 @@
+appId: dev.joe.joe_todo
+name: Design wechseln (Notizbuch-Themen)
+---
+- launchApp:
+    clearState: true
+- scrollUntilVisible:
+    element: "Einstellungen"
+    direction: DOWN
+    centerElement: true
+- tapOn: "Einstellungen"
+- assertVisible: "Notizbuch-Design"
+- tapOn: "Aquarell"
+- takeScreenshot: shots/06_settings_aquarell
+- back
+- takeScreenshot: shots/06_dashboard_aquarell

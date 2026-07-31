@@ -1,0 +1,14 @@
+appId: dev.joe.joe_todo
+name: Dashboard zeigt Heute-Karte, Aufgaben und Termine
+---
+- launchApp:
+    clearState: true
+- assertVisible: "(?s).*offene Aufgaben heute.*"
+- assertVisible: "Heute abhaken"
+- assertVisible: "(?s)Blumen gießen.*"
+- assertVisible: "Nächste Termine"
+- assertVisible: "(?s).*Kaffee mit Anna.*"
+- assertVisible: "Kalender"
+- assertVisible: "Termine"
+- assertVisible: "Notizen"
+- takeScreenshot: shots/01_dashboard

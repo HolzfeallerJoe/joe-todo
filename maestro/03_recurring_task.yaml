@@ -1,0 +1,14 @@
+appId: dev.joe.joe_todo
+name: Wiederkehrende Aufgabe (alle X Tage) anlegen
+---
+- launchApp:
+    clearState: true
+- tapOn: "Hinzufügen"
+- tapOn: "Neue Aufgabe"
+# Hinweis: Maestro inputText kann nur ASCII, daher ohne Umlaute
+- inputText: "Abfall rausbringen"
+- hideKeyboard
+- tapOn: "Alle X Tage"
+- tapOn: "Speichern"
+- assertVisible: "(?s)Abfall rausbringen.*Alle 2 Tage.*"
+- takeScreenshot: shots/03_recurring
