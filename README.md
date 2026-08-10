@@ -35,14 +35,23 @@ requirements/         Original-Anforderungen (PDF + Layout-Referenzbild)
 ## Bauen & Testen
 
 ```powershell
+.\build-debug-apk.ps1             # Debug-APK bauen (wie Android Studio)
+.\build-debug-apk.ps1 -Install    # bauen + per adb aufs Geraet schieben
+
 cd app
 flutter test                      # Unit-Tests
-flutter build apk --debug         # APK bauen
-adb install -r build\app\outputs\flutter-apk\app-debug.apk
 
 cd ..\maestro
 maestro test .                    # alle UI-Flows auf dem Emulator
 ```
+
+`build-debug-apk.ps1` liefert dasselbe Artefakt wie „Build > Build APK(s)" in
+Android Studio: debuggable, signiert mit dem Android-Debug-Keystore, alle ABIs.
+Standardmaessig laeuft `flutter build apk --debug` (Ausgabe unter
+`app\build\app\outputs\flutter-apk\app-debug.apk`); mit `-Gradle` stattdessen
+woertlich der Gradle-Task `assembleDebug` wie in Android Studio (Ausgabe unter
+`app\build\app\outputs\apk\debug\app-debug.apk`). Weitere Schalter: `-Device`
+fuer eine adb-Seriennummer, `-SkipPubGet`.
 
 Hinweis zu Maestro: Flutter fasst Karten zu einem Accessibility-Knoten
 zusammen, daher matchen die Flows mit `(?s)…​.*`-Regex; `inputText` kann nur

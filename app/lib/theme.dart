@@ -6,7 +6,11 @@ enum TextureStyle { paper, wood, fabric, watercolor }
 
 class JoeTheme {
   final String name;
-  final TextureStyle texture;
+  final TextureStyle? texture;
+
+  /// When set, this photo is painted as the app background instead of the
+  /// procedural [TexturePainter] texture.
+  final String? backgroundAsset;
   final Color bgTop;
   final Color bgBottom;
   final Color paper;
@@ -15,9 +19,15 @@ class JoeTheme {
   final Color accent;
   final List<Color> tabColors;
 
+  /// Color for text/icons drawn straight onto the background (section titles,
+  /// app bar). Photo backgrounds are often too dark or too busy for [ink],
+  /// so they override this. Defaults to [ink].
+  final Color? onBackground;
+
   const JoeTheme({
     required this.name,
-    required this.texture,
+    this.texture,
+    this.backgroundAsset,
     required this.bgTop,
     required this.bgBottom,
     required this.paper,
@@ -25,7 +35,30 @@ class JoeTheme {
     required this.inkSoft,
     required this.accent,
     required this.tabColors,
+    this.onBackground,
   });
+
+  Color get onBg => onBackground ?? ink;
+
+  /// Soft halo behind on-background text. Photos vary in brightness from one
+  /// spot to the next, so a contrasting glow keeps labels legible everywhere.
+  /// Procedural textures are flat enough not to need it.
+  List<Shadow> get onBgShadows => backgroundAsset == null
+      ? const []
+      : [
+          Shadow(
+            color: onBg.computeLuminance() > 0.5
+                ? const Color(0xCC000000)
+                : const Color(0xCCFFFFFF),
+            blurRadius: 6,
+          ),
+        ];
+
+  /// Readable label color for a folder tab painted in [tabColor].
+  Color onTab(Color tabColor) {
+    if (backgroundAsset == null) return ink; // keep the original look
+    return tabColor.computeLuminance() > 0.35 ? ink : Colors.white;
+  }
 }
 
 const joeThemes = [
@@ -97,6 +130,201 @@ const joeThemes = [
       Color(0xFFDD8BA0),
     ],
   ),
+
+  // ---- Photo backgrounds ----
+  JoeTheme(
+    name: 'Holzmaser',
+    backgroundAsset: 'assets/themes/compressed/holz.jpg',
+    bgTop: Color(0xFFD19D6D),
+    bgBottom: Color(0xFFA66A42),
+    paper: Color(0xFFFBF3E7),
+    ink: Color(0xFF4A2E14),
+    inkSoft: Color(0xFF8A7461),
+    accent: Color(0xFFA66A42),
+    tabColors: [
+      Color(0xFFD19D6D),
+      Color(0xFF7B4316),
+      Color(0xFFC8B28A),
+      Color(0xFFA66A42),
+      Color(0xFF4F6B4A),
+    ],
+  ),
+  JoeTheme(
+    name: 'Eisig',
+    backgroundAsset: 'assets/themes/compressed/eisig.jpg',
+    bgTop: Color(0xFFCCE2EF),
+    bgBottom: Color(0xFF2A5D94),
+    paper: Color(0xFFF3F9FD),
+    ink: Color(0xFF1F3A54),
+    inkSoft: Color(0xFF548AB0),
+    accent: Color(0xFF2A5D94),
+    tabColors: [
+      Color(0xFF9FBAD5),
+      Color(0xFF75A0C0),
+      Color(0xFF548AB0),
+      Color(0xFF3E759C),
+      Color(0xFF2A5D94),
+    ],
+  ),
+  JoeTheme(
+    name: 'Halloween',
+    backgroundAsset: 'assets/themes/compressed/halloween.jpg',
+    bgTop: Color(0xFFD2D1D9),
+    bgBottom: Color(0xFF6A7175),
+    paper: Color(0xFFF1EEF7),
+    ink: Color(0xFF34263F),
+    inkSoft: Color(0xFF6A7175),
+    accent: Color(0xFF9F1BCF),
+    onBackground: Color(0xFFF3EEF8),
+    tabColors: [
+      Color(0xFF6A7175),
+      Color(0xFF9F1BCF),
+      Color(0xFF7C4394),
+      Color(0xFF448740),
+      Color(0xFF5FC546),
+    ],
+  ),
+  JoeTheme(
+    name: 'Maritim',
+    backgroundAsset: 'assets/themes/compressed/maritim.jpg',
+    bgTop: Color(0xFF2F6FAF),
+    bgBottom: Color(0xFF1FA38B),
+    paper: Color(0xFFEAF7F5),
+    ink: Color(0xFF12495F),
+    inkSoft: Color(0xFF5EB8C7),
+    accent: Color(0xFF00A8A8),
+    onBackground: Color(0xFFFFFFFF),
+    tabColors: [
+      Color(0xFF2F6FAF),
+      Color(0xFF248FC9),
+      Color(0xFF00A8A8),
+      Color(0xFF1FA38B),
+      Color(0xFFD4BA82),
+    ],
+  ),
+  JoeTheme(
+    name: 'Ozean',
+    backgroundAsset: 'assets/themes/compressed/ozean.jpg',
+    bgTop: Color(0xFF74BEC7),
+    bgBottom: Color(0xFF0B888C),
+    paper: Color(0xFFEAF6F1),
+    ink: Color(0xFF0A4F52),
+    inkSoft: Color(0xFF74BEC7),
+    accent: Color(0xFF0B888C),
+    onBackground: Color(0xFFFFFFFF),
+    tabColors: [
+      Color(0xFF0B888C),
+      Color(0xFF74BEC7),
+      Color(0xFF00A8A8),
+      Color(0xFFD4BA82),
+      Color(0xFFB8954A),
+    ],
+  ),
+  JoeTheme(
+    name: 'Pfoten',
+    backgroundAsset: 'assets/themes/compressed/pfoten.jpg',
+    bgTop: Color(0xFFF5EEE7),
+    bgBottom: Color(0xFF8C7863),
+    paper: Color(0xFFFAF5EF),
+    ink: Color(0xFF4A3B2C),
+    inkSoft: Color(0xFFA38F79),
+    accent: Color(0xFF8C7863),
+    tabColors: [
+      Color(0xFFE8DDD3),
+      Color(0xFFD1C0AE),
+      Color(0xFFBAA691),
+      Color(0xFFA38F79),
+      Color(0xFF8C7863),
+    ],
+  ),
+  JoeTheme(
+    name: 'Rainbow',
+    backgroundAsset: 'assets/themes/compressed/rainbow.jpg',
+    bgTop: Color(0xFFFAD1CD),
+    bgBottom: Color(0xFFC3DEF7),
+    paper: Color(0xFFFDFAF8),
+    ink: Color(0xFF5B4A63),
+    inkSoft: Color(0xFF9C8AA6),
+    accent: Color(0xFFD97BA6),
+    tabColors: [
+      Color(0xFFFAD1CD),
+      Color(0xFFFAE0BE),
+      Color(0xFFFAF1B6),
+      Color(0xFFD3FAC8),
+      Color(0xFFC3DEF7),
+    ],
+  ),
+  JoeTheme(
+    name: 'Regenbogen',
+    backgroundAsset: 'assets/themes/compressed/regenbogen.jpg',
+    bgTop: Color(0xFF1078D9),
+    bgBottom: Color(0xFFAB10B2),
+    paper: Color(0xFFFFFCF5),
+    ink: Color(0xFF332A22),
+    inkSoft: Color(0xFF6B5F55),
+    accent: Color(0xFFEF9608),
+    onBackground: Color(0xFFFFFFFF),
+    tabColors: [
+      Color(0xFFAB10B2),
+      Color(0xFF1078D9),
+      Color(0xFF15C04D),
+      Color(0xFFF6DA17),
+      Color(0xFFEC0D10),
+    ],
+  ),
+  JoeTheme(
+    name: 'Weihnachten',
+    backgroundAsset: 'assets/themes/compressed/weihnachten.jpg',
+    bgTop: Color(0xFFEED8A7),
+    bgBottom: Color(0xFF335A2E),
+    paper: Color(0xFFF7F0DE),
+    ink: Color(0xFF2C4326),
+    inkSoft: Color(0xFF7C6A3E),
+    accent: Color(0xFFA6131D),
+    onBackground: Color(0xFFF6E9C9),
+    tabColors: [
+      Color(0xFFEED8A7),
+      Color(0xFFC8252A),
+      Color(0xFFC7A46C),
+      Color(0xFF335A2E),
+      Color(0xFF476E3F),
+    ],
+  ),
+  JoeTheme(
+    name: 'Zitronen',
+    backgroundAsset: 'assets/themes/compressed/zitronen.jpg',
+    bgTop: Color(0xFFF8E8C8),
+    bgBottom: Color(0xFF549034),
+    paper: Color(0xFFFBF8ED),
+    ink: Color(0xFF4C5A1E),
+    inkSoft: Color(0xFF72A33B),
+    accent: Color(0xFF549034),
+    tabColors: [
+      Color(0xFFFCF09F),
+      Color(0xFFEFCA31),
+      Color(0xFF9FBE43),
+      Color(0xFF72A33B),
+      Color(0xFF549034),
+    ],
+  ),
+  JoeTheme(
+    name: 'Kaffee',
+    backgroundAsset: 'assets/themes/compressed/kaffee.jpg',
+    bgTop: Color(0xFFA9724A),
+    bgBottom: Color(0xFF3B2415),
+    paper: Color(0xFFF6EDE1),
+    ink: Color(0xFF3B2415),
+    inkSoft: Color(0xFF8A6A4E),
+    accent: Color(0xFF9C5A2E),
+    onBackground: Color(0xFFF3E4D2),
+    tabColors: [
+      Color(0xFFC9A46B),
+      Color(0xFFA9724A),
+      Color(0xFF8A6A4E),
+      Color(0xFF6B4226),
+      Color(0xFF3B2415),
+    ],
+  ),
 ];
 
 /// Paints the notebook-style background texture for the current theme.
@@ -119,6 +347,8 @@ class TexturePainter extends CustomPainter {
     );
     final rng = Random(7);
     switch (theme.texture) {
+      case null:
+        break;
       case TextureStyle.wood:
         final dark = Paint()..color = const Color(0x14513A1F);
         final light = Paint()..color = const Color(0x1AFFF3D6);

@@ -27,7 +27,9 @@ class JoeScaffold extends StatelessWidget {
     return Stack(
       children: [
         Positioned.fill(
-          child: CustomPaint(painter: TexturePainter(theme)),
+          child: theme.backgroundAsset != null
+              ? Image.asset(theme.backgroundAsset!, fit: BoxFit.cover)
+              : CustomPaint(painter: TexturePainter(theme)),
         ),
         Scaffold(
           backgroundColor: Colors.transparent,
@@ -36,13 +38,14 @@ class JoeScaffold extends StatelessWidget {
               : AppBar(
                   backgroundColor: Colors.transparent,
                   elevation: 0,
-                  foregroundColor: theme.ink,
+                  foregroundColor: theme.onBg,
                   centerTitle: true,
                   title: Text(
                     title!,
                     style: TextStyle(
-                      color: theme.ink,
+                      color: theme.onBg,
                       fontWeight: FontWeight.w700,
+                      shadows: theme.onBgShadows,
                     ),
                   ),
                   actions: actions,
@@ -107,9 +110,10 @@ class SectionTitle extends StatelessWidget {
       child: Text(
         text,
         style: TextStyle(
-          color: theme.ink,
+          color: theme.onBg,
           fontSize: 16,
           fontWeight: FontWeight.w700,
+          shadows: theme.onBgShadows,
         ),
       ),
     );
@@ -161,6 +165,7 @@ class FolderTabButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = joeThemeOf(context);
+    final onTab = theme.onTab(color);
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: PhysicalShape(
@@ -188,19 +193,19 @@ class FolderTabButton extends StatelessWidget {
                 padding: const EdgeInsets.fromLTRB(18, 22, 14, 12),
                 child: Row(
                   children: [
-                    Icon(icon, color: theme.ink.withValues(alpha: 0.75), size: 26),
+                    Icon(icon, color: onTab.withValues(alpha: 0.75), size: 26),
                     const Spacer(),
                     Text(
                       label,
                       style: TextStyle(
-                        color: theme.ink,
+                        color: onTab,
                         fontSize: 19,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
                     const SizedBox(width: 6),
                     Icon(Icons.chevron_right,
-                        color: theme.ink.withValues(alpha: 0.75)),
+                        color: onTab.withValues(alpha: 0.75)),
                   ],
                 ),
               ),

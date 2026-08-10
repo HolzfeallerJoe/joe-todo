@@ -24,54 +24,19 @@ class SettingsScreen extends StatelessWidget {
               child: Column(
                 children: [
                   for (int i = 0; i < joeThemes.length; i++)
-                    InkWell(
-                      borderRadius: BorderRadius.circular(12),
-                      onTap: () => state.setTheme(i),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 6, vertical: 8),
-                        child: Row(
-                          children: [
-                            Container(
-                              width: 44,
-                              height: 44,
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(10),
-                                gradient: LinearGradient(
-                                  begin: Alignment.topLeft,
-                                  end: Alignment.bottomRight,
-                                  colors: [
-                                    joeThemes[i].bgTop,
-                                    joeThemes[i].bgBottom,
-                                  ],
-                                ),
-                                border: Border.all(
-                                  color: state.themeIndex == i
-                                      ? theme.accent
-                                      : Colors.transparent,
-                                  width: 2.5,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 14),
-                            Expanded(
-                              child: Text(
-                                joeThemes[i].name,
-                                style: TextStyle(
-                                  color: theme.ink,
-                                  fontSize: 16,
-                                  fontWeight: state.themeIndex == i
-                                      ? FontWeight.w700
-                                      : FontWeight.w500,
-                                ),
-                              ),
-                            ),
-                            if (state.themeIndex == i)
-                              Icon(Icons.check_circle, color: theme.accent),
-                          ],
-                        ),
-                      ),
-                    ),
+                    if (joeThemes[i].backgroundAsset == null)
+                      _ThemeRow(index: i, theme: theme),
+                ],
+              ),
+            ),
+            const SectionTitle('Hintergrundbilder'),
+            PaperCard(
+              padding: const EdgeInsets.all(10),
+              child: Column(
+                children: [
+                  for (int i = 0; i < joeThemes.length; i++)
+                    if (joeThemes[i].backgroundAsset != null)
+                      _ThemeRow(index: i, theme: theme),
                 ],
               ),
             ),
@@ -96,6 +61,66 @@ class SettingsScreen extends StatelessWidget {
                 style: TextStyle(color: theme.inkSoft, fontSize: 13),
               ),
             ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ThemeRow extends StatelessWidget {
+  final int index;
+  final JoeTheme theme;
+
+  const _ThemeRow({required this.index, required this.theme});
+
+  @override
+  Widget build(BuildContext context) {
+    final state = AppScope.of(context);
+    final entry = joeThemes[index];
+    final selected = state.themeIndex == index;
+    return InkWell(
+      borderRadius: BorderRadius.circular(12),
+      onTap: () => state.setTheme(index),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+        child: Row(
+          children: [
+            Container(
+              width: 44,
+              height: 44,
+              clipBehavior: Clip.antiAlias,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: selected ? theme.accent : Colors.transparent,
+                  width: 2.5,
+                ),
+              ),
+              child: entry.backgroundAsset != null
+                  ? Image.asset(entry.backgroundAsset!, fit: BoxFit.cover)
+                  : DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [entry.bgTop, entry.bgBottom],
+                        ),
+                      ),
+                    ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Text(
+                entry.name,
+                style: TextStyle(
+                  color: theme.ink,
+                  fontSize: 16,
+                  fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                ),
+              ),
+            ),
+            if (selected) Icon(Icons.check_circle, color: theme.accent),
           ],
         ),
       ),
