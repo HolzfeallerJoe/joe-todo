@@ -80,6 +80,16 @@ woertlich der Gradle-Task `assembleDebug` wie in Android Studio (Ausgabe unter
 `app\build\app\outputs\apk\debug\app-debug.apk`). Weitere Schalter: `-Device`
 fuer eine adb-Seriennummer, `-SkipPubGet`.
 
+## CI
+
+`.github/workflows/joe-todo-apk.yml` (im Repo-Wurzelverzeichnis) baut bei
+jedem Push auf `main` und in jedem PR `flutter analyze`, `flutter test` und
+das Debug-APK und haengt das APK als Artefakt an den Lauf. Der Workflow ist
+per `paths`-Filter auf `software/joe-todo/**` beschraenkt, damit Aenderungen
+an den anderen Projekten im Repo ihn nicht ausloesen; die Konventionen dafuer
+stehen in `.github/workflows/README.md`. Die Flutter-Version ist dort fest
+eingetragen (aktuell 3.38.4) und sollte mit der lokalen uebereinstimmen.
+
 Hinweis zu Maestro: Flutter fasst Karten zu einem Accessibility-Knoten
 zusammen, daher matchen die Flows mit `(?s)…​.*`-Regex; `inputText` kann nur
 ASCII (keine Umlaute in Testeingaben).
