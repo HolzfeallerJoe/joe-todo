@@ -7,9 +7,20 @@ name: Design wechseln (Notizbuch-Themen)
     element: "Einstellungen"
     direction: DOWN
     centerElement: true
-- tapOn: "Einstellungen"
-- assertVisible: "Notizbuch-Design"
+# retryTapIfNoChange aus: sonst tippt Maestro nach dem Seitenwechsel ein
+# zweites Mal auf dieselbe Stelle und klappt dabei eine Liste auf.
+- tapOn:
+    text: "Einstellungen"
+    retryTapIfNoChange: false
+- assertVisible: "Design"
+# Klappliste zeigt geschlossen das aktuelle Design (Standard: Holz).
+- tapOn: "Holz"
 - tapOn: "Aquarell"
+- assertVisible: "Aquarell"
 - takeScreenshot: shots/06_settings_aquarell
 - back
+- stopApp
+- launchApp
+- assertVisible: "(?s).*offene Aufgaben heute.*"
+- waitForAnimationToEnd
 - takeScreenshot: shots/06_dashboard_aquarell

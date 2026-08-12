@@ -66,6 +66,15 @@ flutter:
   # assets/themes/ as the source of truth and are deliberately not shipped.
   assets:
     - assets/themes/compressed/
+    # Begleiter. Erzeugt mit compress-pet-assets.ps1; die PNG-Originale
+    # (~52 MB) liegen nicht im Repo, nur diese WebP-Fassungen (~0,9 MB).
+    - assets/pets/aquarell/
+    - assets/pets/axos/
+    - assets/pets/dinos/
+    - assets/pets/kalasstuff/
+    - assets/pets/katzen/
+    - assets/pets/obst/
+    - assets/pets/weihnachten/
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

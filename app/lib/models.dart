@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'pets.dart';
 import 'util.dart';
 
 /// Warm color palette for tasks and appointments.
@@ -183,7 +184,8 @@ class AppState extends ChangeNotifier {
   List<Appointment> appointments = [];
   List<Note> notes = [];
   int themeIndex = 0;
-  bool showCat = true;
+  bool showPet = true;
+  String petId = defaultPetId;
 
   int _idCounter = 0;
 
@@ -209,7 +211,9 @@ class AppState extends ChangeNotifier {
         .map((j) => Note.fromJson(j as Map<String, dynamic>))
         .toList();
     themeIndex = data['themeIndex'] as int? ?? 0;
-    showCat = data['showCat'] as bool? ?? true;
+    // 'showCat' ist der alte Schluessel aus der Zeit vor den Begleiterbildern.
+    showPet = data['showPet'] as bool? ?? data['showCat'] as bool? ?? true;
+    petId = data['petId'] as String? ?? defaultPetId;
   }
 
   void _seed() {
@@ -275,7 +279,8 @@ class AppState extends ChangeNotifier {
         'appointments': appointments.map((a) => a.toJson()).toList(),
         'notes': notes.map((n) => n.toJson()).toList(),
         'themeIndex': themeIndex,
-        'showCat': showCat,
+        'showPet': showPet,
+        'petId': petId,
       }),
     );
   }
@@ -425,8 +430,17 @@ class AppState extends ChangeNotifier {
     _changed();
   }
 
-  void setShowCat(bool value) {
-    showCat = value;
+  void setShowPet(bool value) {
+    showPet = value;
+    _changed();
+  }
+
+  /// Der aktuell gewaehlte Begleiter, robust gegen einen gespeicherten
+  /// Schluessel, den es nicht mehr gibt.
+  Pet get pet => petById(petId);
+
+  void setPet(String id) {
+    petId = id;
     _changed();
   }
 }

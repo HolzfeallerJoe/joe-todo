@@ -24,9 +24,11 @@ class DashboardScreen extends StatelessWidget {
     return JoeScaffold(
       body: SafeArea(
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
+          // The companion peeks over the top edge of the header card, so the
+          // list needs extra headroom whenever it is switched on.
+          padding: EdgeInsets.fromLTRB(16, state.showPet ? 44 : 16, 16, 96),
           children: [
-            // Header card: today, open count, subtle cat.
+            // Header card: today, open count, the companion peeking over it.
             Stack(
               clipBehavior: Clip.none,
               children: [
@@ -104,11 +106,24 @@ class DashboardScreen extends StatelessWidget {
                     ],
                   ),
                 ),
-                if (state.showCat)
-                  const Positioned(
-                    right: 10,
-                    top: -14,
-                    child: Text('🐱', style: TextStyle(fontSize: 34)),
+                if (state.showPet)
+                  Positioned(
+                    right: 8,
+                    top: -40,
+                    // Fixed box with the artwork pinned to its bottom edge:
+                    // the illustrations range from wide (shark) to tall
+                    // (llama), and this keeps every one of them sitting on
+                    // the same line on the card without shifting the layout.
+                    child: SizedBox(
+                      width: 88,
+                      height: 88,
+                      child: Image.asset(
+                        state.pet.asset,
+                        fit: BoxFit.contain,
+                        alignment: Alignment.bottomCenter,
+                        filterQuality: FilterQuality.medium,
+                      ),
+                    ),
                   ),
               ],
             ),

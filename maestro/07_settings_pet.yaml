@@ -1,0 +1,69 @@
+appId: dev.joe.joe_todo
+name: Begleiter wechseln und ausblenden
+---
+- launchApp:
+    clearState: true
+# Erst warten bis das Dashboard steht, sonst landet der Homescreen im Shot.
+- assertVisible: "(?s).*offene Aufgaben heute.*"
+- waitForAnimationToEnd
+- takeScreenshot: shots/07_dashboard_katze
+- scrollUntilVisible:
+    element: "Einstellungen"
+    direction: DOWN
+    centerElement: true
+# retryTapIfNoChange aus: sonst tippt Maestro nach dem Seitenwechsel ein
+# zweites Mal auf dieselbe Stelle und oeffnet dabei die Begleiterauswahl.
+- tapOn:
+    text: "Einstellungen"
+    retryTapIfNoChange: false
+- assertVisible: "(?s).*Begleiter anzeigen.*"
+# Die Auswahlzeile zeigt den aktuellen Begleiter (Standard: Katze, Aquarell)
+# und oeffnet das Auswahlblatt.
+- tapOn: "(?s)Katze.*Aquarell.*"
+# Die Gruppe des aktuellen Begleiters ist schon aufgeklappt.
+- assertVisible: "Begleiter wählen"
+- waitForAnimationToEnd
+- takeScreenshot: shots/07_pet_sheet_aquarell
+# Andere Gruppe aufklappen – Aquarell klappt dabei zu.
+- scrollUntilVisible:
+    element: "(?s)Axos.*"
+    direction: DOWN
+    centerElement: true
+- tapOn: "(?s)Axos.*"
+- waitForAnimationToEnd
+- takeScreenshot: shots/07_pet_sheet_axos
+- tapOn: "Pizza-Axo"
+- assertVisible: "(?s)Pizza-Axo.*"
+- takeScreenshot: shots/07_settings_pet
+- back
+# Das Dashboard behaelt seine Scrollposition, und hochscrollen hilft nicht:
+# die Heute-Karte ist ein einziger Semantik-Knoten und gilt schon als
+# sichtbar, wenn nur ihr unterer Rand im Bild ist. Neu starten setzt die
+# Liste zuverlaessig zurueck – die Auswahl liegt in shared_preferences.
+- stopApp
+- launchApp
+- assertVisible: "(?s).*offene Aufgaben heute.*"
+- waitForAnimationToEnd
+- takeScreenshot: shots/07_dashboard_pizza_axo
+# Schalter aus: der Begleiter verschwindet, die Auswahl bleibt lesbar.
+- scrollUntilVisible:
+    element: "Einstellungen"
+    direction: DOWN
+    centerElement: true
+- tapOn:
+    text: "Einstellungen"
+    retryTapIfNoChange: false
+- tapOn: "(?s).*Begleiter anzeigen.*"
+# Auswahl bleibt lesbar, ist aber ausgegraut und nicht mehr antippbar.
+- assertVisible: "(?s)Pizza-Axo.*"
+- waitForAnimationToEnd
+- takeScreenshot: shots/07_settings_pet_aus
+- tapOn: "(?s)Pizza-Axo.*"
+- assertVisible: "(?s).*Begleiter anzeigen.*"
+- assertNotVisible: "Begleiter wählen"
+- back
+- stopApp
+- launchApp
+- assertVisible: "(?s).*offene Aufgaben heute.*"
+- waitForAnimationToEnd
+- takeScreenshot: shots/07_dashboard_ohne_begleiter
