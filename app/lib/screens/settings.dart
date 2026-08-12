@@ -11,6 +11,9 @@ class SettingsScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final state = AppScope.of(context);
     final theme = joeThemeOf(context);
+    // Stored index can outlive a shrinking theme list, so wrap it the same way
+    // the rest of the app does before handing it to the dropdown.
+    final selected = state.themeIndex % joeThemes.length;
 
     return JoeScaffold(
       title: 'Einstellungen',
@@ -18,26 +21,32 @@ class SettingsScreen extends StatelessWidget {
         child: ListView(
           padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
           children: [
-            const SectionTitle('Notizbuch-Design'),
+            const SectionTitle('Design'),
             PaperCard(
-              padding: const EdgeInsets.all(10),
-              child: Column(
-                children: [
-                  for (int i = 0; i < joeThemes.length; i++)
-                    if (joeThemes[i].backgroundAsset == null)
-                      _ThemeRow(index: i, theme: theme),
-                ],
-              ),
-            ),
-            const SectionTitle('Hintergrundbilder'),
-            PaperCard(
-              padding: const EdgeInsets.all(10),
-              child: Column(
-                children: [
-                  for (int i = 0; i < joeThemes.length; i++)
-                    if (joeThemes[i].backgroundAsset != null)
-                      _ThemeRow(index: i, theme: theme),
-                ],
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
+              child: DropdownButtonHideUnderline(
+                child: DropdownButton<int>(
+                  value: selected,
+                  isExpanded: true,
+                  dropdownColor: theme.paper,
+                  borderRadius: BorderRadius.circular(14),
+                  iconEnabledColor: theme.ink,
+                  itemHeight: 56,
+                  menuMaxHeight: 420,
+                  items: [
+                    for (int i = 0; i < joeThemes.length; i++)
+                      DropdownMenuItem<int>(
+                        value: i,
+                        child: _ThemeOption(
+                          entry: joeThemes[i],
+                          labelColor: theme.ink,
+                        ),
+                      ),
+                  ],
+                  onChanged: (i) {
+                    if (i != null) state.setTheme(i);
+                  },
+                ),
               ),
             ),
             const SectionTitle('Deko'),
@@ -68,62 +77,54 @@ class SettingsScreen extends StatelessWidget {
   }
 }
 
-class _ThemeRow extends StatelessWidget {
-  final int index;
-  final JoeTheme theme;
+/// One row in the theme dropdown: preview swatch plus name. Photo themes show
+/// the image itself, procedural ones their background gradient.
+class _ThemeOption extends StatelessWidget {
+  final JoeTheme entry;
+  final Color labelColor;
 
-  const _ThemeRow({required this.index, required this.theme});
+  const _ThemeOption({required this.entry, required this.labelColor});
 
   @override
   Widget build(BuildContext context) {
-    final state = AppScope.of(context);
-    final entry = joeThemes[index];
-    final selected = state.themeIndex == index;
-    return InkWell(
-      borderRadius: BorderRadius.circular(12),
-      onTap: () => state.setTheme(index),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
-        child: Row(
-          children: [
-            Container(
-              width: 44,
-              height: 44,
-              clipBehavior: Clip.antiAlias,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(
-                  color: selected ? theme.accent : Colors.transparent,
-                  width: 2.5,
-                ),
-              ),
-              child: entry.backgroundAsset != null
-                  ? Image.asset(entry.backgroundAsset!, fit: BoxFit.cover)
-                  : DecoratedBox(
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          colors: [entry.bgTop, entry.bgBottom],
-                        ),
-                      ),
+    return Row(
+      children: [
+        Container(
+          width: 40,
+          height: 40,
+          clipBehavior: Clip.antiAlias,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: const Color(0x33513A1F),
+              width: 1,
+            ),
+          ),
+          child: entry.backgroundAsset != null
+              ? Image.asset(entry.backgroundAsset!, fit: BoxFit.cover)
+              : DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [entry.bgTop, entry.bgBottom],
                     ),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Text(
-                entry.name,
-                style: TextStyle(
-                  color: theme.ink,
-                  fontSize: 16,
-                  fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                  ),
                 ),
-              ),
-            ),
-            if (selected) Icon(Icons.check_circle, color: theme.accent),
-          ],
         ),
-      ),
+        const SizedBox(width: 14),
+        Expanded(
+          child: Text(
+            entry.name,
+            style: TextStyle(
+              color: labelColor,
+              fontSize: 16,
+              fontWeight: FontWeight.w500,
+            ),
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ],
     );
   }
 }

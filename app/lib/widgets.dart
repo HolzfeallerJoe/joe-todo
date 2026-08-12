@@ -177,37 +177,24 @@ class FolderTabButton extends StatelessWidget {
           type: MaterialType.transparency,
           child: InkWell(
             onTap: onTap,
-            child: Ink(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Colors.white.withValues(alpha: 0.18),
-                    Colors.transparent,
-                    Colors.black.withValues(alpha: 0.05),
-                  ],
-                ),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(18, 22, 14, 12),
-                child: Row(
-                  children: [
-                    Icon(icon, color: onTab.withValues(alpha: 0.75), size: 26),
-                    const Spacer(),
-                    Text(
-                      label,
-                      style: TextStyle(
-                        color: onTab,
-                        fontSize: 19,
-                        fontWeight: FontWeight.w700,
-                      ),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(18, 22, 14, 12),
+              child: Row(
+                children: [
+                  Icon(icon, color: onTab.withValues(alpha: 0.75), size: 26),
+                  const Spacer(),
+                  Text(
+                    label,
+                    style: TextStyle(
+                      color: onTab,
+                      fontSize: 19,
+                      fontWeight: FontWeight.w700,
                     ),
-                    const SizedBox(width: 6),
-                    Icon(Icons.chevron_right,
-                        color: onTab.withValues(alpha: 0.75)),
-                  ],
-                ),
+                  ),
+                  const SizedBox(width: 6),
+                  Icon(Icons.chevron_right,
+                      color: onTab.withValues(alpha: 0.75)),
+                ],
               ),
             ),
           ),
@@ -257,7 +244,8 @@ class TaskTile extends StatelessWidget {
                 borderRadius: BorderRadius.circular(8),
               ),
               child: done
-                  ? const Icon(Icons.check, size: 18, color: Colors.white)
+                  ? Icon(Icons.check,
+                      size: 18, color: theme.bestOn(task.color))
                   : null,
             ),
             const SizedBox(width: 12),

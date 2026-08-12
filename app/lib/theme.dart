@@ -40,25 +40,51 @@ class JoeTheme {
 
   Color get onBg => onBackground ?? ink;
 
-  /// Soft halo behind on-background text. Photos vary in brightness from one
-  /// spot to the next, so a contrasting glow keeps labels legible everywhere.
-  /// Procedural textures are flat enough not to need it.
-  List<Shadow> get onBgShadows => backgroundAsset == null
-      ? const []
-      : [
-          Shadow(
-            color: onBg.computeLuminance() > 0.5
-                ? const Color(0xCC000000)
-                : const Color(0xCCFFFFFF),
-            blurRadius: 6,
-          ),
-        ];
+  /// Contrasting halo behind on-background text. Photos swing from very light
+  /// to very dark within one image (on Maritim/Ozean/Regenbogen a flat text
+  /// color is under 3:1 on 25-42% of pixels), so the text carries its own
+  /// backdrop: a tight opaque ring for local contrast plus a wider soft glow
+  /// to lift it off busy detail. Procedural textures are flat enough to skip.
+  List<Shadow> get onBgShadows {
+    if (backgroundAsset == null) return const [];
+    final halo = onBg.computeLuminance() > 0.5
+        ? const Color(0xF2000000)
+        : const Color(0xF2FFFFFF);
+    return [
+      Shadow(color: halo, blurRadius: 3),
+      Shadow(color: halo, blurRadius: 9),
+    ];
+  }
+
+  /// Whichever of white or [ink] actually contrasts more against [bg].
+  /// Beats a fixed luminance threshold, which misjudges mid-tone fills.
+  /// If the darker option wins but still misses the 3:1 non-text bar (a
+  /// mid-olive ink on amber, say), it is deepened until it clears.
+  Color bestOn(Color bg) {
+    if (contrastRatio(Colors.white, bg) >= contrastRatio(ink, bg)) {
+      return Colors.white;
+    }
+    var c = ink;
+    for (var i = 0; i < 10 && contrastRatio(c, bg) < 3.0; i++) {
+      c = Color.lerp(c, Colors.black, 0.2)!;
+    }
+    return c;
+  }
 
   /// Readable label color for a folder tab painted in [tabColor].
   Color onTab(Color tabColor) {
     if (backgroundAsset == null) return ink; // keep the original look
-    return tabColor.computeLuminance() > 0.35 ? ink : Colors.white;
+    return bestOn(tabColor);
   }
+}
+
+/// WCAG 2.1 contrast ratio between two opaque colors.
+double contrastRatio(Color a, Color b) {
+  final la = a.computeLuminance();
+  final lb = b.computeLuminance();
+  final hi = la > lb ? la : lb;
+  final lo = la > lb ? lb : la;
+  return (hi + 0.05) / (lo + 0.05);
 }
 
 const joeThemes = [
@@ -69,8 +95,11 @@ const joeThemes = [
     bgBottom: Color(0xFFC2925C),
     paper: Color(0xFFFAF3E3),
     ink: Color(0xFF4A3527),
-    inkSoft: Color(0xFF8A7461),
-    accent: Color(0xFFC0563B),
+    inkSoft: Color(0xFF7E6A59),
+    accent: Color(0xFFB35037),
+    // Section titles can sit over the darker foot of the wood gradient, where
+    // plain ink only reaches 4.13:1.
+    onBackground: Color(0xFF412E22),
     tabColors: [
       Color(0xFFE4A54F),
       Color(0xFF82C0AE),
@@ -86,7 +115,7 @@ const joeThemes = [
     bgBottom: Color(0xFFEADFC4),
     paper: Color(0xFFFFFDF6),
     ink: Color(0xFF453A2E),
-    inkSoft: Color(0xFF8C8070),
+    inkSoft: Color(0xFF7D7264),
     accent: Color(0xFFB25438),
     tabColors: [
       Color(0xFFE8B45C),
@@ -103,7 +132,7 @@ const joeThemes = [
     bgBottom: Color(0xFFD3BC9F),
     paper: Color(0xFFFBF6EA),
     ink: Color(0xFF4C3D2E),
-    inkSoft: Color(0xFF8D7C67),
+    inkSoft: Color(0xFF7C6D5B),
     accent: Color(0xFFA8563E),
     tabColors: [
       Color(0xFFDFA75B),
@@ -120,8 +149,8 @@ const joeThemes = [
     bgBottom: Color(0xFFF3E7D3),
     paper: Color(0xFFFFFEFA),
     ink: Color(0xFF50443A),
-    inkSoft: Color(0xFF95887A),
-    accent: Color(0xFFC26350),
+    inkSoft: Color(0xFF7D7266),
+    accent: Color(0xFFB25B4A),
     tabColors: [
       Color(0xFFEDBB6B),
       Color(0xFF9CCBBB),
@@ -139,8 +168,8 @@ const joeThemes = [
     bgBottom: Color(0xFFA66A42),
     paper: Color(0xFFFBF3E7),
     ink: Color(0xFF4A2E14),
-    inkSoft: Color(0xFF8A7461),
-    accent: Color(0xFFA66A42),
+    inkSoft: Color(0xFF7E6A58),
+    accent: Color(0xFF97603C),
     tabColors: [
       Color(0xFFD19D6D),
       Color(0xFF7B4316),
@@ -156,7 +185,7 @@ const joeThemes = [
     bgBottom: Color(0xFF2A5D94),
     paper: Color(0xFFF3F9FD),
     ink: Color(0xFF1F3A54),
-    inkSoft: Color(0xFF548AB0),
+    inkSoft: Color(0xFF477596),
     accent: Color(0xFF2A5D94),
     tabColors: [
       Color(0xFF9FBAD5),
@@ -173,7 +202,7 @@ const joeThemes = [
     bgBottom: Color(0xFF6A7175),
     paper: Color(0xFFF1EEF7),
     ink: Color(0xFF34263F),
-    inkSoft: Color(0xFF6A7175),
+    inkSoft: Color(0xFF666C70),
     accent: Color(0xFF9F1BCF),
     onBackground: Color(0xFFF3EEF8),
     tabColors: [
@@ -191,8 +220,8 @@ const joeThemes = [
     bgBottom: Color(0xFF1FA38B),
     paper: Color(0xFFEAF7F5),
     ink: Color(0xFF12495F),
-    inkSoft: Color(0xFF5EB8C7),
-    accent: Color(0xFF00A8A8),
+    inkSoft: Color(0xFF3C767F),
+    accent: Color(0xFF007B7B),
     onBackground: Color(0xFFFFFFFF),
     tabColors: [
       Color(0xFF2F6FAF),
@@ -209,8 +238,8 @@ const joeThemes = [
     bgBottom: Color(0xFF0B888C),
     paper: Color(0xFFEAF6F1),
     ink: Color(0xFF0A4F52),
-    inkSoft: Color(0xFF74BEC7),
-    accent: Color(0xFF0B888C),
+    inkSoft: Color(0xFF477479),
+    accent: Color(0xFF0A7A7E),
     onBackground: Color(0xFFFFFFFF),
     tabColors: [
       Color(0xFF0B888C),
@@ -227,8 +256,8 @@ const joeThemes = [
     bgBottom: Color(0xFF8C7863),
     paper: Color(0xFFFAF5EF),
     ink: Color(0xFF4A3B2C),
-    inkSoft: Color(0xFFA38F79),
-    accent: Color(0xFF8C7863),
+    inkSoft: Color(0xFF7C6D5C),
+    accent: Color(0xFF7E6C59),
     tabColors: [
       Color(0xFFE8DDD3),
       Color(0xFFD1C0AE),
@@ -244,8 +273,8 @@ const joeThemes = [
     bgBottom: Color(0xFFC3DEF7),
     paper: Color(0xFFFDFAF8),
     ink: Color(0xFF5B4A63),
-    inkSoft: Color(0xFF9C8AA6),
-    accent: Color(0xFFD97BA6),
+    inkSoft: Color(0xFF7B6D83),
+    accent: Color(0xFFA35C7C),
     tabColors: [
       Color(0xFFFAD1CD),
       Color(0xFFFAE0BE),
@@ -262,7 +291,7 @@ const joeThemes = [
     paper: Color(0xFFFFFCF5),
     ink: Color(0xFF332A22),
     inkSoft: Color(0xFF6B5F55),
-    accent: Color(0xFFEF9608),
+    accent: Color(0xFFA06405),
     onBackground: Color(0xFFFFFFFF),
     tabColors: [
       Color(0xFFAB10B2),
@@ -297,13 +326,13 @@ const joeThemes = [
     bgBottom: Color(0xFF549034),
     paper: Color(0xFFFBF8ED),
     ink: Color(0xFF4C5A1E),
-    inkSoft: Color(0xFF72A33B),
-    accent: Color(0xFF549034),
+    inkSoft: Color(0xFF557A2C),
+    accent: Color(0xFF497D2D),
     tabColors: [
       Color(0xFFFCF09F),
       Color(0xFFEFCA31),
       Color(0xFF9FBE43),
-      Color(0xFF72A33B),
+      Color(0xFF6D9C37), // nudged darker so the white label clears 3:1
       Color(0xFF549034),
     ],
   ),
@@ -314,7 +343,7 @@ const joeThemes = [
     bgBottom: Color(0xFF3B2415),
     paper: Color(0xFFF6EDE1),
     ink: Color(0xFF3B2415),
-    inkSoft: Color(0xFF8A6A4E),
+    inkSoft: Color(0xFF83654A),
     accent: Color(0xFF9C5A2E),
     onBackground: Color(0xFFF3E4D2),
     tabColors: [
