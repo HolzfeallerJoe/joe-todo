@@ -8,9 +8,13 @@ import 'package:joe_todo/util.dart';
 /// [pendingReminders] stellt den Plan, [JoeReminders] traegt ihn nur zum
 /// System.
 void main() {
-  // Ein fester Bezugspunkt, damit die Erwartungen nicht mit der Uhr wandern.
-  final now = DateTime(2026, 8, 13, 10, 0);
-  final heute = dateOnly(now);
+  // Ein fester Bezugspunkt, damit die Erwartungen nicht mit der Uhr wandern:
+  // heute um 10 Uhr. Bewusst der *echte* heutige Tag und kein eingetragenes
+  // Datum – der Text einer Erinnerung sagt "Heute um 15:00 Uhr"
+  // (formatRelativeDay rechnet gegen die Uhr des Geraets), und mit einem
+  // festen Datum lief der Test um Mitternacht auf.
+  final heute = today();
+  final now = heute.add(const Duration(hours: 10));
 
   Appointment appointment({
     String id = 'a1',
