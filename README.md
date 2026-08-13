@@ -113,6 +113,24 @@ liegen 93 % des Hintergrunds unter 1,5:1 zur zweiten Reiterfarbe, auf Pfoten
 Schlagschatten. Eine Kontrastkante darum war ausprobiert und ist wieder
 rausgeflogen – sie sah nach Umrandung aus und nahm den Reitern die Ruhe.
 
+## Plattformen
+
+Android ist die Hauptplattform und der einzige eingecheckte Plattform-Ordner
+(`app/android`). Der Dart-Code bleibt aber absichtlich plattformneutral,
+damit eine weitere Plattform später nur ein
+`flutter create --platforms=web,windows,...` im `app`-Ordner entfernt ist
+(danach das dabei erzeugte Template-`test/widget_test.dart` löschen):
+
+- Alle Plugins (shared_preferences, share_plus, path_provider) sind
+  föderiert und decken Mobil, Desktop und Web ab.
+- `dart:io` kommt im App-Code nur im Datei-Backend des Logs vor, hinter
+  einem bedingten Import (`log_sink_io.dart` / `log_sink_stub.dart`): auf
+  Plattformen ohne Dateisystem (Web) trägt der Speicherpuffer, „Logs teilen"
+  teilt dann Text statt Dateien.
+- Als Probe ist `flutter build web --release` durchgelaufen (Ordner danach
+  wieder entfernt) – Web ist die strengste Plattform, dort gibt es kein
+  `dart:io`.
+
 ## Daten & Sicherheit
 
 Alles liegt lokal in den shared_preferences unter einem Schlüssel

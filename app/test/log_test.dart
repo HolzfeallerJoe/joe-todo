@@ -3,14 +3,16 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:joe_todo/log.dart';
+// Der Test laeuft auf der VM, darf das io-Backend also direkt anfassen.
+import 'package:joe_todo/log_sink_io.dart';
 
 void main() {
   late Directory dir;
 
   setUp(() async {
     dir = await Directory.systemTemp.createTemp('joe_log_test');
-    JoeLog.resolveDirectory = () async => dir;
-    JoeLog.maxBytes = 256 * 1024;
+    LogSink.resolveDirectory = () async => dir;
+    LogSink.maxBytes = 256 * 1024;
   });
 
   tearDown(() async {
@@ -34,7 +36,7 @@ void main() {
 
   test('Rotation: joe.log rueckt zu joe.log.1, beide werden geteilt',
       () async {
-    JoeLog.maxBytes = 80;
+    LogSink.maxBytes = 80;
     final log = JoeLog.forTest();
     log.add('x' * 100); // ueber der Grenze -> rotiert
     log.add('danach');
@@ -51,7 +53,8 @@ void main() {
   });
 
   test('ohne Dateisystem traegt der Speicherpuffer', () async {
-    JoeLog.resolveDirectory = () async => throw StateError('kein Dateisystem');
+    LogSink.resolveDirectory =
+        () async => throw StateError('kein Dateisystem');
     final log = JoeLog.forTest();
     log.add('nur im Speicher');
     await log.flushed; // darf nicht werfen
