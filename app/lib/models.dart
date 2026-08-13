@@ -261,6 +261,11 @@ class AppState extends ChangeNotifier {
   bool showMoon = true;
   HolidayRegion holidayRegion = HolidayRegion.bund;
 
+  /// Die Kalender des Geraets (siehe device_calendar.dart) sind von Haus
+  /// aus aus: sie brauchen eine Berechtigung, und die fragt Joe erst an,
+  /// wenn der Schalter in den Einstellungen umgelegt wird.
+  bool showDeviceCalendar = false;
+
   int _idCounter = 0;
 
   String nextId() =>
@@ -310,6 +315,8 @@ class AppState extends ChangeNotifier {
     final storedMoon = data['showMoon'];
     showMoon = storedMoon is bool ? storedMoon : true;
     holidayRegion = HolidayRegion.fromJson(data['holidayRegion']);
+    final storedDevice = data['showDeviceCalendar'];
+    showDeviceCalendar = storedDevice is bool ? storedDevice : false;
 
     JoeLog.log('Geladen: ${tasks.length} Aufgaben, '
         '${appointments.length} Termine, ${notes.length} Notizen');
@@ -425,6 +432,7 @@ class AppState extends ChangeNotifier {
           'showHolidays': showHolidays,
           'showMoon': showMoon,
           'holidayRegion': holidayRegion.name,
+          'showDeviceCalendar': showDeviceCalendar,
         }),
       );
     } catch (e) {
@@ -700,6 +708,11 @@ class AppState extends ChangeNotifier {
 
   void setHolidayRegion(HolidayRegion region) {
     holidayRegion = region;
+    _changed();
+  }
+
+  void setShowDeviceCalendar(bool value) {
+    showDeviceCalendar = value;
     _changed();
   }
 

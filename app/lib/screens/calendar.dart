@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../almanac.dart';
+import '../device_calendar.dart';
 import '../models.dart';
 import '../theme.dart';
 import '../util.dart';
@@ -26,7 +27,18 @@ class _CalendarScreenState extends State<CalendarScreen> {
     final t = today();
     _month = DateTime(t.year, t.month);
     _selected = t;
+    // Geraete-Termine kommen asynchron aus dem Calendar Provider; wenn ein
+    // Monat fertig geladen ist, malt der Screen sich neu.
+    DeviceCalendarFeed.instance.addListener(_onDeviceEvents);
   }
+
+  @override
+  void dispose() {
+    DeviceCalendarFeed.instance.removeListener(_onDeviceEvents);
+    super.dispose();
+  }
+
+  void _onDeviceEvents() => setState(() {});
 
   void _shiftMonth(int delta) {
     setState(() {
@@ -50,6 +62,9 @@ class _CalendarScreenState extends State<CalendarScreen> {
         ? holidaysOn(_selected, state.holidayRegion)
         : const <String>[];
     final dayMoon = state.showMoon ? moonPhaseOnDay(_selected) : null;
+    final dayDeviceEvents = state.showDeviceCalendar
+        ? DeviceCalendarFeed.instance.eventsForDay(_selected)
+        : const <Event>[];
 
     return JoeScaffold(
       title: 'Kalender',
@@ -170,7 +185,8 @@ class _CalendarScreenState extends State<CalendarScreen> {
                       dayAppointments.isEmpty &&
                       dayNotes.isEmpty &&
                       dayHolidays.isEmpty &&
-                      dayMoon == null)
+                      dayMoon == null &&
+                      dayDeviceEvents.isEmpty)
                     Padding(
                       padding: const EdgeInsets.symmetric(vertical: 10),
                       child: Text(
@@ -204,6 +220,10 @@ class _CalendarScreenState extends State<CalendarScreen> {
                     [
                       for (final a in dayAppointments)
                         _AppointmentRow(appointment: a),
+                      // Geraete-Termine stehen bei den Terminen, aber nach
+                      // den eigenen: was man selbst eingetragen hat, zuerst.
+                      for (final e in dayDeviceEvents)
+                        _DeviceEventRow(event: e),
                     ],
                     [
                       for (final task in dayTasks)
@@ -357,6 +377,13 @@ class _DayCell extends StatelessWidget {
     for (final task in tasks) {
       markers.add(_marker(task.color, done: task.isCompletedOn(day)));
     }
+    // Geraete-Termine als letzte Punkte, in der Farbe ihres Kalenders –
+    // die eigenen Eintraege behalten den Vortritt im Sechs-Punkte-Budget.
+    if (state.showDeviceCalendar) {
+      for (final e in DeviceCalendarFeed.instance.eventsForDay(day)) {
+        markers.add(_marker(e.color ?? theme.accent, done: false));
+      }
+    }
 
     return InkWell(
       borderRadius: BorderRadius.circular(10),
@@ -430,6 +457,44 @@ class _DayCell extends StatelessWidget {
         color: done ? Colors.transparent : color,
         shape: BoxShape.circle,
         border: done ? Border.all(color: color, width: 1.4) : null,
+      ),
+    );
+  }
+}
+
+/// Ein Termin aus einem Geraete-Kalender in der Tageskarte: nur Anzeige,
+/// gepflegt wird er in seiner Kalender-App. Ganztaegige zeigen "ganztägig"
+/// statt einer Uhrzeit.
+class _DeviceEventRow extends StatelessWidget {
+  final Event event;
+  const _DeviceEventRow({required this.event});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = joeThemeOf(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        children: [
+          Icon(Icons.event, size: 18, color: event.color ?? theme.accent),
+          const SizedBox(width: 10),
+          Text(
+            deviceEventTimeLabel(event),
+            style: TextStyle(
+              color: theme.inkSoft,
+              fontWeight: FontWeight.w600,
+              fontSize: 14,
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              event.title,
+              style: TextStyle(color: theme.ink, fontSize: 15),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
       ),
     );
   }

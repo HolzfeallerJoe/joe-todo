@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../almanac.dart';
+import '../device_calendar.dart';
 import '../log.dart';
 import '../models.dart';
 import '../pets.dart';
@@ -147,6 +148,19 @@ class SettingsScreen extends StatelessWidget {
                     value: state.showMoon,
                     onChanged: state.setShowMoon,
                   ),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: Text('Geräte-Kalender anzeigen',
+                        style: TextStyle(color: theme.ink, fontSize: 16)),
+                    subtitle: Text(
+                        'Termine aus den Kalendern des Telefons '
+                        '(z. B. Google) – nur Anzeige',
+                        style: TextStyle(color: theme.inkSoft, fontSize: 13)),
+                    activeThumbColor: theme.accent,
+                    value: state.showDeviceCalendar,
+                    onChanged: (value) =>
+                        _toggleDeviceCalendar(context, state, value),
+                  ),
                 ],
               ),
             ),
@@ -191,6 +205,36 @@ class SettingsScreen extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Der Geraete-Kalender braucht als einziger Schalter eine Berechtigung:
+/// erst wenn die da ist, geht er an. Wird sie verweigert, bleibt er aus und
+/// eine Snackbar zeigt den Weg in die System-Einstellungen – noetig, falls
+/// Android die Anfrage nach zweimaligem Ablehnen gar nicht mehr stellt.
+Future<void> _toggleDeviceCalendar(
+    BuildContext context, AppState state, bool value) async {
+  if (!value) {
+    state.setShowDeviceCalendar(false);
+    DeviceCalendarFeed.instance.clear();
+    return;
+  }
+  final granted = await DeviceCalendarFeed.instance.ensurePermission();
+  if (granted) {
+    // Frisch laden, nicht was vor dem Abschalten uebrig war.
+    DeviceCalendarFeed.instance.clear();
+    state.setShowDeviceCalendar(true);
+    return;
+  }
+  if (!context.mounted) return;
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(
+      content: const Text('Ohne Kalender-Berechtigung geht das nicht.'),
+      action: SnackBarAction(
+        label: 'Einstellungen',
+        onPressed: () => DeviceCalendarFeed.instance.openSystemSettings(),
+      ),
+    ),
+  );
 }
 
 /// Reicht die Logdateien an den Share-Intent des Systems weiter; solange

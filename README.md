@@ -29,6 +29,14 @@ Dashboard, Kalender, wiederkehrenden Aufgaben, Notizen und Historie.
   Tagesdetail stehen beide ganz oben. In den Einstellungen abschaltbar
   (Standard: an) und das Bundesland wählbar (Standard: nur die bundesweiten
   Feiertage).
+- **Geräte-Kalender** – zeigt auf Wunsch die Termine aus den Kalendern des
+  Telefons (Android Calendar Provider) im Monatsraster (Farbpunkte in der
+  Kalenderfarbe, nach den eigenen Einträgen) und im Tagesdetail (nach den
+  eigenen Terminen, mit Uhrzeit bzw. „ganztägig"). Damit landet alles, was
+  die Google-Kalender-App synchronisiert – Gmail-Termine, abonnierte
+  Kalender –, ohne dass Joe selbst ins Netz spricht. Standard: aus; der
+  Schalter in den Einstellungen fragt die Kalender-Berechtigung an
+  (siehe „Daten & Sicherheit").
 - **Wiederkehrende Aufgaben** – täglich, wöchentlich, monatlich, alle X Tage.
 - **Notizen** – einfache Liste + Editor, ohne Untermenüs; speichert beim
   Zurückgehen automatisch. Jede Notiz hängt an einem Tag (Standard: der Tag,
@@ -55,6 +63,7 @@ Dashboard, Kalender, wiederkehrenden Aufgaben, Notizen und Historie.
 app/                  Flutter-Projekt (Android)
   lib/models.dart     Datenmodell, Wiederholungslogik, Persistenz (AppState)
   lib/almanac.dart    Feiertage (Gauß) + Mondphasen (Meeus), rein berechnet
+  lib/device_calendar.dart  Geraete-Kalender als lesende Ebene (Plugin-Kapsel)
   lib/theme.dart      Themes + Textur-Painter
   lib/pets.dart       Begleiter-Katalog (Name, Gruppe, Asset-Pfad)
   lib/widgets.dart    PaperCard, Ordner-Reiter, Aufgaben-Zeile, Sheets
@@ -146,6 +155,16 @@ Alles liegt lokal in den shared_preferences unter einem Schlüssel
 und die INTERNET-Permission steht nur in den Debug-/Profile-Manifesten fürs
 Flutter-Tooling, nicht im Release. Androids Auto-Backup bleibt auf dem
 Standard (an), damit der Bestand Gerätewechsel überlebt.
+
+Die einzigen Berechtigungen im Release sind READ_CALENDAR und WRITE_CALENDAR
+(device_calendar_plus) für die Geräte-Kalender-Ebene. Angefragt wird erst,
+wenn der Schalter in den Einstellungen umgelegt wird; abgelehnt heißt: der
+Schalter bleibt aus, eine Snackbar verlinkt die System-Einstellungen. Gelesen
+wird nur zur Anzeige, gespeichert nichts (Monats-Cache nur im Speicher, siehe
+`lib/device_calendar.dart`); WRITE ist bewusst schon dabei, damit Joe später
+auch Termine eintragen kann. Jeder Plugin-Aufruf ist gefangen – auf
+Plattformen ohne Geräte-Kalender (Web, Desktop) bleibt die Ebene einfach
+leer, der Rest der App läuft ungestört.
 
 Beim Laden gilt: **nichts darf den Start verhindern, und nie wird über die
 einzige Kopie geschrieben.** `main()` wartet auf `AppState.load()` – würfe

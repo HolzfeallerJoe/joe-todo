@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:joe_todo/almanac.dart';
 import 'package:joe_todo/models.dart';
 import 'package:joe_todo/pets.dart';
 import 'package:joe_todo/util.dart';
@@ -62,6 +63,36 @@ void main() {
     expect(state.appointments, hasLength(1));
     final prefs = await SharedPreferences.getInstance();
     expect(prefs.getString(AppState.rescueKey), raw);
+  });
+
+  test('Kalender-Ebenen: Standards und gespeicherte Werte', () async {
+    // Ohne gespeicherte Schluessel: Feiertage und Mond an, Geraete-Kalender
+    // aus (der braucht eine Berechtigung und wartet auf den Schalter).
+    SharedPreferences.setMockInitialValues(
+        {'joe_data_v1': jsonEncode(validData())});
+    var state = AppState();
+    await state.load();
+    expect(state.showHolidays, isTrue);
+    expect(state.showMoon, isTrue);
+    expect(state.holidayRegion, HolidayRegion.bund);
+    expect(state.showDeviceCalendar, isFalse);
+
+    // Gespeicherte Werte kommen wieder, Unlesbares faellt auf den Standard.
+    final data = validData();
+    data['showHolidays'] = false;
+    data['holidayRegion'] = 'by';
+    data['showDeviceCalendar'] = true;
+    data['showMoon'] = 'ja';
+    SharedPreferences.setMockInitialValues(
+        {'joe_data_v1': jsonEncode(data)});
+    state = AppState();
+    await state.load();
+    expect(state.showHolidays, isFalse);
+    expect(state.holidayRegion, HolidayRegion.by);
+    expect(state.showDeviceCalendar, isTrue);
+    expect(state.showMoon, isTrue);
+    final prefs = await SharedPreferences.getInstance();
+    expect(prefs.getString(AppState.rescueKey), isNull);
   });
 
   test('falsch getypte Einstellungen fallen auf ihren Standard', () async {

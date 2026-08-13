@@ -1,4 +1,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Geraete-Kalender: Lesen fuers Anzeigen im In-App-Kalender, Schreiben
+         bewusst gleich mit, damit Joe spaeter auch eintragen kann. Gefragt
+         wird erst, wenn der Schalter in den Einstellungen umgelegt wird. -->
+    <uses-permission android:name="android.permission.READ_CALENDAR" />
+    <uses-permission android:name="android.permission.WRITE_CALENDAR" />
     <application
         android:label="Joe"
         android:name="${applicationName}"
