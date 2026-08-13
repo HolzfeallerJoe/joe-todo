@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'models.dart';
+import 'reminders.dart';
 import 'theme.dart';
 import 'util.dart';
 
@@ -492,6 +493,85 @@ class ColorDotPicker extends StatelessWidget {
   }
 }
 
+/// Holt vor der ersten Erinnerung die Benachrichtigungs-Berechtigung ein
+/// und sagt, ob die Erinnerung gesetzt werden darf. Ohne sie kaeme nichts
+/// an – das stumm hinzunehmen waere das Schlimmste, was die App hier tun
+/// koennte, also sagt eine Snackbar Bescheid.
+Future<bool> confirmReminderPermission(BuildContext context) async {
+  final granted = await JoeReminders.instance.ensurePermission();
+  if (granted || !context.mounted) return granted;
+  ScaffoldMessenger.of(context).showSnackBar(
+    const SnackBar(
+      content: Text('Ohne Benachrichtigungen kann Joe nicht erinnern.'),
+    ),
+  );
+  return false;
+}
+
+/// Die Erinnerung eines Termins: eine Klappliste mit den Vorlaufzeiten,
+/// von "Keine" bis "1 Tag vorher".
+class ReminderLeadPicker extends StatelessWidget {
+  final int? selected;
+  final ValueChanged<int?> onChanged;
+
+  const ReminderLeadPicker({
+    super.key,
+    required this.selected,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = joeThemeOf(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: theme.inkSoft),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<int?>(
+          value: reminderLeadChoices.contains(selected) ? selected : null,
+          isExpanded: true,
+          dropdownColor: theme.paper,
+          borderRadius: BorderRadius.circular(14),
+          iconEnabledColor: theme.ink,
+          items: [
+            for (final choice in reminderLeadChoices)
+              DropdownMenuItem<int?>(
+                value: choice,
+                child: Row(
+                  children: [
+                    Icon(
+                      choice == null
+                          ? Icons.notifications_off_outlined
+                          : Icons.notifications_active_outlined,
+                      size: 18,
+                      color: choice == null ? theme.inkSoft : theme.accent,
+                    ),
+                    const SizedBox(width: 10),
+                    Text(
+                      reminderLeadLabel(choice),
+                      style: TextStyle(color: theme.ink, fontSize: 15),
+                    ),
+                  ],
+                ),
+              ),
+          ],
+          onChanged: (value) async {
+            // Erst fragen, dann setzen: eine Erinnerung, die nie ankaeme,
+            // soll gar nicht erst im Blatt stehen.
+            if (value != null && !await confirmReminderPermission(context)) {
+              return;
+            }
+            onChanged(value);
+          },
+        ),
+      ),
+    );
+  }
+}
+
 /// The three priority levels as a segmented row, used by both input sheets.
 class PriorityPicker extends StatelessWidget {
   final Priority selected;
@@ -742,6 +822,8 @@ Future<void> showTaskSheet(
   var colorIndex = task?.colorIndex ?? 0;
   var priority = task?.priority ?? Priority.mittel;
   var date = task != null ? dateOnly(task.startDate) : (initialDate ?? today());
+  // Aufgaben haben keine Uhrzeit, die Erinnerung bringt ihre eigene mit.
+  var reminderMinute = task?.reminderMinuteOfDay;
 
   void save(BuildContext sheetContext) {
     final title = titleController.text.trim();
@@ -756,6 +838,7 @@ Future<void> showTaskSheet(
           startDate: date,
           colorIndex: colorIndex,
           priority: priority,
+          reminderMinuteOfDay: reminderMinute,
         ),
       );
     } else {
@@ -765,6 +848,7 @@ Future<void> showTaskSheet(
       task.startDate = date;
       task.colorIndex = colorIndex;
       task.priority = priority;
+      task.reminderMinuteOfDay = reminderMinute;
       state.updateTask(task);
     }
     Navigator.pop(sheetContext);
@@ -863,6 +947,52 @@ Future<void> showTaskSheet(
             ),
           ),
           const SizedBox(height: 10),
+          const SheetLabel('Erinnerung'),
+          // Die Uhrzeit gilt am Faelligkeitstag; bei einer wiederkehrenden
+          // Aufgabe also an jedem ihrer Tage.
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  icon: Icon(
+                    reminderMinute == null
+                        ? Icons.notifications_off_outlined
+                        : Icons.notifications_active_outlined,
+                    size: 18,
+                    color: reminderMinute == null ? theme.inkSoft : theme.accent,
+                  ),
+                  label: Text(
+                    reminderTimeLabel(reminderMinute),
+                    style: TextStyle(color: theme.ink),
+                  ),
+                  onPressed: () async {
+                    final picked = await showTimePicker(
+                      context: sheetContext,
+                      initialTime: reminderMinute == null
+                          ? const TimeOfDay(hour: 9, minute: 0)
+                          : TimeOfDay(
+                              hour: reminderMinute! ~/ 60,
+                              minute: reminderMinute! % 60,
+                            ),
+                    );
+                    if (picked == null) return;
+                    if (!sheetContext.mounted) return;
+                    if (!await confirmReminderPermission(sheetContext)) return;
+                    setSheetState(
+                      () => reminderMinute = picked.hour * 60 + picked.minute,
+                    );
+                  },
+                ),
+              ),
+              if (reminderMinute != null)
+                IconButton(
+                  icon: Icon(Icons.close, size: 20, color: theme.inkSoft),
+                  tooltip: 'Erinnerung entfernen',
+                  onPressed: () => setSheetState(() => reminderMinute = null),
+                ),
+            ],
+          ),
+          const SizedBox(height: 10),
           const SheetLabel('Priorität'),
           PriorityPicker(
             selected: priority,
@@ -897,6 +1027,11 @@ Future<void> showAppointmentSheet(
       : const TimeOfDay(hour: 12, minute: 0);
   var colorIndex = appointment?.colorIndex ?? 4;
   var priority = appointment?.priority ?? Priority.mittel;
+  // Ein neuer Termin startet mit dem Standard aus den Einstellungen; ein
+  // bestehender behaelt, was an ihm steht – auch die bewusste Null.
+  var lead = appointment != null
+      ? appointment.reminderLeadMinutes
+      : state.defaultAppointmentLead;
 
   void save(BuildContext sheetContext) {
     final title = titleController.text.trim();
@@ -916,6 +1051,7 @@ Future<void> showAppointmentSheet(
           when: when,
           colorIndex: colorIndex,
           priority: priority,
+          reminderLeadMinutes: lead,
         ),
       );
     } else {
@@ -923,6 +1059,7 @@ Future<void> showAppointmentSheet(
       appointment.when = when;
       appointment.colorIndex = colorIndex;
       appointment.priority = priority;
+      appointment.reminderLeadMinutes = lead;
       state.updateAppointment(appointment);
     }
     Navigator.pop(sheetContext);
@@ -982,6 +1119,12 @@ Future<void> showAppointmentSheet(
                 ),
               ),
             ],
+          ),
+          const SizedBox(height: 12),
+          const SheetLabel('Erinnerung'),
+          ReminderLeadPicker(
+            selected: lead,
+            onChanged: (value) => setSheetState(() => lead = value),
           ),
           const SizedBox(height: 12),
           const SheetLabel('Priorität'),

@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import 'log.dart';
 import 'models.dart';
+import 'reminders.dart';
 import 'theme.dart';
 import 'screens/dashboard.dart';
 
@@ -26,6 +27,14 @@ Future<void> main() async {
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
   final state = AppState();
   await state.load();
+  // Erinnerungen werden bei jeder Aenderung neu gestellt – Termine
+  // verschieben sich, Aufgaben werden abgehakt. Der Plan wird dabei mit dem
+  // stehenden verglichen, ein Designwechsel kostet also nichts.
+  // Beides bewusst ohne await: nichts davon darf den Start aufhalten.
+  JoeReminders.instance.init().then((_) {
+    JoeReminders.instance.sync(state);
+    state.addListener(() => JoeReminders.instance.sync(state));
+  });
   runApp(JoeApp(state: state));
 }
 

@@ -4,6 +4,13 @@
          wird erst, wenn der Schalter in den Einstellungen umgelegt wird. -->
     <uses-permission android:name="android.permission.READ_CALENDAR" />
     <uses-permission android:name="android.permission.WRITE_CALENDAR" />
+    <!-- Erinnerungen: Benachrichtigungen zeigen (ab Android 13 zusaetzlich
+         zur Laufzeit bestaetigt), nach einem Neustart neu planen, und exakte
+         Alarme ohne Extra-Dialog - USE_EXACT_ALARM ist fuer Kalender-Apps
+         genau dafuer vorgesehen. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
     <application
         android:label="Joe"
         android:name="${applicationName}"
@@ -35,6 +42,19 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+        <!-- flutter_local_notifications: stellt geplante Erinnerungen zu und
+             plant sie nach Reboot oder App-Update neu ein. -->
+        <receiver android:exported="false"
+            android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationReceiver" />
+        <receiver android:exported="false"
+            android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationBootReceiver">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED"/>
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED"/>
+                <action android:name="android.intent.action.QUICKBOOT_POWERON" />
+                <action android:name="com.htc.intent.action.QUICKBOOT_POWERON"/>
+            </intent-filter>
+        </receiver>
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and

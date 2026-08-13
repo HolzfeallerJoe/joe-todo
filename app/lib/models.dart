@@ -73,6 +73,11 @@ class Task {
   Priority priority;
   Set<String> completedDates;
 
+  /// Uhrzeit der Erinnerung am Faelligkeitstag, als Minuten seit
+  /// Mitternacht; null heisst: keine Erinnerung. Aufgaben haben keine
+  /// eigene Uhrzeit, deshalb bringt die Erinnerung ihre eigene mit.
+  int? reminderMinuteOfDay;
+
   Task({
     required this.id,
     required this.title,
@@ -81,6 +86,7 @@ class Task {
     required this.startDate,
     this.colorIndex = 0,
     this.priority = Priority.mittel,
+    this.reminderMinuteOfDay,
     Set<String>? completedDates,
   }) : completedDates = completedDates ?? {};
 
@@ -138,6 +144,7 @@ class Task {
         'startDate': dateKey(startDate),
         'colorIndex': colorIndex,
         'priority': priority.name,
+        'reminderMinuteOfDay': reminderMinuteOfDay,
         'completedDates': completedDates.toList(),
       };
 
@@ -150,6 +157,7 @@ class Task {
         startDate: parseDateKey(json['startDate'] as String),
         colorIndex: json['colorIndex'] as int? ?? 0,
         priority: Priority.fromJson(json['priority']),
+        reminderMinuteOfDay: minuteOfDayFromJson(json['reminderMinuteOfDay']),
         completedDates: (json['completedDates'] as List<dynamic>? ?? []).cast<String>().toSet(),
       );
 }
@@ -161,12 +169,17 @@ class Appointment {
   int colorIndex;
   Priority priority;
 
+  /// Vorlauf der Erinnerung in Minuten (0 = zur Terminzeit); null heisst:
+  /// keine Erinnerung.
+  int? reminderLeadMinutes;
+
   Appointment({
     required this.id,
     required this.title,
     required this.when,
     this.colorIndex = 4,
     this.priority = Priority.mittel,
+    this.reminderLeadMinutes,
   });
 
   Color get color => taskPalette[colorIndex % taskPalette.length];
@@ -177,6 +190,7 @@ class Appointment {
         'when': when.toIso8601String(),
         'colorIndex': colorIndex,
         'priority': priority.name,
+        'reminderLeadMinutes': reminderLeadMinutes,
       };
 
   factory Appointment.fromJson(Map<String, dynamic> json) => Appointment(
@@ -185,8 +199,25 @@ class Appointment {
         when: DateTime.parse(json['when'] as String),
         colorIndex: json['colorIndex'] as int? ?? 4,
         priority: Priority.fromJson(json['priority']),
+        reminderLeadMinutes: leadMinutesFromJson(json['reminderLeadMinutes']),
       );
 }
+
+/// Eine Erinnerungs-Uhrzeit aus dem Bestand: alles, was keine gueltige
+/// Minute im Tag ist (fehlt, falscher Typ, ausserhalb 0–1439), heisst
+/// "keine Erinnerung" – eine kaputte Zahl darf nicht zu einem Alarm zu
+/// unmoeglicher Zeit werden.
+int? minuteOfDayFromJson(Object? value) =>
+    value is int && value >= 0 && value < 1440 ? value : null;
+
+/// Ein Erinnerungs-Vorlauf aus dem Bestand. Negativ waere "nach dem
+/// Termin" und ist nicht vorgesehen; nach oben deckelt [maxReminderLead]
+/// (eine Woche) den Wert.
+int? leadMinutesFromJson(Object? value) =>
+    value is int && value >= 0 && value <= maxReminderLead ? value : null;
+
+/// Der groesste Vorlauf, den die App anbietet: eine Woche.
+const maxReminderLead = 7 * 24 * 60;
 
 class Note {
   final String id;
@@ -266,6 +297,16 @@ class AppState extends ChangeNotifier {
   /// wenn der Schalter in den Einstellungen umgelegt wird.
   bool showDeviceCalendar = false;
 
+  /// Der Hauptschalter fuer Erinnerungen (siehe reminders.dart). Aus heisst:
+  /// nichts wird geplant, die Einstellung am einzelnen Eintrag bleibt aber
+  /// stehen und gilt wieder, sobald der Schalter zurueckkommt.
+  bool remindersEnabled = true;
+
+  /// Womit ein neuer Termin startet – wie der Standard-Vorlauf im
+  /// Google-Kalender. Aufgaben starten bewusst ohne (null): sie haben keine
+  /// Uhrzeit, ein Alarm auf jeder neuen Aufgabe waere blosser Laerm.
+  int? defaultAppointmentLead = 30;
+
   int _idCounter = 0;
 
   String nextId() =>
@@ -317,6 +358,13 @@ class AppState extends ChangeNotifier {
     holidayRegion = HolidayRegion.fromJson(data['holidayRegion']);
     final storedDevice = data['showDeviceCalendar'];
     showDeviceCalendar = storedDevice is bool ? storedDevice : false;
+    final storedReminders = data['remindersEnabled'];
+    remindersEnabled = storedReminders is bool ? storedReminders : true;
+    // Der Standard-Vorlauf darf auch bewusst "keine Erinnerung" sein, also
+    // trennt erst das Fehlen des Schluessels den Standard vom leeren Wert.
+    defaultAppointmentLead = data.containsKey('defaultAppointmentLead')
+        ? leadMinutesFromJson(data['defaultAppointmentLead'])
+        : 30;
 
     JoeLog.log('Geladen: ${tasks.length} Aufgaben, '
         '${appointments.length} Termine, ${notes.length} Notizen');
@@ -433,6 +481,8 @@ class AppState extends ChangeNotifier {
           'showMoon': showMoon,
           'holidayRegion': holidayRegion.name,
           'showDeviceCalendar': showDeviceCalendar,
+          'remindersEnabled': remindersEnabled,
+          'defaultAppointmentLead': defaultAppointmentLead,
         }),
       );
     } catch (e) {
@@ -713,6 +763,16 @@ class AppState extends ChangeNotifier {
 
   void setShowDeviceCalendar(bool value) {
     showDeviceCalendar = value;
+    _changed();
+  }
+
+  void setRemindersEnabled(bool value) {
+    remindersEnabled = value;
+    _changed();
+  }
+
+  void setDefaultAppointmentLead(int? minutes) {
+    defaultAppointmentLead = minutes;
     _changed();
   }
 

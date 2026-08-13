@@ -44,6 +44,12 @@ Dashboard, Kalender, wiederkehrenden Aufgaben, Notizen und Historie.
 - **Historie** – alle erledigten Aufgaben, nach Tag gruppiert.
 - **Termine** – mit Datum, Uhrzeit, Priorität und Farbe; lange drücken zum
   Löschen.
+- **Erinnerungen** – wie im Google-Kalender: ein Termin bekommt einen
+  Vorlauf („Zur Terminzeit" bis „1 Tag vorher"), eine Aufgabe eine Uhrzeit
+  am Fälligkeitstag – bei wiederkehrenden Aufgaben an jedem ihrer Tage.
+  Zugestellt wird lokal vom Telefon, nichts geht ins Netz. Neue Termine
+  starten mit dem Standard-Vorlauf aus den Einstellungen (30 Minuten),
+  neue Aufgaben ohne; ein Hauptschalter schaltet alles auf einmal ab.
 - **Design** – vier Notizbuch-Themen mit gemalten Texturen (Holz, Papier,
   Stoff, Aquarell) plus elf Foto-Hintergründe, wählbar über eine Klappliste in
   den Einstellungen; 20 warme frei wählbare Farben pro Aufgabe/Termin. Die
@@ -64,6 +70,7 @@ app/                  Flutter-Projekt (Android)
   lib/models.dart     Datenmodell, Wiederholungslogik, Persistenz (AppState)
   lib/almanac.dart    Feiertage (Gauß) + Mondphasen (Meeus), rein berechnet
   lib/device_calendar.dart  Geraete-Kalender als lesende Ebene (Plugin-Kapsel)
+  lib/reminders.dart  Erinnerungsplan (rechnend) + Zustellung (Plugin-Kapsel)
   lib/theme.dart      Themes + Textur-Painter
   lib/pets.dart       Begleiter-Katalog (Name, Gruppe, Asset-Pfad)
   lib/widgets.dart    PaperCard, Ordner-Reiter, Aufgaben-Zeile, Sheets
@@ -73,7 +80,8 @@ app/                  Flutter-Projekt (Android)
   assets/pets/        Begleiter als WebP, ein Ordner je Gruppe
   test/               Unit-Tests (Wiederholung, Priorität, Notiz-Datum,
                       Reiterfarben, Feiertage/Mondphasen gegen Referenz-
-                      daten) + Widget-Tests für Dashboard und Aufgaben-Reiter
+                      daten, Erinnerungsplan) + Widget-Tests für Dashboard
+                      und Aufgaben-Reiter
 maestro/              Maestro-UI-Flows (01–08) + Screenshots in shots/
 requirements/         Original-Anforderungen (PDF + Layout-Referenzbild)
 ```
@@ -156,7 +164,18 @@ und die INTERNET-Permission steht nur in den Debug-/Profile-Manifesten fürs
 Flutter-Tooling, nicht im Release. Androids Auto-Backup bleibt auf dem
 Standard (an), damit der Bestand Gerätewechsel überlebt.
 
-Die einzigen Berechtigungen im Release sind READ_CALENDAR und WRITE_CALENDAR
+Für die Erinnerungen kommen POST_NOTIFICATIONS (ab Android 13 zur Laufzeit
+bestätigt), RECEIVE_BOOT_COMPLETED (Plan nach einem Neustart neu stellen) und
+USE_EXACT_ALARM dazu. Gefragt wird beim ersten Setzen einer Erinnerung bzw.
+beim Hauptschalter; ohne Erlaubnis wird nichts gesetzt und eine Snackbar sagt
+warum – eine Erinnerung, die stumm nie ankommt, wäre das Schlimmste. Der Plan
+selbst wird nicht gespeichert: `reminders.dart` rechnet ihn bei jeder Änderung
+neu aus dem Bestand (`pendingReminders`, 60 Tage voraus, höchstens acht
+Termine je wiederkehrender Aufgabe) und stellt ihn nur dann neu, wenn er sich
+wirklich unterscheidet. `flutter_local_notifications` verlangt außerdem
+Core Library Desugaring – siehe `android/app/build.gradle.kts`.
+
+Die weiteren Berechtigungen im Release sind READ_CALENDAR und WRITE_CALENDAR
 (device_calendar_plus) für die Geräte-Kalender-Ebene. Angefragt wird erst,
 wenn der Schalter in den Einstellungen umgelegt wird; abgelehnt heißt: der
 Schalter bleibt aus, eine Snackbar verlinkt die System-Einstellungen. Gelesen

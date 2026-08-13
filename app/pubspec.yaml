@@ -40,6 +40,11 @@ dependencies:
   # Geraete-Kalender (Android Calendar Provider / iOS EventKit). Nur Mobil;
   # auf anderen Plattformen faengt device_calendar.dart die Fehler ab.
   device_calendar_plus: ^0.8.0
+  # Erinnerungen als lokale Benachrichtigungen; reminders.dart kapselt die
+  # drei und faengt Fehler ab, wo es keine Benachrichtigungen gibt.
+  flutter_local_notifications: ^22.3.0
+  flutter_timezone: ^5.1.0
+  timezone: ^0.11.1
 
 dev_dependencies:
   flutter_test:

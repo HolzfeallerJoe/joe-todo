@@ -6,6 +6,7 @@ import '../device_calendar.dart';
 import '../log.dart';
 import '../models.dart';
 import '../pets.dart';
+import '../reminders.dart';
 import '../theme.dart';
 import '../widgets.dart';
 
@@ -164,6 +165,61 @@ class SettingsScreen extends StatelessWidget {
                 ],
               ),
             ),
+            const SectionTitle('Erinnerungen'),
+            PaperCard(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+              child: Column(
+                children: [
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: Text('Erinnerungen',
+                        style: TextStyle(color: theme.ink, fontSize: 16)),
+                    subtitle: Text(
+                        'Benachrichtigungen zu Aufgaben und Terminen',
+                        style: TextStyle(color: theme.inkSoft, fontSize: 13)),
+                    activeThumbColor: theme.accent,
+                    value: state.remindersEnabled,
+                    onChanged: (value) =>
+                        _toggleReminders(context, state, value),
+                  ),
+                  // Der Hauptschalter laesst die Einstellung am einzelnen
+                  // Eintrag stehen; ausgeschaltet gibt es hier nichts zu
+                  // waehlen, also dasselbe Muster wie beim Bundesland.
+                  Opacity(
+                    opacity: state.remindersEnabled ? 1 : 0.45,
+                    child: IgnorePointer(
+                      ignoring: !state.remindersEnabled,
+                      child: ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: Text('Standard für neue Termine',
+                            style:
+                                TextStyle(color: theme.ink, fontSize: 15)),
+                        trailing: DropdownButtonHideUnderline(
+                          child: DropdownButton<int?>(
+                            value: state.defaultAppointmentLead,
+                            dropdownColor: theme.paper,
+                            borderRadius: BorderRadius.circular(14),
+                            iconEnabledColor: theme.ink,
+                            items: [
+                              for (final choice in reminderLeadChoices)
+                                DropdownMenuItem<int?>(
+                                  value: choice,
+                                  child: Text(
+                                    reminderLeadLabel(choice),
+                                    style: TextStyle(
+                                        color: theme.ink, fontSize: 14),
+                                  ),
+                                ),
+                            ],
+                            onChanged: state.setDefaultAppointmentLead,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
             const SectionTitle('Fehlersuche'),
             SizedBox(
               width: double.infinity,
@@ -235,6 +291,19 @@ Future<void> _toggleDeviceCalendar(
       ),
     ),
   );
+}
+
+/// Der Hauptschalter fuer Erinnerungen: beim Anschalten holt er die
+/// Benachrichtigungs-Berechtigung ein (ab Android 13 noetig), sonst bliebe
+/// er an, ohne dass je etwas ankaeme.
+Future<void> _toggleReminders(
+    BuildContext context, AppState state, bool value) async {
+  if (!value) {
+    state.setRemindersEnabled(false);
+    return;
+  }
+  if (!await confirmReminderPermission(context)) return;
+  state.setRemindersEnabled(true);
 }
 
 /// Reicht die Logdateien an den Share-Intent des Systems weiter; solange
