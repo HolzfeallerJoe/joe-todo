@@ -255,11 +255,75 @@ class JoeReminders {
   void Function(ReminderTarget)? onOpen;
   ReminderTarget? _pendingTarget;
 
+  /// Ob diese Plattform ueberhaupt im Voraus planen kann. Linux kennt kein
+  /// `zonedSchedule` (das Plugin wirft dort `UnimplementedError`); dann wird
+  /// einmal gewarnt und nicht bei jedem Lauf erneut vergeblich versucht.
+  bool _schedulingSupported = true;
+  bool _warnedNoScheduling = false;
+
   bool get ready => _ready;
 
   fln.AndroidFlutterLocalNotificationsPlugin? get _android =>
       _plugin.resolvePlatformSpecificImplementation<
           fln.AndroidFlutterLocalNotificationsPlugin>();
+
+  fln.IOSFlutterLocalNotificationsPlugin? get _ios =>
+      _plugin.resolvePlatformSpecificImplementation<
+          fln.IOSFlutterLocalNotificationsPlugin>();
+
+  fln.MacOSFlutterLocalNotificationsPlugin? get _macos =>
+      _plugin.resolvePlatformSpecificImplementation<
+          fln.MacOSFlutterLocalNotificationsPlugin>();
+
+  fln.WebFlutterLocalNotificationsPlugin? get _web =>
+      _plugin.resolvePlatformSpecificImplementation<
+          fln.WebFlutterLocalNotificationsPlugin>();
+
+  /// Die Einstellungen fuer *jede* Plattform, nicht nur fuer Android.
+  ///
+  /// `initialize` sucht sich den Eintrag der laufenden Plattform und wirft,
+  /// wenn er fehlt – mit nur `android:` blieb [_ready] auf iOS, macOS, Linux
+  /// und Windows auf false, es kam nie eine Erinnerung an und bei jedem
+  /// Start ein Fehler-Toast. Android bleibt die Hauptplattform, aber der
+  /// Dart-Code soll ueberall laufen koennen.
+  static const _initSettings = fln.InitializationSettings(
+    android: fln.AndroidInitializationSettings('@mipmap/ic_launcher'),
+    iOS: _darwinInit,
+    macOS: _darwinInit,
+    linux: fln.LinuxInitializationSettings(defaultActionName: 'Öffnen'),
+    windows: fln.WindowsInitializationSettings(
+      appName: 'Joe',
+      appUserModelId: 'dev.joe.joe_todo',
+      // Fest verdrahtet und nie zu aendern: unter dieser GUID meldet sich
+      // das angetippte Toast zurueck.
+      guid: 'b9a5f4c2-3d7e-4a16-9c8b-5e2f1d0a7c34',
+    ),
+  );
+
+  /// Auf iOS und macOS fragt das Plugin die Berechtigung sonst schon bei
+  /// [init] – Joe fragt aber erst, wenn die erste Erinnerung gesetzt wird
+  /// bzw. beim Hauptschalter, genau wie auf Android.
+  static const _darwinInit = fln.DarwinInitializationSettings(
+    requestAlertPermission: false,
+    requestBadgePermission: false,
+    requestSoundPermission: false,
+  );
+
+  /// Wie die Erinnerung aussieht, je Plattform. Fehlt der Eintrag der
+  /// laufenden Plattform, stellt das Plugin sie zwar zu, aber ohne alles,
+  /// was hier steht (auf Android etwa ohne den Kanal).
+  static const _details = fln.NotificationDetails(
+    android: fln.AndroidNotificationDetails(
+      _channelId,
+      _channelName,
+      channelDescription: _channelDescription,
+      importance: fln.Importance.high,
+      priority: fln.Priority.high,
+    ),
+    iOS: fln.DarwinNotificationDetails(),
+    macOS: fln.DarwinNotificationDetails(),
+    windows: fln.WindowsNotificationDetails(),
+  );
 
   /// Zeitzonen laden, den Kanal anlegen, Antippen verdrahten. Wird von
   /// main() vor dem ersten [sync] aufgerufen.
@@ -282,9 +346,7 @@ class JoeReminders {
       }
 
       await _plugin.initialize(
-        settings: const fln.InitializationSettings(
-          android: fln.AndroidInitializationSettings('@mipmap/ic_launcher'),
-        ),
+        settings: _initSettings,
         onDidReceiveNotificationResponse: (response) =>
             _handleTap(response.payload),
       );
@@ -305,8 +367,16 @@ class JoeReminders {
       // zugestellten aus der Leiste. `pendingNotificationRequests` meldet
       // allein die geplanten. Die Signatur '?' passt auf keine echte, jede
       // uebernommene Nummer wird also entweder abgeraeumt oder neu gestellt.
-      for (final pending in await _plugin.pendingNotificationRequests()) {
-        _scheduled[pending.id] = '?';
+      // Eigener try: auf Linux kennt das Plugin diese Abfrage nicht und
+      // wirft. Das darf nicht die ganze Einrichtung mitreissen – ohne die
+      // Uebernahme faengt der Plan eben bei null an.
+      try {
+        for (final pending in await _plugin.pendingNotificationRequests()) {
+          _scheduled[pending.id] = '?';
+        }
+      } catch (e) {
+        JoeLog.log('Erinnerungen: Uebernahme vom letzten Mal nicht '
+            'moeglich: $e');
       }
       // Erst jetzt: ein [sync], der zwischen Uebernahme und hier
       // dazwischenkaeme, saehe einen halb gefuellten Stand.
@@ -375,11 +445,10 @@ class JoeReminders {
       return false;
     }
     try {
-      final android = _android;
-      // Auf Plattformen ohne eigene Abfrage gilt die Erlaubnis als da –
-      // dort entscheidet das System beim Zustellen.
-      if (android == null) return true;
-      final granted = await android.requestNotificationsPermission() ?? false;
+      final granted = await _requestPermission();
+      // Auf Plattformen ohne eigene Abfrage (Windows, Linux) gilt die
+      // Erlaubnis als da – dort entscheidet das System beim Zustellen.
+      if (granted == null) return true;
       JoeLog.log('Erinnerungen: Berechtigung ${granted ? 'da' : 'fehlt'}');
       if (!granted) {
         // Ab Android 13 zeigt das System den Dialog nach zweimaligem
@@ -398,6 +467,42 @@ class JoeReminders {
     }
   }
 
+  /// Die Anfrage der laufenden Plattform. null heisst: diese kennt gar
+  /// keine – dann darf ohne Weiteres zugestellt werden.
+  Future<bool?> _requestPermission() async {
+    final android = _android;
+    if (android != null) {
+      return await android.requestNotificationsPermission() ?? false;
+    }
+    // iOS und macOS fragen alles auf einmal; ohne diese drei Flags kaeme
+    // eine stumme Erinnerung ohne Banner an, also gar keine sichtbare. Die
+    // beiden stehen getrennt, weil ihr gemeinsamer Obertyp die Methode
+    // nicht kennt.
+    final ios = _ios;
+    if (ios != null) {
+      return await ios.requestPermissions(
+            alert: true,
+            badge: true,
+            sound: true,
+          ) ??
+          false;
+    }
+    final macos = _macos;
+    if (macos != null) {
+      return await macos.requestPermissions(
+            alert: true,
+            badge: true,
+            sound: true,
+          ) ??
+          false;
+    }
+    final web = _web;
+    if (web != null) {
+      return await web.requestNotificationsPermission() ?? false;
+    }
+    return null;
+  }
+
   /// Prueft beim Start, ob ueberhaupt zugestellt werden kann: der
   /// Hauptschalter kann an geblieben sein, waehrend die Benachrichtigungen
   /// im System abgeschaltet wurden. Sonst stuende "an" und es kaeme nie
@@ -405,11 +510,10 @@ class JoeReminders {
   Future<void> checkDelivery(bool remindersEnabled) async {
     await _initFuture;
     if (!_ready || !remindersEnabled) return;
-    final android = _android;
-    if (android == null) return;
     try {
-      final enabled = await android.areNotificationsEnabled() ?? true;
-      if (enabled) return;
+      final enabled = await _deliveryEnabled();
+      // null: diese Plattform sagt es nicht – dann auch nicht warnen.
+      if (enabled == null || enabled) return;
       JoeLog.log('Erinnerungen: Benachrichtigungen im System abgeschaltet');
       JoeToast.error(
         'Benachrichtigungen für Joe sind abgeschaltet – es kommt keine '
@@ -421,9 +525,31 @@ class JoeReminders {
     }
   }
 
+  /// Ob das System die Zustellung ueberhaupt zulaesst. null heisst: diese
+  /// Plattform beantwortet die Frage nicht.
+  Future<bool?> _deliveryEnabled() async {
+    final android = _android;
+    if (android != null) return await android.areNotificationsEnabled() ?? true;
+    final ios = _ios;
+    if (ios != null) return (await ios.checkPermissions())?.isEnabled ?? true;
+    final macos = _macos;
+    if (macos != null) {
+      return (await macos.checkPermissions())?.isEnabled ?? true;
+    }
+    final web = _web;
+    if (web != null) {
+      return web.permissionStatus == fln.WebNotificationPermission.granted;
+    }
+    return null;
+  }
+
+  /// Der Weg in die System-Einstellungen. Nicht ueber [_android], sondern
+  /// ueber das Plugin selbst: das trifft auch iOS und macOS. Wo es den Weg
+  /// nicht gibt (Web, Desktop), wirft es – und der Nutzer liest, wo er
+  /// selbst nachsehen kann.
   Future<void> openNotificationSettings() async {
     try {
-      await _android?.openAppNotificationSettings();
+      await _plugin.openAppNotificationSettings();
     } catch (e) {
       JoeLog.log('Erinnerungen: Benachrichtigungs-Einstellungen '
           'nicht erreichbar: $e');
@@ -485,6 +611,9 @@ class JoeReminders {
         await _plugin.cancel(id: id);
         _scheduled.remove(id);
       }
+      // Kann dieses System nicht im Voraus planen, bleibt es beim
+      // Abraeumen – der Versuch gaebe bei jedem Lauf denselben Fehler.
+      if (!_schedulingSupported) return;
       // … dann stellen, was fehlt. `_scheduled` wird dabei Schritt fuer
       // Schritt fortgeschrieben: bricht es in der Mitte ab, steht dort die
       // Wahrheit und der naechste Lauf macht genau den Rest.
@@ -496,15 +625,7 @@ class JoeReminders {
           body: r.body,
           payload: r.payload,
           scheduledDate: tz.TZDateTime.from(r.when, tz.local),
-          notificationDetails: const fln.NotificationDetails(
-            android: fln.AndroidNotificationDetails(
-              _channelId,
-              _channelName,
-              channelDescription: _channelDescription,
-              importance: fln.Importance.high,
-              priority: fln.Priority.high,
-            ),
-          ),
+          notificationDetails: _details,
           androidScheduleMode: _exactAllowed
               ? fln.AndroidScheduleMode.exactAllowWhileIdle
               : fln.AndroidScheduleMode.inexactAllowWhileIdle,
@@ -512,6 +633,18 @@ class JoeReminders {
         _scheduled[r.id] = r.signature;
       }
       JoeLog.log('Erinnerungen: ${_scheduled.length} gestellt');
+    } on UnimplementedError catch (e) {
+      // Linux: das System kennt nur sofortige Benachrichtigungen. Einmal
+      // sagen und danach nicht bei jedem Lauf erneut anlaufen – der Fehler
+      // geht ja nicht weg.
+      _schedulingSupported = false;
+      JoeLog.log('Erinnerungen: dieses System plant nicht im Voraus: $e');
+      if (!_warnedNoScheduling) {
+        _warnedNoScheduling = true;
+        JoeToast.error('Dieses System kann keine Erinnerungen im Voraus '
+            'zustellen – Joe merkt sie sich, meldet sich aber nicht von '
+            'selbst.');
+      }
     } catch (e) {
       JoeLog.log('Erinnerungen: Planen fehlgeschlagen: $e');
       JoeToast.error('Erinnerungen konnten nicht gestellt werden – '

@@ -160,15 +160,30 @@ damit eine weitere Plattform später nur ein
 `flutter create --platforms=web,windows,...` im `app`-Ordner entfernt ist
 (danach das dabei erzeugte Template-`test/widget_test.dart` löschen):
 
-- Alle Plugins (shared_preferences, share_plus, path_provider) sind
-  föderiert und decken Mobil, Desktop und Web ab.
+- shared_preferences, share_plus, path_provider, flutter_local_notifications
+  und flutter_timezone sind föderiert und decken Mobil, Desktop und Web ab.
+  Einzige Ausnahme ist `device_calendar_plus` (nur Android und iOS): reiner
+  Dart-Code, baut also überall, und jeder Aufruf ist gefangen – anderswo
+  bleibt die Geräte-Kalender-Ebene schlicht leer.
 - `dart:io` kommt im App-Code nur im Datei-Backend des Logs vor, hinter
   einem bedingten Import (`log_sink_io.dart` / `log_sink_stub.dart`): auf
   Plattformen ohne Dateisystem (Web) trägt der Speicherpuffer, „Logs teilen"
   teilt dann Text statt Dateien.
-- Als Probe ist `flutter build web --release` durchgelaufen (Ordner danach
-  wieder entfernt) – Web ist die strengste Plattform, dort gibt es kein
-  `dart:io`.
+- **Die Erinnerungen brauchen die Einstellungen jeder Plattform, nicht nur
+  Androids.** `flutter_local_notifications` wirft in `initialize`, wenn für
+  die laufende Plattform kein Eintrag dabei ist; mit nur `android:` blieb
+  `JoeReminders` auf iOS, macOS, Linux und Windows tot (kein Alarm, dafür bei
+  jedem Start ein Fehler-Toast). `reminders.dart` gibt deshalb alle fünf mit.
+  Genauso plattformweise: die Berechtigungsanfrage (Android / Darwin / Web),
+  die Zustellprüfung und der Weg in die System-Einstellungen. Linux kennt
+  kein `zonedSchedule` – das meldet die App einmal und versucht es danach
+  nicht bei jedem Lauf erneut.
+- Als Probe sind `flutter build web --release`, `flutter build windows
+  --release` und `flutter build apk --debug` durchgelaufen (Web- und
+  Windows-Ordner danach wieder entfernt). Der Windows-Build wurde zusätzlich
+  gestartet: das Log meldet „Erinnerungen: bereit (Europe/Berlin …)" und
+  „1 gestellt", die Erinnerungen laufen dort also wirklich und nicht nur auf
+  dem Papier. Web ist die strengste Plattform, dort gibt es kein `dart:io`.
 
 ## Daten & Sicherheit
 

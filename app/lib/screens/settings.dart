@@ -244,7 +244,12 @@ class SettingsScreen extends StatelessWidget {
             const SectionTitle('Fehlersuche'),
             SizedBox(
               width: double.infinity,
-              child: OutlinedButton.icon(
+              // Der Builder ist nicht zufaellig da: auf iPad und Mac haengt
+              // das Teilen-Blatt an dem Knopf, der es geoeffnet hat – dafuer
+              // braucht _shareLogs den Context *des Knopfes*, nicht den des
+              // ganzen Bildschirms.
+              child: Builder(
+                builder: (context) => OutlinedButton.icon(
                 style: OutlinedButton.styleFrom(
                   backgroundColor: theme.paper,
                   foregroundColor: theme.ink,
@@ -260,6 +265,7 @@ class SettingsScreen extends StatelessWidget {
                   style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
                 ),
                 onPressed: () => _shareLogs(context),
+                ),
               ),
             ),
             const SizedBox(height: 24),
@@ -515,17 +521,29 @@ class _CalendarPickerSheetState extends State<_CalendarPickerSheet> {
 /// noch keine Datei existiert, den Speicherpuffer als Text.
 Future<void> _shareLogs(BuildContext context) async {
   try {
+    // Auf iPad und Mac ist das Teilen-Blatt ein Popover und will wissen,
+    // woran es haengen soll; ohne das landet es in der Bildschirmmitte. Auf
+    // allen anderen Plattformen ignoriert share_plus den Wert.
+    final box = context.findRenderObject() as RenderBox?;
+    final origin = box != null && box.hasSize
+        ? box.localToGlobal(Offset.zero) & box.size
+        : null;
     final payload = await JoeLog.instance.sharePayload();
     await SharePlus.instance.share(
       payload.paths.isNotEmpty
           ? ShareParams(
               subject: 'Joe – Logs',
+              sharePositionOrigin: origin,
               files: [
                 for (final path in payload.paths)
                   XFile(path, mimeType: 'text/plain'),
               ],
             )
-          : ShareParams(subject: 'Joe – Logs', text: payload.text),
+          : ShareParams(
+              subject: 'Joe – Logs',
+              sharePositionOrigin: origin,
+              text: payload.text,
+            ),
     );
   } catch (e) {
     // Ausgerechnet der Knopf fuer die Fehlersuche darf nicht still scheitern.
