@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:share_plus/share_plus.dart';
 
+import '../almanac.dart';
 import '../log.dart';
 import '../models.dart';
 import '../pets.dart';
@@ -83,6 +84,70 @@ class SettingsScreen extends StatelessWidget {
                     child: _PetOption(pet: state.pet, theme: theme),
                   ),
                 ),
+              ),
+            ),
+            const SectionTitle('Kalender'),
+            PaperCard(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+              child: Column(
+                children: [
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: Text('Feiertage anzeigen',
+                        style: TextStyle(color: theme.ink, fontSize: 16)),
+                    subtitle: Text('Gesetzliche Feiertage mit Stern im Kalender',
+                        style: TextStyle(color: theme.inkSoft, fontSize: 13)),
+                    activeThumbColor: theme.accent,
+                    value: state.showHolidays,
+                    onChanged: state.setShowHolidays,
+                  ),
+                  // Ohne Feiertage gibt es kein Bundesland zu waehlen: die
+                  // Zeile bleibt stehen, ist aber ausgegraut und gesperrt –
+                  // dasselbe Muster wie beim Begleiter oben.
+                  Opacity(
+                    opacity: state.showHolidays ? 1 : 0.45,
+                    child: IgnorePointer(
+                      ignoring: !state.showHolidays,
+                      child: DropdownButtonHideUnderline(
+                        child: DropdownButton<HolidayRegion>(
+                          value: state.holidayRegion,
+                          isExpanded: true,
+                          dropdownColor: theme.paper,
+                          borderRadius: BorderRadius.circular(14),
+                          iconEnabledColor: theme.ink,
+                          menuMaxHeight: 420,
+                          items: [
+                            for (final region in HolidayRegion.values)
+                              DropdownMenuItem<HolidayRegion>(
+                                value: region,
+                                child: Text(
+                                  region.label,
+                                  style: TextStyle(
+                                    color: theme.ink,
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ),
+                          ],
+                          onChanged: (region) {
+                            if (region != null) state.setHolidayRegion(region);
+                          },
+                        ),
+                      ),
+                    ),
+                  ),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: Text('Mondphasen anzeigen',
+                        style: TextStyle(color: theme.ink, fontSize: 16)),
+                    subtitle: Text('Neumond, Halbmond und Vollmond im Kalender',
+                        style: TextStyle(color: theme.inkSoft, fontSize: 13)),
+                    activeThumbColor: theme.accent,
+                    value: state.showMoon,
+                    onChanged: state.setShowMoon,
+                  ),
+                ],
               ),
             ),
             const SectionTitle('Fehlersuche'),

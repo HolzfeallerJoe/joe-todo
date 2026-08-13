@@ -22,6 +22,13 @@ Dashboard, Kalender, wiederkehrenden Aufgaben, Notizen und Historie.
   am jeweiligen Tag sichtbar (Ring statt Punkt), Tage mit Notizen tragen unten
   mittig ein „N". Tagesdetail darunter, mit einem Plus, das nach Aufgabe oder Termin
   fragt, und einem Knopf für eine Notiz an diesem Tag.
+- **Feiertage & Mondphasen** – beides rechnet die App selbst aus
+  (`lib/almanac.dart`: Gauß-Osterformel bzw. Meeus-Mondalgorithmus), kein
+  Netz, keine Berechtigung. Feiertage tragen einen Stern links des „N",
+  die vier Hauptphasen des Mondes ein gemaltes Mond-Icon rechts davon; im
+  Tagesdetail stehen beide ganz oben. In den Einstellungen abschaltbar
+  (Standard: an) und das Bundesland wählbar (Standard: nur die bundesweiten
+  Feiertage).
 - **Wiederkehrende Aufgaben** – täglich, wöchentlich, monatlich, alle X Tage.
 - **Notizen** – einfache Liste + Editor, ohne Untermenüs; speichert beim
   Zurückgehen automatisch. Jede Notiz hängt an einem Tag (Standard: der Tag,
@@ -47,6 +54,7 @@ Dashboard, Kalender, wiederkehrenden Aufgaben, Notizen und Historie.
 ```
 app/                  Flutter-Projekt (Android)
   lib/models.dart     Datenmodell, Wiederholungslogik, Persistenz (AppState)
+  lib/almanac.dart    Feiertage (Gauß) + Mondphasen (Meeus), rein berechnet
   lib/theme.dart      Themes + Textur-Painter
   lib/pets.dart       Begleiter-Katalog (Name, Gruppe, Asset-Pfad)
   lib/widgets.dart    PaperCard, Ordner-Reiter, Aufgaben-Zeile, Sheets
@@ -55,8 +63,8 @@ app/                  Flutter-Projekt (Android)
   assets/themes/      Hintergründe – Originale + ausgelieferte compressed/
   assets/pets/        Begleiter als WebP, ein Ordner je Gruppe
   test/               Unit-Tests (Wiederholung, Priorität, Notiz-Datum,
-                      Reiterfarben) + Widget-Tests für Dashboard und
-                      Aufgaben-Reiter
+                      Reiterfarben, Feiertage/Mondphasen gegen Referenz-
+                      daten) + Widget-Tests für Dashboard und Aufgaben-Reiter
 maestro/              Maestro-UI-Flows (01–08) + Screenshots in shots/
 requirements/         Original-Anforderungen (PDF + Layout-Referenzbild)
 ```

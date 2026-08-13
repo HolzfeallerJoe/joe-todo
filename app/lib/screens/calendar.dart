@@ -1,5 +1,8 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
+import '../almanac.dart';
 import '../models.dart';
 import '../theme.dart';
 import '../util.dart';
@@ -43,6 +46,10 @@ class _CalendarScreenState extends State<CalendarScreen> {
     final dayTasks = state.tasksForDay(_selected);
     final dayAppointments = state.appointmentsForDay(_selected);
     final dayNotes = state.notesForDay(_selected);
+    final dayHolidays = state.showHolidays
+        ? holidaysOn(_selected, state.holidayRegion)
+        : const <String>[];
+    final dayMoon = state.showMoon ? moonPhaseOnDay(_selected) : null;
 
     return JoeScaffold(
       title: 'Kalender',
@@ -157,9 +164,13 @@ class _CalendarScreenState extends State<CalendarScreen> {
                       ),
                     ],
                   ),
+                  // Feiertag und Mondphase zaehlen als Inhalt: neben "Vollmond"
+                  // saehe ein "Nichts eingetragen" widerspruechlich aus.
                   if (dayTasks.isEmpty &&
                       dayAppointments.isEmpty &&
-                      dayNotes.isEmpty)
+                      dayNotes.isEmpty &&
+                      dayHolidays.isEmpty &&
+                      dayMoon == null)
                     Padding(
                       padding: const EdgeInsets.symmetric(vertical: 10),
                       child: Text(
@@ -173,6 +184,23 @@ class _CalendarScreenState extends State<CalendarScreen> {
                   // Liste. Leere Bloecke zaehlen nicht mit, damit an einem Tag
                   // ohne Termine keine Luecke oben steht.
                   ..._spacedGroups(const SizedBox(height: 16), [
+                    // Feiertag und Mondphase stehen ganz oben – sie gehoeren
+                    // zum Tag selbst, nicht zu dem, was man sich vorgenommen
+                    // hat. Beide sind reine Anzeige, nichts zum Antippen.
+                    [
+                      for (final name in dayHolidays)
+                        _AlmanacRow(
+                          icon: Icon(Icons.star_rounded,
+                              size: 20, color: theme.accent),
+                          label: name,
+                        ),
+                      if (dayMoon != null)
+                        _AlmanacRow(
+                          icon: MoonIcon(
+                              kind: dayMoon, size: 18, color: theme.accent),
+                          label: dayMoon.label,
+                        ),
+                    ],
                     [
                       for (final a in dayAppointments)
                         _AppointmentRow(appointment: a),
@@ -317,6 +345,10 @@ class _DayCell extends StatelessWidget {
     final tasks = state.tasksForDay(day);
     final appointments = state.appointmentsForDay(day);
     final hasNotes = state.notesForDay(day).isNotEmpty;
+    final holidays = state.showHolidays
+        ? holidaysOn(day, state.holidayRegion)
+        : const <String>[];
+    final moon = state.showMoon ? moonPhaseOnDay(day) : null;
 
     final markers = <Widget>[];
     for (final a in appointments) {
@@ -360,13 +392,28 @@ class _DayCell extends StatelessWidget {
                 children: markers.take(6).toList(),
               ),
             ),
-            // Notizen bekommen keinen Farbpunkt, sondern ein "N" unten in der
-            // Mitte – sie haben keine eigene Farbe und sollen die Punktreihe
-            // der Aufgaben nicht verwaessern.
-            if (hasNotes)
+            // Die untere Badge-Zeile: Stern (Feiertag) links, "N" (Notiz) in
+            // der Mitte, Mond (Hauptphase) rechts. Keins davon bekommt einen
+            // Farbpunkt – sie haben keine eigene Farbe und sollen die
+            // Punktreihe der Aufgaben nicht verwaessern.
+            if (holidays.isNotEmpty || hasNotes || moon != null)
               Padding(
                 padding: const EdgeInsets.only(bottom: 2),
-                child: _NoteBadge(theme: theme, size: 12),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  spacing: 2,
+                  children: [
+                    if (holidays.isNotEmpty)
+                      Semantics(
+                        label: holidays.join(', '),
+                        child: Icon(Icons.star_rounded,
+                            size: 14, color: theme.accent),
+                      ),
+                    if (hasNotes) _NoteBadge(theme: theme, size: 12),
+                    if (moon != null)
+                      MoonIcon(kind: moon, size: 11, color: theme.accent),
+                  ],
+                ),
               ),
           ],
         ),
@@ -386,6 +433,100 @@ class _DayCell extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Eine Feiertags- oder Mondphasen-Zeile in der Tageskarte: nur Anzeige,
+/// nichts zum Antippen – der Tag bringt sie mit, nicht der Nutzer.
+class _AlmanacRow extends StatelessWidget {
+  final Widget icon;
+  final String label;
+  const _AlmanacRow({required this.icon, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = joeThemeOf(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        children: [
+          SizedBox(width: 20, child: Center(child: icon)),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              label,
+              style: TextStyle(
+                color: theme.ink,
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Der kleine gemalte Mond: Ring fuer Neumond, gefuellter Kreis fuer
+/// Vollmond, halb gefuellt fuer die Halbmonde – rechte Haelfte zunehmend,
+/// linke abnehmend (Nordhalbkugel).
+class MoonIcon extends StatelessWidget {
+  final MoonPhaseKind kind;
+  final double size;
+  final Color color;
+
+  const MoonIcon({
+    super.key,
+    required this.kind,
+    required this.size,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      label: kind.label,
+      child: CustomPaint(
+        size: Size.square(size),
+        painter: _MoonPainter(kind, color),
+      ),
+    );
+  }
+}
+
+class _MoonPainter extends CustomPainter {
+  final MoonPhaseKind kind;
+  final Color color;
+  _MoonPainter(this.kind, this.color);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final stroke = size.width * 0.11;
+    final rect = (Offset.zero & size).deflate(stroke / 2);
+    final ring = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = stroke
+      ..color = color;
+    final fill = Paint()..color = color;
+
+    switch (kind) {
+      case MoonPhaseKind.newMoon:
+        break; // nur der Ring
+      case MoonPhaseKind.fullMoon:
+        canvas.drawOval(rect, fill);
+      case MoonPhaseKind.firstQuarter:
+        // Bogen von oben ueber rechts nach unten; die Fuellung schliesst
+        // ihn als Sehne – die rechte Haelfte.
+        canvas.drawPath(Path()..addArc(rect, -math.pi / 2, math.pi), fill);
+      case MoonPhaseKind.lastQuarter:
+        canvas.drawPath(Path()..addArc(rect, math.pi / 2, math.pi), fill);
+    }
+    canvas.drawOval(rect, ring);
+  }
+
+  @override
+  bool shouldRepaint(_MoonPainter old) =>
+      old.kind != kind || old.color != color;
 }
 
 /// Das "N", mit dem Notizen im Kalender markiert sind.

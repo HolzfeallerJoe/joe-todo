@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'almanac.dart';
 import 'log.dart';
 import 'pets.dart';
 import 'util.dart';
@@ -254,6 +255,12 @@ class AppState extends ChangeNotifier {
   /// storage so the dashboard comes back the way it was left.
   bool todayExpanded = true;
 
+  /// Berechnete Kalender-Ebenen (siehe almanac.dart): Feiertage und
+  /// Mondphasen sind von Haus aus an, das Bundesland waehlt der Nutzer.
+  bool showHolidays = true;
+  bool showMoon = true;
+  HolidayRegion holidayRegion = HolidayRegion.bund;
+
   int _idCounter = 0;
 
   String nextId() =>
@@ -298,6 +305,11 @@ class AppState extends ChangeNotifier {
     petId = storedPet is String ? storedPet : defaultPetId;
     final storedExpanded = data['todayExpanded'];
     todayExpanded = storedExpanded is bool ? storedExpanded : true;
+    final storedHolidays = data['showHolidays'];
+    showHolidays = storedHolidays is bool ? storedHolidays : true;
+    final storedMoon = data['showMoon'];
+    showMoon = storedMoon is bool ? storedMoon : true;
+    holidayRegion = HolidayRegion.fromJson(data['holidayRegion']);
 
     JoeLog.log('Geladen: ${tasks.length} Aufgaben, '
         '${appointments.length} Termine, ${notes.length} Notizen');
@@ -410,6 +422,9 @@ class AppState extends ChangeNotifier {
           'showPet': showPet,
           'petId': petId,
           'todayExpanded': todayExpanded,
+          'showHolidays': showHolidays,
+          'showMoon': showMoon,
+          'holidayRegion': holidayRegion.name,
         }),
       );
     } catch (e) {
@@ -670,6 +685,21 @@ class AppState extends ChangeNotifier {
 
   void setTodayExpanded(bool value) {
     todayExpanded = value;
+    _changed();
+  }
+
+  void setShowHolidays(bool value) {
+    showHolidays = value;
+    _changed();
+  }
+
+  void setShowMoon(bool value) {
+    showMoon = value;
+    _changed();
+  }
+
+  void setHolidayRegion(HolidayRegion region) {
+    holidayRegion = region;
     _changed();
   }
 
