@@ -240,4 +240,118 @@ void main() {
       expect(leadMinutesFromJson(1440), 1440);
     });
   });
+
+  group('Deckel', () {
+    test('eine taegliche Aufgabe reicht einen Monat weit', () {
+      final geplant = plan(tasks: [
+        task(start: heute, recurrence: RecurrenceType.daily, reminder: 9 * 60),
+      ]);
+      // Der eigentliche Zweck: wer die App eine Woche nicht oeffnet, soll
+      // trotzdem noch erinnert werden.
+      expect(geplant.length, remindersPerTask);
+      expect(geplant.last.when.difference(now).inDays, greaterThan(25));
+    });
+
+    test('viele Aufgaben reissen die Android-Grenze nicht', () {
+      // Androids Grenze liegt bei 500 offenen Alarmen pro App. 30 Slots mal
+      // 40 taegliche Aufgaben waeren 1200 – ohne globalen Deckel wuerde das
+      // System werfen.
+      final geplant = plan(tasks: [
+        for (var i = 0; i < 40; i++)
+          task(
+            id: 't$i',
+            start: heute,
+            recurrence: RecurrenceType.daily,
+            reminder: 9 * 60,
+          ),
+      ]);
+      expect(geplant.length, maxScheduledReminders);
+      expect(maxScheduledReminders, lessThan(500));
+    });
+
+    test('gedeckelt wird am Ende, die naechsten Erinnerungen gewinnen', () {
+      final geplant = pendingReminders(
+        tasks: [
+          task(start: heute, recurrence: RecurrenceType.daily, reminder: 540),
+        ],
+        appointments: const [],
+        from: now,
+        maxTotal: 3,
+      );
+      expect(geplant.length, 3);
+      // Immer noch nach Zeit sortiert, und es sind die drei fruehesten.
+      // Die 9 Uhr von heute ist um 10 Uhr schon vorbei, es geht also
+      // morgen los.
+      expect(geplant.first.when, heute.add(const Duration(days: 1, hours: 9)));
+      expect(geplant.last.when, heute.add(const Duration(days: 3, hours: 9)));
+    });
+  });
+
+  group('Antippen', () {
+    test('Payload haelt Art, Eintrag und Tag', () {
+      final target = parseReminderPayload(
+        reminderPayload(isTask: true, id: 't7', day: DateTime(2026, 8, 13)),
+      );
+      expect(target, isNotNull);
+      expect(target!.isTask, isTrue);
+      expect(target.id, 't7');
+      expect(target.day, DateTime(2026, 8, 13));
+
+      final termin = parseReminderPayload(
+        reminderPayload(
+            isTask: false, id: 'a3', day: DateTime(2026, 12, 24, 18, 30)),
+      );
+      // Die Uhrzeit faellt weg, der Kalender oeffnet auf den Tag.
+      expect(termin!.isTask, isFalse);
+      expect(termin.id, 'a3');
+      expect(termin.day, DateTime(2026, 12, 24));
+    });
+
+    test('unbrauchbare Payloads fuehren nirgendwohin', () {
+      // Unter anderem der Fall "Benachrichtigung aus einer aelteren Version,
+      // die noch keinen Payload gesetzt hat" – die darf nicht abstuerzen.
+      for (final broken in <String?>[
+        null,
+        '',
+        'aufgabe',
+        'aufgabe|t1',
+        'aufgabe|t1|2026-08-13|zuviel',
+        'irgendwas|t1|2026-08-13',
+        'aufgabe||2026-08-13',
+        'aufgabe|t1|kein-datum',
+        'aufgabe|t1|2026-13-45',
+      ]) {
+        expect(parseReminderPayload(broken), isNull, reason: '$broken');
+      }
+    });
+
+    test('jede geplante Erinnerung weiss, wohin sie fuehrt', () {
+      final geplant = plan(
+        tasks: [
+          task(
+            id: 'taeglich',
+            start: heute,
+            recurrence: RecurrenceType.daily,
+            reminder: 9 * 60,
+          ),
+        ],
+        appointments: [
+          appointment(
+            when: heute.add(const Duration(days: 1, hours: 9)),
+            lead: 1440,
+          ),
+        ],
+      );
+      expect(geplant, isNotEmpty);
+      for (final reminder in geplant) {
+        final target = parseReminderPayload(reminder.payload);
+        expect(target, isNotNull, reason: reminder.title);
+        // Der Tag im Payload ist der Tag, um den es geht – bei der Aufgabe
+        // ihr Faelligkeitstag, beim Termin der Tag des Termins. Nicht der
+        // Tag, an dem die Erinnerung losgeht: ein Vorlauf von einem Tag
+        // wuerde sonst auf den falschen Tag zeigen.
+        expect(target!.day, dateOnly(target.day));
+      }
+    });
+  });
 }

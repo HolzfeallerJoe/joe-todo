@@ -1,16 +1,30 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    <!-- Geraete-Kalender: Lesen fuers Anzeigen im In-App-Kalender, Schreiben
-         bewusst gleich mit, damit Joe spaeter auch eintragen kann. Gefragt
-         wird erst, wenn der Schalter in den Einstellungen umgelegt wird. -->
+    <!-- Geraete-Kalender: Joe liest nur - es gibt keine Stelle in der App,
+         die einen Geraete-Termin anlegt oder aendert. WRITE_CALENDAR steht
+         trotzdem hier, weil device_calendar_plus zum *Lesen* die Stufe
+         "full" verlangt und deren Anfrage beide Rechte deklariert haben
+         will (PermissionService.checkPermissionsDeclared). Faellt die Zeile
+         weg, schlaegt schon die Berechtigungsanfrage fehl.
+         Gefragt wird erst, wenn der Schalter in den Einstellungen umgelegt
+         wird. -->
     <uses-permission android:name="android.permission.READ_CALENDAR" />
     <uses-permission android:name="android.permission.WRITE_CALENDAR" />
     <!-- Erinnerungen: Benachrichtigungen zeigen (ab Android 13 zusaetzlich
-         zur Laufzeit bestaetigt), nach einem Neustart neu planen, und exakte
-         Alarme ohne Extra-Dialog - USE_EXACT_ALARM ist fuer Kalender-Apps
-         genau dafuer vorgesehen. -->
+         zur Laufzeit bestaetigt) und nach einem Neustart neu planen. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <!-- Exakte Alarme, zweigleisig - beide Zeilen werden gebraucht:
+         USE_EXACT_ALARM gibt es erst ab API 33 und ist fuer Kalender- und
+         Wecker-Apps ohne Extra-Dialog vorgesehen. Auf Android 12 (API 31/32)
+         kennt das System es nicht; dort ist SCHEDULE_EXACT_ALARM noetig und
+         wird automatisch gewaehrt, sobald es deklariert ist. Ohne diese
+         zweite Zeile liefert canScheduleExactAlarms() auf Android 12 false
+         und *jedes* zonedSchedule wirft - Erinnerungen kaemen dort nie an.
+         maxSdkVersion, weil ab 33 USE_EXACT_ALARM uebernimmt und
+         SCHEDULE_EXACT_ALARM sonst unnoetig in der Rechteliste stuende. -->
     <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM"
+        android:maxSdkVersion="32" />
     <application
         android:label="Joe"
         android:name="${applicationName}"

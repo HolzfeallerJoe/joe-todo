@@ -8,6 +8,7 @@ import '../models.dart';
 import '../pets.dart';
 import '../reminders.dart';
 import '../theme.dart';
+import '../toast.dart';
 import '../widgets.dart';
 
 class SettingsScreen extends StatelessWidget {
@@ -159,8 +160,29 @@ class SettingsScreen extends StatelessWidget {
                         style: TextStyle(color: theme.inkSoft, fontSize: 13)),
                     activeThumbColor: theme.accent,
                     value: state.showDeviceCalendar,
-                    onChanged: (value) =>
-                        _toggleDeviceCalendar(context, state, value),
+                    onChanged: (value) => _toggleDeviceCalendar(state, value),
+                  ),
+                  // Welche der Kalender des Telefons gezeigt werden – ohne
+                  // Auswahl alle. Gesperrt, solange die Ebene aus ist:
+                  // dasselbe Muster wie beim Bundesland darueber.
+                  Opacity(
+                    opacity: state.showDeviceCalendar ? 1 : 0.45,
+                    child: IgnorePointer(
+                      ignoring: !state.showDeviceCalendar,
+                      child: ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: Text('Welche Kalender',
+                            style: TextStyle(color: theme.ink, fontSize: 15)),
+                        subtitle: Text(
+                          deviceCalendarSelectionLabel(state.deviceCalendarIds),
+                          style:
+                              TextStyle(color: theme.inkSoft, fontSize: 13),
+                        ),
+                        trailing:
+                            Icon(Icons.chevron_right, color: theme.ink),
+                        onTap: () => _showCalendarPicker(context, state),
+                      ),
+                    ),
                   ),
                 ],
               ),
@@ -179,8 +201,7 @@ class SettingsScreen extends StatelessWidget {
                         style: TextStyle(color: theme.inkSoft, fontSize: 13)),
                     activeThumbColor: theme.accent,
                     value: state.remindersEnabled,
-                    onChanged: (value) =>
-                        _toggleReminders(context, state, value),
+                    onChanged: (value) => _toggleReminders(state, value),
                   ),
                   // Der Hauptschalter laesst die Einstellung am einzelnen
                   // Eintrag stehen; ausgeschaltet gibt es hier nichts zu
@@ -263,12 +284,19 @@ class SettingsScreen extends StatelessWidget {
   }
 }
 
+/// Was unter "Welche Kalender" steht – die drei Zustaende von
+/// [AppState.deviceCalendarIds] in Nutzerworten.
+String deviceCalendarSelectionLabel(Set<String>? ids) {
+  if (ids == null) return 'Alle Kalender des Telefons';
+  if (ids.isEmpty) return 'Keiner ausgewählt – es wird nichts angezeigt';
+  return ids.length == 1 ? '1 Kalender ausgewählt' : '${ids.length} Kalender ausgewählt';
+}
+
 /// Der Geraete-Kalender braucht als einziger Schalter eine Berechtigung:
 /// erst wenn die da ist, geht er an. Wird sie verweigert, bleibt er aus und
-/// eine Snackbar zeigt den Weg in die System-Einstellungen – noetig, falls
+/// ein Toast zeigt den Weg in die System-Einstellungen – noetig, falls
 /// Android die Anfrage nach zweimaligem Ablehnen gar nicht mehr stellt.
-Future<void> _toggleDeviceCalendar(
-    BuildContext context, AppState state, bool value) async {
+Future<void> _toggleDeviceCalendar(AppState state, bool value) async {
   if (!value) {
     state.setShowDeviceCalendar(false);
     DeviceCalendarFeed.instance.clear();
@@ -279,48 +307,231 @@ Future<void> _toggleDeviceCalendar(
     // Frisch laden, nicht was vor dem Abschalten uebrig war.
     DeviceCalendarFeed.instance.clear();
     state.setShowDeviceCalendar(true);
+    JoeToast.success('Geräte-Kalender ist an.');
     return;
   }
-  if (!context.mounted) return;
-  ScaffoldMessenger.of(context).showSnackBar(
-    SnackBar(
-      content: const Text('Ohne Kalender-Berechtigung geht das nicht.'),
-      action: SnackBarAction(
-        label: 'Einstellungen',
-        onPressed: () => DeviceCalendarFeed.instance.openSystemSettings(),
-      ),
+  JoeToast.error(
+    'Ohne Kalender-Berechtigung geht das nicht.',
+    action: ToastAction(
+      'Einstellungen',
+      DeviceCalendarFeed.instance.openSystemSettings,
     ),
   );
 }
 
 /// Der Hauptschalter fuer Erinnerungen: beim Anschalten holt er die
 /// Benachrichtigungs-Berechtigung ein (ab Android 13 noetig), sonst bliebe
-/// er an, ohne dass je etwas ankaeme.
-Future<void> _toggleReminders(
-    BuildContext context, AppState state, bool value) async {
+/// er an, ohne dass je etwas ankaeme. Die Absage meldet
+/// [confirmReminderPermission] selbst.
+Future<void> _toggleReminders(AppState state, bool value) async {
   if (!value) {
     state.setRemindersEnabled(false);
     return;
   }
-  if (!await confirmReminderPermission(context)) return;
+  if (!await confirmReminderPermission()) return;
   state.setRemindersEnabled(true);
+  JoeToast.success('Erinnerungen sind an.');
+}
+
+/// Das Untermenue zur Kalender-Auswahl.
+void _showCalendarPicker(BuildContext context, AppState state) {
+  showJoeSheet(
+    context,
+    expand: true,
+    builder: (_) => _CalendarPickerSheet(state: state),
+  );
+}
+
+class _CalendarPickerSheet extends StatefulWidget {
+  final AppState state;
+  const _CalendarPickerSheet({required this.state});
+
+  @override
+  State<_CalendarPickerSheet> createState() => _CalendarPickerSheetState();
+}
+
+class _CalendarPickerSheetState extends State<_CalendarPickerSheet> {
+  List<Calendar>? _calendars;
+  bool _failed = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    // Die Fehlermeldung kommt aus dem Feed als Toast; hier bleibt nur die
+    // Frage, ob eine Liste zu zeigen ist.
+    final calendars = await DeviceCalendarFeed.instance.listCalendars();
+    if (!mounted) return;
+    setState(() {
+      _calendars = calendars;
+      _failed = calendars == null;
+    });
+  }
+
+  /// Was aktuell angehakt ist. null ("alle") wird dafuer ausgeschrieben, weil
+  /// die Haken es sonst nicht darstellen koennten.
+  Set<String> _checked(List<Calendar> all) =>
+      widget.state.deviceCalendarIds ?? all.map((c) => c.id).toSet();
+
+  void _toggle(List<Calendar> all, String id, bool on) {
+    // Kopie: was aus dem AppState kommt, ist unveraenderlich.
+    final next = {..._checked(all)};
+    on ? next.add(id) : next.remove(id);
+    // Alle angehakt heisst wieder "alle" – dann ist auch ein Kalender dabei,
+    // der spaeter erst auf dem Telefon eingerichtet wird.
+    widget.state.setDeviceCalendarIds(next.length == all.length ? null : next);
+    setState(() {});
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = joeThemeOf(context);
+    final calendars = _calendars;
+    return SafeArea(
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(context).size.height * 0.82,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              margin: const EdgeInsets.only(top: 10, bottom: 6),
+              decoration: BoxDecoration(
+                color: theme.inkSoft.withValues(alpha: 0.4),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 6, 20, 4),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'Kalender auswählen',
+                  style: TextStyle(
+                    color: theme.ink,
+                    fontSize: 17,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'Nur Anzeige – Joe ändert nichts an diesen Kalendern.',
+                  style: TextStyle(color: theme.inkSoft, fontSize: 13),
+                ),
+              ),
+            ),
+            if (calendars == null && !_failed)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 32),
+                child: CircularProgressIndicator(),
+              )
+            else if (_failed)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+                child: Column(
+                  children: [
+                    Text(
+                      'Die Kalender des Telefons ließen sich nicht laden.',
+                      style: TextStyle(color: theme.ink, fontSize: 14),
+                    ),
+                    const SizedBox(height: 10),
+                    OutlinedButton(
+                      onPressed: () {
+                        setState(() {
+                          _failed = false;
+                          _calendars = null;
+                        });
+                        _load();
+                      },
+                      child: const Text('Erneut versuchen'),
+                    ),
+                  ],
+                ),
+              )
+            else if (calendars!.isEmpty)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+                child: Text(
+                  'Auf diesem Telefon ist kein Kalender eingerichtet.',
+                  style: TextStyle(color: theme.inkSoft, fontSize: 14),
+                ),
+              )
+            else
+              Flexible(
+                child: ListView(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  children: [
+                    for (final calendar in calendars)
+                      CheckboxListTile(
+                        value: _checked(calendars).contains(calendar.id),
+                        onChanged: (on) =>
+                            _toggle(calendars, calendar.id, on ?? false),
+                        activeColor: theme.accent,
+                        controlAffinity: ListTileControlAffinity.leading,
+                        secondary: Container(
+                          width: 14,
+                          height: 14,
+                          decoration: BoxDecoration(
+                            color: calendar.color ?? theme.accent,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                        title: Text(
+                          calendar.name,
+                          style: TextStyle(color: theme.ink, fontSize: 15),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        subtitle: calendar.accountName == null
+                            ? null
+                            : Text(
+                                calendar.accountName!,
+                                style: TextStyle(
+                                    color: theme.inkSoft, fontSize: 12),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                      ),
+                  ],
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 /// Reicht die Logdateien an den Share-Intent des Systems weiter; solange
 /// noch keine Datei existiert, den Speicherpuffer als Text.
 Future<void> _shareLogs(BuildContext context) async {
-  final payload = await JoeLog.instance.sharePayload();
-  await SharePlus.instance.share(
-    payload.paths.isNotEmpty
-        ? ShareParams(
-            subject: 'Joe – Logs',
-            files: [
-              for (final path in payload.paths)
-                XFile(path, mimeType: 'text/plain'),
-            ],
-          )
-        : ShareParams(subject: 'Joe – Logs', text: payload.text),
-  );
+  try {
+    final payload = await JoeLog.instance.sharePayload();
+    await SharePlus.instance.share(
+      payload.paths.isNotEmpty
+          ? ShareParams(
+              subject: 'Joe – Logs',
+              files: [
+                for (final path in payload.paths)
+                  XFile(path, mimeType: 'text/plain'),
+              ],
+            )
+          : ShareParams(subject: 'Joe – Logs', text: payload.text),
+    );
+  } catch (e) {
+    // Ausgerechnet der Knopf fuer die Fehlersuche darf nicht still scheitern.
+    JoeLog.log('Logs teilen fehlgeschlagen: $e');
+    JoeToast.error('Die Logs ließen sich nicht teilen.');
+  }
 }
 
 /// One row in the theme dropdown: preview swatch plus name. Photo themes show

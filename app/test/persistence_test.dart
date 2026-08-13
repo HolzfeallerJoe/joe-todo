@@ -95,6 +95,49 @@ void main() {
     expect(prefs.getString(AppState.rescueKey), isNull);
   });
 
+  test('Geraete-Kalender-Auswahl: alle, einige, keiner', () async {
+    // Die drei Zustaende muessen sich ueber Speichern und Laden hinweg
+    // unterscheiden lassen: "nie ausgewaehlt" (null, also alle) ist etwas
+    // anderes als "alle abgewaehlt" (leer, also nichts).
+    SharedPreferences.setMockInitialValues(
+        {'joe_data_v1': jsonEncode(validData())});
+    final state = AppState();
+    await state.load();
+    expect(state.deviceCalendarIds, isNull, reason: 'Standard ist "alle"');
+
+    Future<AppState> nachNeuladen(Set<String>? ids) async {
+      state.setDeviceCalendarIds(ids);
+      // Gespeichert wird fire-and-forget; hier auf den Schreibvorgang warten.
+      await pumpEventQueue();
+      final wieder = AppState();
+      await wieder.load();
+      return wieder;
+    }
+
+    expect((await nachNeuladen({'1', '7'})).deviceCalendarIds, {'1', '7'});
+    // Leer bleibt leer und wird nicht zu null zurueckgedeutet.
+    expect((await nachNeuladen(<String>{})).deviceCalendarIds, isEmpty);
+    expect((await nachNeuladen(null)).deviceCalendarIds, isNull);
+  });
+
+  test('unbrauchbare Kalender-Auswahl faellt auf "alle"', () async {
+    final data = validData();
+    data['deviceCalendarIds'] = 'alle bitte';
+    SharedPreferences.setMockInitialValues({'joe_data_v1': jsonEncode(data)});
+    final state = AppState();
+    await state.load();
+    expect(state.deviceCalendarIds, isNull);
+
+    // Eine Liste mit Fremdkoerpern behaelt, was brauchbar ist.
+    final gemischt = validData();
+    gemischt['deviceCalendarIds'] = ['1', 2, null, '3'];
+    SharedPreferences.setMockInitialValues(
+        {'joe_data_v1': jsonEncode(gemischt)});
+    final zweiter = AppState();
+    await zweiter.load();
+    expect(zweiter.deviceCalendarIds, {'1', '3'});
+  });
+
   test('falsch getypte Einstellungen fallen auf ihren Standard', () async {
     final data = validData();
     data['themeIndex'] = 'drei';

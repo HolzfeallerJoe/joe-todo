@@ -28,14 +28,21 @@ Dashboard, Kalender, wiederkehrenden Aufgaben, Notizen und Historie.
   die vier Hauptphasen des Mondes ein gemaltes Mond-Icon rechts davon; im
   Tagesdetail stehen beide ganz oben. In den Einstellungen abschaltbar
   (Standard: an) und das Bundesland wählbar (Standard: nur die bundesweiten
-  Feiertage).
+  Feiertage). Die Meeus-Reihe ist zu teuer, um sie für 42 Rasterzellen in
+  einem Frame zu rechnen; `MoonWarmup` arbeitet den Monat deshalb
+  häppchenweise vor, und zwar dort zuerst, wo der Blick hingeht: der laufende
+  Monat ab heute bis zum Monatsende und der Anfang als Nachtrag, ein
+  künftiger Monat vom Ersten nach vorn, ein vergangener vom Letzten
+  rückwärts. Das Raster liest nur den Cache (`cachedMoonPhaseOnDay`) und
+  füllt sich sichtbar auf; das Tagesdetail rechnet seinen einen Tag sofort.
 - **Geräte-Kalender** – zeigt auf Wunsch die Termine aus den Kalendern des
   Telefons (Android Calendar Provider) im Monatsraster (Farbpunkte in der
   Kalenderfarbe, nach den eigenen Einträgen) und im Tagesdetail (nach den
   eigenen Terminen, mit Uhrzeit bzw. „ganztägig"). Damit landet alles, was
   die Google-Kalender-App synchronisiert – Gmail-Termine, abonnierte
   Kalender –, ohne dass Joe selbst ins Netz spricht. Standard: aus; der
-  Schalter in den Einstellungen fragt die Kalender-Berechtigung an
+  Schalter in den Einstellungen fragt die Kalender-Berechtigung an, ein
+  Untermenü darunter wählt, welche der Kalender überhaupt gezeigt werden
   (siehe „Daten & Sicherheit").
 - **Wiederkehrende Aufgaben** – täglich, wöchentlich, monatlich, alle X Tage.
 - **Notizen** – einfache Liste + Editor, ohne Untermenüs; speichert beim
@@ -49,7 +56,13 @@ Dashboard, Kalender, wiederkehrenden Aufgaben, Notizen und Historie.
   am Fälligkeitstag – bei wiederkehrenden Aufgaben an jedem ihrer Tage.
   Zugestellt wird lokal vom Telefon, nichts geht ins Netz. Neue Termine
   starten mit dem Standard-Vorlauf aus den Einstellungen (30 Minuten),
-  neue Aufgaben ohne; ein Hauptschalter schaltet alles auf einmal ab.
+  neue Aufgaben ohne; ein Hauptschalter schaltet alles auf einmal ab. Ein
+  Antippen führt in den Kalender auf den Tag der Erinnerung.
+- **Meldungen** – Fehler und Bestätigungen erscheinen als Toast am oberen
+  Rand (`lib/toast.dart`), drei Sekunden, mit Aktion länger; antippen oder
+  nach oben wischen räumt sie weg. Bewusst ein Singleton statt einer
+  Snackbar: die meisten dieser Meldungen entstehen ohne Bildschirm – ein
+  fehlgeschlagener Erinnerungsplan im Hintergrund hat keinen `BuildContext`.
 - **Design** – vier Notizbuch-Themen mit gemalten Texturen (Holz, Papier,
   Stoff, Aquarell) plus elf Foto-Hintergründe, wählbar über eine Klappliste in
   den Einstellungen; 20 warme frei wählbare Farben pro Aufgabe/Termin. Die
@@ -71,6 +84,7 @@ app/                  Flutter-Projekt (Android)
   lib/almanac.dart    Feiertage (Gauß) + Mondphasen (Meeus), rein berechnet
   lib/device_calendar.dart  Geraete-Kalender als lesende Ebene (Plugin-Kapsel)
   lib/reminders.dart  Erinnerungsplan (rechnend) + Zustellung (Plugin-Kapsel)
+  lib/toast.dart      Meldungen am oberen Rand – der eine Weg zum Nutzer
   lib/theme.dart      Themes + Textur-Painter
   lib/pets.dart       Begleiter-Katalog (Name, Gruppe, Asset-Pfad)
   lib/widgets.dart    PaperCard, Ordner-Reiter, Aufgaben-Zeile, Sheets
@@ -166,24 +180,67 @@ Standard (an), damit der Bestand Gerätewechsel überlebt.
 
 Für die Erinnerungen kommen POST_NOTIFICATIONS (ab Android 13 zur Laufzeit
 bestätigt), RECEIVE_BOOT_COMPLETED (Plan nach einem Neustart neu stellen) und
-USE_EXACT_ALARM dazu. Gefragt wird beim ersten Setzen einer Erinnerung bzw.
-beim Hauptschalter; ohne Erlaubnis wird nichts gesetzt und eine Snackbar sagt
-warum – eine Erinnerung, die stumm nie ankommt, wäre das Schlimmste. Der Plan
-selbst wird nicht gespeichert: `reminders.dart` rechnet ihn bei jeder Änderung
-neu aus dem Bestand (`pendingReminders`, 60 Tage voraus, höchstens acht
-Termine je wiederkehrender Aufgabe) und stellt ihn nur dann neu, wenn er sich
-wirklich unterscheidet. `flutter_local_notifications` verlangt außerdem
-Core Library Desugaring – siehe `android/app/build.gradle.kts`.
+für die exakte Zustellung **zwei** Alarm-Rechte dazu: USE_EXACT_ALARM (ab
+API 33, für Kalender- und Wecker-Apps ohne Extra-Dialog vorgesehen) und
+SCHEDULE_EXACT_ALARM mit `maxSdkVersion="32"`. Die zweite Zeile ist kein
+Doppel: Android 12 kennt USE_EXACT_ALARM noch nicht, dort lieferte
+`canScheduleExactAlarms()` sonst `false` und **jedes** `zonedSchedule` würfe –
+Erinnerungen kämen auf einer ganzen Android-Generation nie an. Zusätzlich
+prüft `reminders.dart` die Freigabe vor jedem Lauf und weicht auf einen
+ungefähren Alarm aus, statt gar nichts zu stellen; dass es dann ein paar
+Minuten später werden kann, sagt ein Toast.
+
+Gefragt wird beim ersten Setzen einer Erinnerung bzw. beim Hauptschalter;
+ohne Erlaubnis wird nichts gesetzt und ein Toast sagt warum, mit Knopf in die
+System-Einstellungen – ab Android 13 zeigt das System den Dialog nach
+zweimaligem Ablehnen gar nicht mehr. Beim Start prüft
+`JoeReminders.checkDelivery`, ob die Benachrichtigungen inzwischen im System
+abgeschaltet wurden; sonst stünde der Hauptschalter auf „an", während nichts
+mehr ankommt. Ein Antippen führt in den Kalender auf den Tag der Erinnerung.
+
+Der Plan selbst wird nicht gespeichert: `reminders.dart` rechnet ihn bei jeder
+Änderung neu aus dem Bestand (`pendingReminders`, 60 Tage voraus, höchstens
+30 Termine je wiederkehrender Aufgabe). Die 30 decken eine tägliche Aufgabe
+einen Monat weit ab – neu gestellt wird nur bei einer Änderung oder beim
+App-Start, und wer die App eine Woche nicht öffnet, bekäme sonst nichts mehr,
+obwohl genau die Erinnerung ihn hineinholen würde. Darüber liegt ein globaler
+Deckel von 400 (`maxScheduledReminders`), denn Android lässt pro App nur 500
+offene Alarme zu und zwanzig wiederkehrende Aufgaben kämen sonst auf 600.
+Abgeschnitten wird am Ende der nach Zeit sortierten Liste: die nächsten
+Erinnerungen gewinnen. Verglichen wird **pro Erinnerung**,
+und angefasst wird nur, was sich unterscheidet – ein `cancelAll()` risse sonst
+auch schon zugestellte Erinnerungen aus der Leiste. Die Läufe sind
+serialisiert (`_queue`): zwei gleichzeitige `sync` haben sich sonst gegenseitig
+die frisch gestellten Erinnerungen gelöscht. `flutter_local_notifications`
+verlangt außerdem Core Library Desugaring – siehe
+`android/app/build.gradle.kts`.
 
 Die weiteren Berechtigungen im Release sind READ_CALENDAR und WRITE_CALENDAR
-(device_calendar_plus) für die Geräte-Kalender-Ebene. Angefragt wird erst,
-wenn der Schalter in den Einstellungen umgelegt wird; abgelehnt heißt: der
-Schalter bleibt aus, eine Snackbar verlinkt die System-Einstellungen. Gelesen
-wird nur zur Anzeige, gespeichert nichts (Monats-Cache nur im Speicher, siehe
-`lib/device_calendar.dart`); WRITE ist bewusst schon dabei, damit Joe später
-auch Termine eintragen kann. Jeder Plugin-Aufruf ist gefangen – auf
-Plattformen ohne Geräte-Kalender (Web, Desktop) bleibt die Ebene einfach
-leer, der Rest der App läuft ungestört.
+(device_calendar_plus) für die Geräte-Kalender-Ebene. **Joe schreibt nicht** –
+es gibt keine Stelle in der App, die einen Geräte-Termin anlegt oder ändert.
+WRITE_CALENDAR steht trotzdem im Manifest, weil `device_calendar_plus` zum
+*Lesen* die Stufe `full` verlangt und deren Anfrage beide Rechte deklariert
+haben will (`PermissionService.checkPermissionsDeclared`); ohne die Zeile
+schlägt schon die Berechtigungsanfrage fehl. Wer das nicht will, müsste den
+Calendar Provider selbst lesen.
+
+Angefragt wird erst, wenn der Schalter in den Einstellungen umgelegt wird;
+abgelehnt heißt: der Schalter bleibt aus, ein Toast verlinkt die
+System-Einstellungen. Welche Kalender angezeigt werden, wählt ein Untermenü
+darunter (`AppState.deviceCalendarIds`: `null` = alle, auch später
+hinzukommende; leer = keiner; gefüllt = genau diese). Gelesen wird nur zur
+Anzeige, gespeichert nichts (Monats-Cache nur im Speicher, siehe
+`lib/device_calendar.dart`).
+
+Jeder Plugin-Aufruf ist gefangen – auf Plattformen ohne Geräte-Kalender (Web,
+Desktop) bleibt die Ebene einfach leer, der Rest der App läuft ungestört.
+**Gefangen heißt aber nicht verschwiegen:** ein gescheiterter Abruf landet
+nicht mehr als leere Liste dauerhaft im Cache (dann sähe ein Tag ohne Termine
+genauso aus wie einer, dessen Termine nicht geladen werden konnten), sondern
+setzt einen Fehlerzustand, meldet sich als Toast und stellt eine Hinweiszeile
+über das Tagesdetail – mit „Erneut" bzw. „Einstellungen". Beim Start prüft
+`checkPermission()` ohne Dialog, ob die einmal erteilte Berechtigung noch
+steht.
 
 Beim Laden gilt: **nichts darf den Start verhindern, und nie wird über die
 einzige Kopie geschrieben.** `main()` wartet auf `AppState.load()` – würfe

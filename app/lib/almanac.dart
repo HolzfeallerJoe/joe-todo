@@ -1,4 +1,7 @@
+import 'dart:async';
 import 'dart:math' as math;
+
+import 'package:flutter/foundation.dart';
 
 import 'util.dart';
 
@@ -93,6 +96,12 @@ List<_Holiday> _holidaysOfYear(int year) => _holidayCache.putIfAbsent(year, () {
         _Holiday(fromEaster(39), 'Christi Himmelfahrt'),
         _Holiday(fromEaster(49), 'Pfingstsonntag', {HolidayRegion.bb}),
         _Holiday(fromEaster(50), 'Pfingstmontag'),
+        // In Sachsen und Thueringen gilt Fronleichnam zusaetzlich in
+        // einzelnen ueberwiegend katholischen Gemeinden – anders als bei
+        // Mariae Himmelfahrt in Bayern sind das dort nur eine Handvoll, also
+        // waere ein landesweiter Eintrag fuer die grosse Mehrheit falsch.
+        // Bewusst weggelassen: lieber ein Feiertag zu wenig als ein Kalender,
+        // der einem in Leipzig freigibt, was dort ein Arbeitstag ist.
         _Holiday(fromEaster(60), 'Fronleichnam', {
           HolidayRegion.bw, HolidayRegion.by, HolidayRegion.he,
           HolidayRegion.nw, HolidayRegion.rp, HolidayRegion.sl,
@@ -115,6 +124,10 @@ List<_Holiday> _holidaysOfYear(int year) => _holidayCache.putIfAbsent(year, () {
         _Holiday(bussUndBettag, 'Buß- und Bettag', {HolidayRegion.sn}),
         _Holiday(DateTime(year, 12, 25), '1. Weihnachtstag'),
         _Holiday(DateTime(year, 12, 26), '2. Weihnachtstag'),
+        // Nicht dabei: das Augsburger Friedensfest am 8. August. Es ist ein
+        // gesetzlicher Feiertag, gilt aber nur im Stadtgebiet Augsburg – und
+        // die Auswahl hier geht bis zum Bundesland, nicht bis zur Stadt. Wer
+        // ihn braucht, traegt sich einen wiederkehrenden Termin ein.
       ];
     });
 
@@ -345,6 +358,10 @@ final _moonDayCache = <String, MoonPhaseKind?>{};
 /// Die Hauptphase, die (in lokaler Zeit) auf den Kalendertag [day] faellt,
 /// oder null. Nur die vier Phasentage tragen einen Mond – ein Mond an jedem
 /// Tag wuerde den Kalender fluten.
+///
+/// Rechnet, wenn der Tag noch nicht im Cache steht. Fuer einen einzelnen Tag
+/// (das Tagesdetail) ist das richtig; das Monatsraster nimmt statt dessen
+/// [cachedMoonPhaseOnDay] und laesst [MoonWarmup] vorarbeiten.
 MoonPhaseKind? moonPhaseOnDay(DateTime day) {
   final d = dateOnly(day);
   return _moonDayCache.putIfAbsent(dateKey(d), () {
@@ -357,4 +374,98 @@ MoonPhaseKind? moonPhaseOnDay(DateTime day) {
     }
     return null;
   });
+}
+
+/// Was schon gerechnet ist – ohne zu rechnen. null heisst "kein Mond an
+/// diesem Tag" *oder* "noch nicht dran gewesen"; fuers Raster ist das
+/// dasselbe: es steht nichts da, und sobald [MoonWarmup] den Tag erreicht
+/// hat, erscheint der Mond.
+MoonPhaseKind? cachedMoonPhaseOnDay(DateTime day) =>
+    _moonDayCache[dateKey(dateOnly(day))];
+
+/// In welcher Reihenfolge ein Monat gerechnet wird.
+///
+/// Ein Monatsraster auf einmal durchzurechnen sind ~370 Auswertungen der
+/// Meeus-Reihe in einem Frame. Statt dessen wird gestaffelt, und zwar dort
+/// zuerst, wo der Blick hingeht:
+///
+/// * **Der laufende Monat** faengt bei *heute* an und laeuft bis zum
+///   Monatsende; der Rest davor wird danach nachgetragen.
+/// * **Ein kuenftiger Monat** laeuft vom Ersten nach vorn – man kommt von
+///   oben.
+/// * **Ein vergangener Monat** laeuft vom Letzten rueckwaerts – man kommt
+///   von unten.
+List<DateTime> moonWarmupOrder(DateTime month, DateTime today) {
+  final first = DateTime(month.year, month.month);
+  final lastDay = DateTime(month.year, month.month + 1, 0).day;
+  final t = dateOnly(today);
+  final current = t.year == first.year && t.month == first.month;
+
+  if (current) {
+    return [
+      for (var d = t.day; d <= lastDay; d++) DateTime(first.year, first.month, d),
+      // Backfill: was diesen Monat schon vorbei ist, kommt zuletzt.
+      for (var d = 1; d < t.day; d++) DateTime(first.year, first.month, d),
+    ];
+  }
+  if (first.isAfter(DateTime(t.year, t.month))) {
+    return [
+      for (var d = 1; d <= lastDay; d++) DateTime(first.year, first.month, d),
+    ];
+  }
+  return [
+    for (var d = lastDay; d >= 1; d--) DateTime(first.year, first.month, d),
+  ];
+}
+
+/// Rechnet die Mondphasen eines Monats haeppchenweise vor und meldet sich
+/// nach jedem Haeppchen – der Kalender fuellt sich dann sichtbar auf, statt
+/// einen Frame lang zu stocken.
+class MoonWarmup extends ChangeNotifier {
+  MoonWarmup._();
+  static final MoonWarmup instance = MoonWarmup._();
+
+  /// So viele Tage pro Runde. Klein genug, dass zwischen zwei Runden ein
+  /// Frame passt, gross genug, dass ein Monat in gut zehn Runden steht.
+  static const chunkSize = 3;
+
+  int _generation = 0;
+  DateTime? _month;
+
+  /// Nimmt sich [month] vor. Ein noch laufender Lauf fuer einen anderen Monat
+  /// wird dabei fallen gelassen – wer weiterblaettert, wartet nicht auf den
+  /// Monat, den er gerade verlassen hat.
+  ///
+  /// Darf aus `build` heraus aufgerufen werden: der Lauf beginnt erst nach
+  /// dem laufenden Frame, es kommt also kein `notifyListeners` waehrend des
+  /// Bauens zurueck.
+  void warm(DateTime month, {DateTime? from}) {
+    final start = DateTime(month.year, month.month);
+    if (_month == start) return;
+    _month = start;
+    final generation = ++_generation;
+    unawaited(_run(generation, moonWarmupOrder(start, from ?? today())));
+  }
+
+  Future<void> _run(int generation, List<DateTime> days) async {
+    // Erst den laufenden Frame zu Ende gehen lassen.
+    await Future<void>.delayed(Duration.zero);
+    var inChunk = 0;
+    for (final day in days) {
+      if (generation != _generation) return;
+      moonPhaseOnDay(day);
+      if (++inChunk < chunkSize) continue;
+      inChunk = 0;
+      notifyListeners();
+      await Future<void>.delayed(Duration.zero);
+    }
+    if (generation == _generation) notifyListeners();
+  }
+
+  /// Damit ein Test nicht den Monat des vorigen geerbt bekommt.
+  @visibleForTesting
+  void reset() {
+    _generation++;
+    _month = null;
+  }
 }

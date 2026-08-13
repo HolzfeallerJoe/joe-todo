@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart'
     as fln;
 import 'package:flutter_timezone/flutter_timezone.dart';
@@ -6,6 +7,7 @@ import 'package:timezone/timezone.dart' as tz;
 
 import 'log.dart';
 import 'models.dart';
+import 'toast.dart';
 import 'util.dart';
 
 /// Erinnerungen als lokale Benachrichtigungen – die Uhr des Telefons stellt
@@ -13,9 +15,13 @@ import 'util.dart';
 ///
 /// Die Rechnung steht als freie Funktionen hier drin ([pendingReminders],
 /// [reminderNotificationId] …) und ist ohne Plugin pruefbar; [JoeReminders]
-/// haelt allein die Platform-Aufrufe und faengt sie ab: eine fehlende
-/// Berechtigung oder eine Plattform ganz ohne Benachrichtigungen darf die
-/// App nie stoeren.
+/// haelt allein die Platform-Aufrufe.
+///
+/// Gefangen wird dort weiterhin alles – eine fehlende Berechtigung oder eine
+/// Plattform ganz ohne Benachrichtigungen darf die App nie stoeren. Aber
+/// **gefangen heisst nicht verschwiegen**: was schiefgeht, geht als Toast an
+/// den Nutzer. Eine Erinnerung, von der man glaubt, sie stehe, ist schlimmer
+/// als gar keine.
 
 /// Die Vorlaufzeiten, die ein Termin anbieten kann – null ist "Keine".
 const reminderLeadChoices = <int?>[null, 0, 5, 10, 15, 30, 60, 120, 1440];
@@ -41,6 +47,53 @@ String reminderTimeLabel(int? minuteOfDay) {
   return '$h:$m Uhr';
 }
 
+/// Worauf eine angetippte Erinnerung zeigt. Steckt als [Reminder.payload] in
+/// der Benachrichtigung und kommt beim Antippen zurueck.
+class ReminderTarget {
+  final bool isTask;
+  final String id;
+  final DateTime day;
+
+  const ReminderTarget({
+    required this.isTask,
+    required this.id,
+    required this.day,
+  });
+}
+
+/// `aufgabe|<id>|<yyyy-mm-dd>` bzw. `termin|…`. Der Tag steht mit drin, weil
+/// eine wiederkehrende Aufgabe an vielen Tagen erinnert und das Antippen den
+/// richtigen treffen soll.
+String reminderPayload({
+  required bool isTask,
+  required String id,
+  required DateTime day,
+}) =>
+    '${isTask ? 'aufgabe' : 'termin'}|$id|${dateKey(day)}';
+
+/// Liest [reminderPayload] zurueck; null, wenn nichts Brauchbares drinsteht –
+/// etwa aus einer aelteren Version, die noch keinen Payload gesetzt hat.
+ReminderTarget? parseReminderPayload(String? payload) {
+  if (payload == null) return null;
+  final parts = payload.split('|');
+  if (parts.length != 3) return null;
+  if (parts[0] != 'aufgabe' && parts[0] != 'termin') return null;
+  if (parts[1].isEmpty) return null;
+  try {
+    final day = parseDateKey(parts[2]);
+    // parseDateKey rechnet Unsinn glatt: aus '2026-13-45' wuerde sonst
+    // klaglos der 14. Februar 2027. Der Rueckweg deckt das auf.
+    if (dateKey(day) != parts[2]) return null;
+    return ReminderTarget(
+      isTask: parts[0] == 'aufgabe',
+      id: parts[1],
+      day: day,
+    );
+  } catch (_) {
+    return null;
+  }
+}
+
 /// Eine geplante Benachrichtigung, fertig zum Einstellen.
 class Reminder {
   final int id;
@@ -48,24 +101,43 @@ class Reminder {
   final String body;
   final DateTime when;
 
+  /// Wohin das Antippen fuehrt – siehe [reminderPayload].
+  final String payload;
+
   const Reminder({
     required this.id,
     required this.title,
     required this.body,
     required this.when,
+    this.payload = '',
   });
 
   /// Zwei Plaene sind gleich, wenn jede Zeile gleich ist – daran erkennt
-  /// [JoeReminders.sync], dass nichts neu gestellt werden muss.
+  /// [JoeReminders.sync], was neu gestellt werden muss und was stehen bleibt.
+  /// [payload] steht bewusst nicht drin: er folgt aus [id] und [when].
   String get signature => '$id|$title|$body|${when.toIso8601String()}';
 }
 
-/// Wie viele Tage im Voraus geplant wird und wie viele Termine ein
-/// wiederkehrender Eintrag hoechstens belegt. Beides bewusst knapp: Android
-/// deckelt die offenen Benachrichtigungen, und der Plan wird bei jeder
-/// Aenderung und bei jedem App-Start ohnehin neu gestellt.
+/// Wie weit im Voraus geplant wird.
 const reminderHorizonDays = 60;
-const remindersPerTask = 8;
+
+/// Wie viele Termine ein wiederkehrender Eintrag hoechstens belegt.
+///
+/// Neu gestellt wird nur bei einer Aenderung oder beim App-Start – und wer
+/// die App laenger nicht oeffnet, bekommt danach nichts mehr. Genau dann ist
+/// die Erinnerung aber das, was die App oeffnen wuerde. Darum reicht das
+/// hier fuer einen Monat einer taeglichen Aufgabe, nicht fuer eine Woche.
+const remindersPerTask = 30;
+
+/// Der harte Deckel ueber alles zusammen.
+///
+/// Android laesst pro App 500 offene Alarme zu (`MAX_ALARMS_PER_UID`, ab
+/// API 31); darueber wirft das System. [remindersPerTask] allein schuetzt
+/// davor nicht – zwanzig wiederkehrende Aufgaben kaemen auf 600. Der Deckel
+/// muss deshalb global sein. Abgeschnitten wird am Ende der nach Zeit
+/// sortierten Liste: die naechsten Erinnerungen gewinnen, die fernsten
+/// fallen weg und sind beim naechsten Lauf ohnehin wieder dran.
+const maxScheduledReminders = 400;
 
 /// Die Nummer, unter der eine Erinnerung beim System steht. Sie muss
 /// zwischen zwei Laeufen dieselbe bleiben (sonst bliebe eine alte
@@ -97,6 +169,7 @@ List<Reminder> pendingReminders({
   required DateTime from,
   int horizonDays = reminderHorizonDays,
   int perTask = remindersPerTask,
+  int maxTotal = maxScheduledReminders,
 }) {
   final out = <Reminder>[];
   final horizon = from.add(Duration(days: horizonDays));
@@ -111,6 +184,7 @@ List<Reminder> pendingReminders({
       title: a.title,
       body: '${formatRelativeDay(a.when)} um ${formatTime(a.when)}',
       when: when,
+      payload: reminderPayload(isTask: false, id: a.id, day: a.when),
     ));
   }
 
@@ -131,84 +205,249 @@ List<Reminder> pendingReminders({
         title: task.title,
         body: 'Aufgabe für heute',
         when: when,
+        payload: reminderPayload(isTask: true, id: task.id, day: day),
       ));
       slot++;
     }
   }
 
   out.sort((a, b) => a.when.compareTo(b.when));
-  return out;
+  // Erst sortieren, dann deckeln – sonst haenge es vom Zufall der
+  // Eintragsreihenfolge ab, wessen Erinnerung wegfaellt.
+  return out.length <= maxTotal ? out : out.sublist(0, maxTotal);
 }
 
-/// Der Draht zum System. Alles hier drin ist gefangen: ohne
-/// Benachrichtigungen (Web, verweigerte Berechtigung) bleibt die App
-/// vollstaendig benutzbar, es kommt nur nichts an.
+/// Der Draht zum System.
 class JoeReminders {
   JoeReminders._();
   static final JoeReminders instance = JoeReminders._();
 
   static const _channelId = 'joe_reminders';
+  static const _channelName = 'Erinnerungen';
+  static const _channelDescription = 'Erinnerungen an Aufgaben und Termine';
 
   final _plugin = fln.FlutterLocalNotificationsPlugin();
   bool _ready = false;
-  String _plan = '';
 
-  /// Zeitzonen laden und den Kanal anlegen. Wird von main() vor dem ersten
-  /// [sync] aufgerufen; schlaegt es fehl, bleibt [_ready] false und alles
-  /// Weitere ist ein stiller No-Op.
-  Future<void> init() async {
+  /// Der laufende bzw. abgeschlossene [init]. Alles Weitere wartet darauf,
+  /// statt in der Zwischenzeit "geht nicht" zu behaupten.
+  Future<void>? _initFuture;
+
+  /// Was gerade beim System steht: Nummer -> [Reminder.signature]. Frueher
+  /// war das ein einziger Plan-String plus `cancelAll()`; damit riss jede
+  /// Aenderung auch alle bereits *zugestellten* Erinnerungen aus der Leiste.
+  /// Jetzt wird pro Nummer verglichen und nur angefasst, was sich aendert.
+  final Map<int, String> _scheduled = {};
+
+  /// Serialisiert die Laeufe. Zwei gleichzeitige [sync] haben sich sonst
+  /// gegenseitig die frisch gestellten Erinnerungen weggeloescht: der zweite
+  /// Lauf raeumte ab, waehrend der erste noch stellte.
+  Future<void> _queue = Future<void>.value();
+
+  /// Ob das System exakte Alarme zulaesst. Auf Android 12 ohne
+  /// SCHEDULE_EXACT_ALARM und auf 13+ mit entzogener "Wecker und
+  /// Erinnerungen"-Freigabe ist das false – dann wird ungefaehr geplant,
+  /// statt gar nicht.
+  bool _exactAllowed = true;
+  bool _warnedInexact = false;
+
+  /// Wohin ein Antippen fuehrt. Setzt die App, sobald ihr Navigator steht.
+  void Function(ReminderTarget)? onOpen;
+  ReminderTarget? _pendingTarget;
+
+  bool get ready => _ready;
+
+  fln.AndroidFlutterLocalNotificationsPlugin? get _android =>
+      _plugin.resolvePlatformSpecificImplementation<
+          fln.AndroidFlutterLocalNotificationsPlugin>();
+
+  /// Zeitzonen laden, den Kanal anlegen, Antippen verdrahten. Wird von
+  /// main() vor dem ersten [sync] aufgerufen.
+  Future<void> init() => _initFuture ??= _init();
+
+  Future<void> _init() async {
     try {
       tzdata.initializeTimeZones();
       // Ohne die Zone des Geraets rechnete das Plugin in UTC – die
       // Erinnerung kaeme je nach Jahreszeit ein bis zwei Stunden daneben.
-      final local = await FlutterTimezone.getLocalTimezone();
-      tz.setLocalLocation(tz.getLocation(local.identifier));
+      // Scheitert das, ist UTC immer noch besser als gar keine Erinnerung:
+      // frueher riss dieser eine Fehler das ganze Feature mit.
+      try {
+        final local = await FlutterTimezone.getLocalTimezone();
+        tz.setLocalLocation(tz.getLocation(local.identifier));
+      } catch (e) {
+        JoeLog.log('Erinnerungen: Zeitzone unbekannt, es gilt UTC: $e');
+        JoeToast.error('Zeitzone des Telefons unbekannt – Erinnerungen '
+            'können um Stunden danebenliegen.');
+      }
 
       await _plugin.initialize(
         settings: const fln.InitializationSettings(
           android: fln.AndroidInitializationSettings('@mipmap/ic_launcher'),
         ),
+        onDidReceiveNotificationResponse: (response) =>
+            _handleTap(response.payload),
       );
-      await _plugin
-          .resolvePlatformSpecificImplementation<
-              fln.AndroidFlutterLocalNotificationsPlugin>()
-          ?.createNotificationChannel(const fln.AndroidNotificationChannel(
-            _channelId,
-            'Erinnerungen',
-            description: 'Erinnerungen an Aufgaben und Termine',
-            importance: fln.Importance.high,
-          ));
+      await _android?.createNotificationChannel(
+        const fln.AndroidNotificationChannel(
+          _channelId,
+          _channelName,
+          description: _channelDescription,
+          importance: fln.Importance.high,
+        ),
+      );
+      await _refreshExactAllowed();
+
+      // Was aus dem vorigen App-Lauf noch beim System steht, uebernehmen –
+      // sonst wuesste der erste [sync] nichts davon und liesse eine
+      // Erinnerung stehen, die im neuen Plan nicht mehr vorkommt. Frueher
+      // erledigte das ein `cancelAll()`; das riss aber auch die bereits
+      // zugestellten aus der Leiste. `pendingNotificationRequests` meldet
+      // allein die geplanten. Die Signatur '?' passt auf keine echte, jede
+      // uebernommene Nummer wird also entweder abgeraeumt oder neu gestellt.
+      for (final pending in await _plugin.pendingNotificationRequests()) {
+        _scheduled[pending.id] = '?';
+      }
+      // Erst jetzt: ein [sync], der zwischen Uebernahme und hier
+      // dazwischenkaeme, saehe einen halb gefuellten Stand.
       _ready = true;
-      JoeLog.log('Erinnerungen: bereit (${tz.local.name})');
+      JoeLog.log('Erinnerungen: bereit (${tz.local.name}, '
+          'exakt: $_exactAllowed, ${_scheduled.length} vom letzten Mal)');
+
+      // Die App kann ueber ein Antippen gestartet worden sein – dann steht
+      // der Payload nicht im Callback, sondern in den Startdetails.
+      final launch = await _plugin.getNotificationAppLaunchDetails();
+      if (launch?.didNotificationLaunchApp ?? false) {
+        _handleTap(launch?.notificationResponse?.payload);
+      }
     } catch (e) {
       JoeLog.log('Erinnerungen: Einrichtung fehlgeschlagen: $e');
+      JoeToast.error('Erinnerungen konnten nicht eingerichtet werden – '
+          'es wird keine zugestellt.');
     }
+  }
+
+  Future<void> _refreshExactAllowed() async {
+    final android = _android;
+    if (android == null) {
+      _exactAllowed = true;
+      return;
+    }
+    try {
+      _exactAllowed = await android.canScheduleExactNotifications() ?? true;
+    } catch (e) {
+      JoeLog.log('Erinnerungen: Pruefung auf exakte Alarme fehlgeschlagen: $e');
+      _exactAllowed = false;
+    }
+  }
+
+  void _handleTap(String? payload) {
+    final target = parseReminderPayload(payload);
+    if (target == null) return;
+    final open = onOpen;
+    if (open == null) {
+      // Die Oberflaeche steht noch nicht – aufheben und nachholen.
+      _pendingTarget = target;
+      return;
+    }
+    open(target);
+  }
+
+  /// Meldet den Empfaenger fuers Antippen an und holt nach, was vor dem
+  /// ersten Frame hereinkam.
+  set tapHandler(void Function(ReminderTarget) handler) {
+    onOpen = handler;
+    final pending = _pendingTarget;
+    if (pending == null) return;
+    _pendingTarget = null;
+    handler(pending);
   }
 
   /// Fragt die Benachrichtigungs-Berechtigung an (ab Android 13 noetig).
   /// Gibt zurueck, ob zugestellt werden darf.
   Future<bool> ensurePermission() async {
-    if (!_ready) return false;
+    // Warten statt "geht nicht": wer schnell genug in die Einstellungen
+    // tippt, bekam sonst eine Absage, obwohl nur der Start noch lief.
+    await _initFuture;
+    if (!_ready) {
+      JoeToast.error('Erinnerungen stehen auf diesem Gerät nicht zur '
+          'Verfügung.');
+      return false;
+    }
     try {
-      final android = _plugin.resolvePlatformSpecificImplementation<
-          fln.AndroidFlutterLocalNotificationsPlugin>();
+      final android = _android;
       // Auf Plattformen ohne eigene Abfrage gilt die Erlaubnis als da –
       // dort entscheidet das System beim Zustellen.
       if (android == null) return true;
       final granted = await android.requestNotificationsPermission() ?? false;
       JoeLog.log('Erinnerungen: Berechtigung ${granted ? 'da' : 'fehlt'}');
+      if (!granted) {
+        // Ab Android 13 zeigt das System den Dialog nach zweimaligem
+        // Ablehnen gar nicht mehr – ohne diesen Weg saesse der Nutzer fest.
+        JoeToast.error(
+          'Ohne Benachrichtigungen kann Joe nicht erinnern.',
+          action: ToastAction('Einstellungen', openNotificationSettings),
+        );
+      }
       return granted;
     } catch (e) {
       JoeLog.log('Erinnerungen: Berechtigungsanfrage fehlgeschlagen: $e');
+      JoeToast.error('Die Benachrichtigungs-Berechtigung ließ sich nicht '
+          'abfragen.');
       return false;
     }
   }
 
-  /// Stellt den Plan neu: alles Alte weg, alles Anstehende hin. Aufgerufen
-  /// nach jeder Aenderung am Bestand – deshalb steigt es aus, wenn derselbe
-  /// Plan schon steht (ein Designwechsel meldet sich genauso wie eine neue
-  /// Aufgabe, soll aber keine Platform-Aufrufe ausloesen).
-  Future<void> sync(AppState state) async {
+  /// Prueft beim Start, ob ueberhaupt zugestellt werden kann: der
+  /// Hauptschalter kann an geblieben sein, waehrend die Benachrichtigungen
+  /// im System abgeschaltet wurden. Sonst stuende "an" und es kaeme nie
+  /// etwas an.
+  Future<void> checkDelivery(bool remindersEnabled) async {
+    await _initFuture;
+    if (!_ready || !remindersEnabled) return;
+    final android = _android;
+    if (android == null) return;
+    try {
+      final enabled = await android.areNotificationsEnabled() ?? true;
+      if (enabled) return;
+      JoeLog.log('Erinnerungen: Benachrichtigungen im System abgeschaltet');
+      JoeToast.error(
+        'Benachrichtigungen für Joe sind abgeschaltet – es kommt keine '
+        'Erinnerung an.',
+        action: ToastAction('Einstellungen', openNotificationSettings),
+      );
+    } catch (e) {
+      JoeLog.log('Erinnerungen: Zustellpruefung fehlgeschlagen: $e');
+    }
+  }
+
+  Future<void> openNotificationSettings() async {
+    try {
+      await _android?.openAppNotificationSettings();
+    } catch (e) {
+      JoeLog.log('Erinnerungen: Benachrichtigungs-Einstellungen '
+          'nicht erreichbar: $e');
+      JoeToast.error('Die System-Einstellungen ließen sich nicht öffnen. '
+          'Bitte dort von Hand: Apps → Joe → Benachrichtigungen.');
+    }
+  }
+
+  /// Stellt den Plan nach. Aufgerufen nach jeder Aenderung am Bestand.
+  ///
+  /// Laeuft serialisiert: ein zweiter Aufruf haengt sich hinten an, statt
+  /// sich in einen laufenden hineinzuschieben.
+  Future<void> sync(AppState state) {
+    // Das catchError ist nicht Zierde: ohne es bliebe [_queue] nach einem
+    // einzigen Fehler ein gescheitertes Future, und jedes spaetere `then`
+    // wuerde uebersprungen – die Erinnerungen waeren bis zum Neustart tot.
+    _queue = _queue.then((_) => _syncNow(state)).catchError((Object e) {
+      JoeLog.log('Erinnerungen: Lauf abgebrochen: $e');
+      JoeToast.error('Erinnerungen konnten nicht gestellt werden.');
+    });
+    return _queue;
+  }
+
+  Future<void> _syncNow(AppState state) async {
     if (!_ready) return;
     final reminders = state.remindersEnabled
         ? pendingReminders(
@@ -217,38 +456,77 @@ class JoeReminders {
             from: DateTime.now(),
           )
         : const <Reminder>[];
-    final plan = reminders.map((r) => r.signature).join('\n');
-    if (plan == _plan) return;
+
+    // Bei einer Nummernkollision gewinnt der letzte – die Nummer kann nur
+    // einmal beim System stehen.
+    final wanted = <int, Reminder>{for (final r in reminders) r.id: r};
+    final signatures = {
+      for (final e in wanted.entries) e.key: e.value.signature,
+    };
+    if (mapEquals(signatures, _scheduled)) return;
+
+    // Die Freigabe kann sich seit dem Start geaendert haben (der Nutzer war
+    // in den System-Einstellungen), also vor jedem Lauf frisch nachsehen.
+    await _refreshExactAllowed();
+    if (!_exactAllowed && !_warnedInexact && wanted.isNotEmpty) {
+      _warnedInexact = true;
+      JoeLog.log('Erinnerungen: nur ungefaehre Alarme moeglich');
+      JoeToast.info(
+        'Dieses Gerät lässt Joe keine exakten Alarme stellen – '
+        'Erinnerungen können einige Minuten später kommen.',
+        action: ToastAction('Erlauben', _requestExactAlarms),
+      );
+    }
 
     try {
-      // Erst alles loeschen, dann neu stellen: verschobene, geloeschte und
-      // abgehakte Eintraege verschwinden so sicher, ohne dass Joe Buch
-      // ueber die vergebenen Nummern fuehren muss.
-      await _plugin.cancelAll();
+      // Erst abraeumen, was weg soll oder sich geaendert hat …
+      for (final id in _scheduled.keys.toList()) {
+        if (signatures[id] == _scheduled[id]) continue;
+        await _plugin.cancel(id: id);
+        _scheduled.remove(id);
+      }
+      // … dann stellen, was fehlt. `_scheduled` wird dabei Schritt fuer
+      // Schritt fortgeschrieben: bricht es in der Mitte ab, steht dort die
+      // Wahrheit und der naechste Lauf macht genau den Rest.
       for (final r in reminders) {
+        if (_scheduled[r.id] == r.signature) continue;
         await _plugin.zonedSchedule(
           id: r.id,
           title: r.title,
           body: r.body,
+          payload: r.payload,
           scheduledDate: tz.TZDateTime.from(r.when, tz.local),
           notificationDetails: const fln.NotificationDetails(
             android: fln.AndroidNotificationDetails(
               _channelId,
-              'Erinnerungen',
-              channelDescription: 'Erinnerungen an Aufgaben und Termine',
+              _channelName,
+              channelDescription: _channelDescription,
               importance: fln.Importance.high,
               priority: fln.Priority.high,
             ),
           ),
-          androidScheduleMode: fln.AndroidScheduleMode.exactAllowWhileIdle,
+          androidScheduleMode: _exactAllowed
+              ? fln.AndroidScheduleMode.exactAllowWhileIdle
+              : fln.AndroidScheduleMode.inexactAllowWhileIdle,
         );
+        _scheduled[r.id] = r.signature;
       }
-      _plan = plan;
-      JoeLog.log('Erinnerungen: ${reminders.length} geplant');
+      JoeLog.log('Erinnerungen: ${_scheduled.length} gestellt');
     } catch (e) {
-      // _plan bleibt auf dem alten Stand – der naechste Lauf sieht den
-      // Unterschied wieder und versucht es erneut.
       JoeLog.log('Erinnerungen: Planen fehlgeschlagen: $e');
+      JoeToast.error('Erinnerungen konnten nicht gestellt werden – '
+          'möglicherweise kommt keine an.');
+    }
+  }
+
+  Future<void> _requestExactAlarms() async {
+    try {
+      await _android?.requestExactAlarmsPermission();
+      await _refreshExactAllowed();
+    } catch (e) {
+      JoeLog.log('Erinnerungen: Anfrage fuer exakte Alarme fehlgeschlagen: $e');
+      JoeToast.error('Die Freigabe für exakte Alarme ließ sich nicht '
+          'öffnen.');
     }
   }
 }

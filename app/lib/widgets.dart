@@ -496,17 +496,10 @@ class ColorDotPicker extends StatelessWidget {
 /// Holt vor der ersten Erinnerung die Benachrichtigungs-Berechtigung ein
 /// und sagt, ob die Erinnerung gesetzt werden darf. Ohne sie kaeme nichts
 /// an – das stumm hinzunehmen waere das Schlimmste, was die App hier tun
-/// koennte, also sagt eine Snackbar Bescheid.
-Future<bool> confirmReminderPermission(BuildContext context) async {
-  final granted = await JoeReminders.instance.ensurePermission();
-  if (granted || !context.mounted) return granted;
-  ScaffoldMessenger.of(context).showSnackBar(
-    const SnackBar(
-      content: Text('Ohne Benachrichtigungen kann Joe nicht erinnern.'),
-    ),
-  );
-  return false;
-}
+/// koennte; die Absage samt Weg in die System-Einstellungen meldet
+/// [JoeReminders.ensurePermission] selbst als Toast.
+Future<bool> confirmReminderPermission() =>
+    JoeReminders.instance.ensurePermission();
 
 /// Die Erinnerung eines Termins: eine Klappliste mit den Vorlaufzeiten,
 /// von "Keine" bis "1 Tag vorher".
@@ -561,9 +554,7 @@ class ReminderLeadPicker extends StatelessWidget {
           onChanged: (value) async {
             // Erst fragen, dann setzen: eine Erinnerung, die nie ankaeme,
             // soll gar nicht erst im Blatt stehen.
-            if (value != null && !await confirmReminderPermission(context)) {
-              return;
-            }
+            if (value != null && !await confirmReminderPermission()) return;
             onChanged(value);
           },
         ),
@@ -976,8 +967,8 @@ Future<void> showTaskSheet(
                             ),
                     );
                     if (picked == null) return;
+                    if (!await confirmReminderPermission()) return;
                     if (!sheetContext.mounted) return;
-                    if (!await confirmReminderPermission(sheetContext)) return;
                     setSheetState(
                       () => reminderMinute = picked.hour * 60 + picked.minute,
                     );

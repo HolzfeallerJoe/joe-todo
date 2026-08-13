@@ -297,6 +297,17 @@ class AppState extends ChangeNotifier {
   /// wenn der Schalter in den Einstellungen umgelegt wird.
   bool showDeviceCalendar = false;
 
+  /// Welche Kalender des Geraets gezeigt werden. Drei Zustaende, und alle
+  /// drei werden gebraucht:
+  ///
+  /// * **null** – nie ausgewaehlt, also alle. Auch ein Kalender, der spaeter
+  ///   dazukommt, ist dann dabei.
+  /// * **leer** – ausgewaehlt, dass keiner gezeigt wird. Ohne diesen
+  ///   Unterschied zu null koennte man nicht alle abwaehlen.
+  /// * **gefuellt** – genau diese. Eine ID, die es nicht mehr gibt, bleibt
+  ///   stehen und stoert nicht.
+  Set<String>? deviceCalendarIds;
+
   /// Der Hauptschalter fuer Erinnerungen (siehe reminders.dart). Aus heisst:
   /// nichts wird geplant, die Einstellung am einzelnen Eintrag bleibt aber
   /// stehen und gilt wieder, sobald der Schalter zurueckkommt.
@@ -358,6 +369,10 @@ class AppState extends ChangeNotifier {
     holidayRegion = HolidayRegion.fromJson(data['holidayRegion']);
     final storedDevice = data['showDeviceCalendar'];
     showDeviceCalendar = storedDevice is bool ? storedDevice : false;
+    final storedCalendarIds = data['deviceCalendarIds'];
+    deviceCalendarIds = storedCalendarIds is List
+        ? storedCalendarIds.whereType<String>().toSet()
+        : null;
     final storedReminders = data['remindersEnabled'];
     remindersEnabled = storedReminders is bool ? storedReminders : true;
     // Der Standard-Vorlauf darf auch bewusst "keine Erinnerung" sein, also
@@ -481,6 +496,7 @@ class AppState extends ChangeNotifier {
           'showMoon': showMoon,
           'holidayRegion': holidayRegion.name,
           'showDeviceCalendar': showDeviceCalendar,
+          'deviceCalendarIds': deviceCalendarIds?.toList(),
           'remindersEnabled': remindersEnabled,
           'defaultAppointmentLead': defaultAppointmentLead,
         }),
@@ -763,6 +779,11 @@ class AppState extends ChangeNotifier {
 
   void setShowDeviceCalendar(bool value) {
     showDeviceCalendar = value;
+    _changed();
+  }
+
+  void setDeviceCalendarIds(Set<String>? ids) {
+    deviceCalendarIds = ids == null ? null : Set.unmodifiable(ids);
     _changed();
   }
 

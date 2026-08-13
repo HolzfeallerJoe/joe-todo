@@ -11,7 +11,11 @@ import '../widgets.dart';
 import 'notes.dart';
 
 class CalendarScreen extends StatefulWidget {
-  const CalendarScreen({super.key});
+  /// Auf welchem Tag der Kalender aufgeht. Standard ist heute; eine
+  /// angetippte Erinnerung bringt ihren eigenen Tag mit.
+  final DateTime? initialDay;
+
+  const CalendarScreen({super.key, this.initialDay});
 
   @override
   State<CalendarScreen> createState() => _CalendarScreenState();
@@ -24,21 +28,27 @@ class _CalendarScreenState extends State<CalendarScreen> {
   @override
   void initState() {
     super.initState();
-    final t = today();
-    _month = DateTime(t.year, t.month);
-    _selected = t;
+    _selected = dateOnly(widget.initialDay ?? today());
+    _month = DateTime(_selected.year, _selected.month);
     // Geraete-Termine kommen asynchron aus dem Calendar Provider; wenn ein
     // Monat fertig geladen ist, malt der Screen sich neu.
-    DeviceCalendarFeed.instance.addListener(_onDeviceEvents);
+    DeviceCalendarFeed.instance.addListener(_onFeedChanged);
+    // Dasselbe fuer die Mondphasen: die rechnet [MoonWarmup] haeppchenweise
+    // vor, der Kalender fuellt sich dabei sichtbar auf.
+    MoonWarmup.instance.addListener(_onFeedChanged);
   }
 
   @override
   void dispose() {
-    DeviceCalendarFeed.instance.removeListener(_onDeviceEvents);
+    DeviceCalendarFeed.instance.removeListener(_onFeedChanged);
+    MoonWarmup.instance.removeListener(_onFeedChanged);
     super.dispose();
   }
 
-  void _onDeviceEvents() => setState(() {});
+  void _onFeedChanged() {
+    if (!mounted) return;
+    setState(() {});
+  }
 
   void _shiftMonth(int delta) {
     setState(() {
@@ -61,10 +71,16 @@ class _CalendarScreenState extends State<CalendarScreen> {
     final dayHolidays = state.showHolidays
         ? holidaysOn(_selected, state.holidayRegion)
         : const <String>[];
+    // Der ausgewaehlte Tag darf rechnen: das ist ein Tag, keine 42, und die
+    // Zeile im Tagesdetail soll sofort stehen.
     final dayMoon = state.showMoon ? moonPhaseOnDay(_selected) : null;
     final dayDeviceEvents = state.showDeviceCalendar
         ? DeviceCalendarFeed.instance.eventsForDay(_selected)
         : const <Event>[];
+
+    // Den gezeigten Monat vorrechnen lassen. Aus `build` heraus unbedenklich:
+    // der Lauf beginnt erst nach diesem Frame und meldet sich dann selbst.
+    if (state.showMoon) MoonWarmup.instance.warm(_month);
 
     return JoeScaffold(
       title: 'Kalender',
@@ -151,6 +167,21 @@ class _CalendarScreenState extends State<CalendarScreen> {
                 ],
               ),
             ),
+            // Ein gescheiterter Geraete-Kalender sagt es hier, dauerhaft –
+            // der Toast beim Fehler ist nach drei Sekunden weg, die leere
+            // Ebene bleibt. Ohne diese Zeile saehe ein Tag ohne Termine
+            // genauso aus wie einer, dessen Termine nicht geladen werden
+            // konnten.
+            if (state.showDeviceCalendar &&
+                DeviceCalendarFeed.instance.hasProblem)
+              Padding(
+                padding: const EdgeInsets.only(top: 14),
+                child: _DeviceCalendarNotice(
+                  message: DeviceCalendarFeed.instance.lastError!,
+                  permissionMissing:
+                      DeviceCalendarFeed.instance.permissionMissing,
+                ),
+              ),
             const SizedBox(height: 14),
             PaperCard(
               padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
@@ -368,7 +399,10 @@ class _DayCell extends StatelessWidget {
     final holidays = state.showHolidays
         ? holidaysOn(day, state.holidayRegion)
         : const <String>[];
-    final moon = state.showMoon ? moonPhaseOnDay(day) : null;
+    // Nur, was schon gerechnet ist: 42 Zellen, die alle selbst rechnen,
+    // waeren ein spuerbarer Ruckler beim Monatswechsel. [MoonWarmup] fuellt
+    // nach und meldet sich, dann steht der Mond da.
+    final moon = state.showMoon ? cachedMoonPhaseOnDay(day) : null;
 
     final markers = <Widget>[];
     for (final a in appointments) {
@@ -492,6 +526,56 @@ class _DeviceEventRow extends StatelessWidget {
               event.title,
               style: TextStyle(color: theme.ink, fontSize: 15),
               overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Die Hinweiszeile, wenn die Geraete-Kalender-Ebene nicht laden konnte.
+/// Sie steht so lange, wie das Problem besteht – und bietet den einen
+/// Handgriff an, der weiterhilft: den Weg in die System-Einstellungen, wenn
+/// die Berechtigung fehlt, sonst einen zweiten Versuch.
+class _DeviceCalendarNotice extends StatelessWidget {
+  final String message;
+  final bool permissionMissing;
+
+  const _DeviceCalendarNotice({
+    required this.message,
+    required this.permissionMissing,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = joeThemeOf(context);
+    final feed = DeviceCalendarFeed.instance;
+    return PaperCard(
+      padding: const EdgeInsets.fromLTRB(14, 10, 6, 10),
+      child: Row(
+        children: [
+          Icon(Icons.event_busy_outlined, size: 20, color: theme.inkSoft),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              message,
+              style: TextStyle(color: theme.ink, fontSize: 13, height: 1.3),
+            ),
+          ),
+          TextButton(
+            style: TextButton.styleFrom(
+              foregroundColor: theme.accent,
+              padding: const EdgeInsets.symmetric(horizontal: 10),
+              minimumSize: const Size(0, 36),
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+            onPressed:
+                permissionMissing ? feed.openSystemSettings : feed.retry,
+            child: Text(
+              permissionMissing ? 'Einstellungen' : 'Erneut',
+              style: const TextStyle(
+                  fontSize: 13, fontWeight: FontWeight.w700),
             ),
           ),
         ],

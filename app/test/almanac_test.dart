@@ -154,4 +154,74 @@ void main() {
       expect(moonPhaseOnDay(localDay), isNull);
     });
   });
+
+  group('Reihenfolge des Vorausrechnens', () {
+    // Das Monatsraster rechnet nicht mehr in einem Frame durch, sondern
+    // gestaffelt – und zwar dort zuerst, wo der Blick hingeht.
+    List<int> tage(List<DateTime> days) => [for (final d in days) d.day];
+
+    test('laufender Monat: ab heute, dann der Anfang als Nachtrag', () {
+      final order = moonWarmupOrder(DateTime(2026, 8), DateTime(2026, 8, 13));
+      expect(order.first, DateTime(2026, 8, 13));
+      // Erst 13..31 …
+      expect(tage(order).take(19), [for (var d = 13; d <= 31; d++) d]);
+      // … dann 1..12 nachgetragen.
+      expect(tage(order).skip(19), [for (var d = 1; d <= 12; d++) d]);
+      // Jeder Tag genau einmal.
+      expect(order.length, 31);
+      expect(order.toSet().length, 31);
+    });
+
+    test('laufender Monat am Ersten: kein Nachtrag noetig', () {
+      final order = moonWarmupOrder(DateTime(2026, 8), DateTime(2026, 8, 1));
+      expect(tage(order), [for (var d = 1; d <= 31; d++) d]);
+    });
+
+    test('kuenftiger Monat laeuft vom Ersten nach vorn', () {
+      final order = moonWarmupOrder(DateTime(2026, 9), DateTime(2026, 8, 13));
+      expect(order.first, DateTime(2026, 9, 1));
+      expect(order.last, DateTime(2026, 9, 30));
+      expect(order.length, 30);
+    });
+
+    test('vergangener Monat laeuft vom Letzten rueckwaerts', () {
+      final order = moonWarmupOrder(DateTime(2026, 7), DateTime(2026, 8, 13));
+      expect(order.first, DateTime(2026, 7, 31));
+      expect(order.last, DateTime(2026, 7, 1));
+      expect(order.length, 31);
+    });
+
+    test('Jahresgrenze zaehlt mit, nicht nur die Monatsnummer', () {
+      // Dezember des Vorjahres ist Vergangenheit, obwohl 12 > 8 ist.
+      final vorjahr =
+          moonWarmupOrder(DateTime(2025, 12), DateTime(2026, 8, 13));
+      expect(vorjahr.first, DateTime(2025, 12, 31));
+      // Januar des Folgejahres ist Zukunft, obwohl 1 < 8 ist.
+      final folgejahr =
+          moonWarmupOrder(DateTime(2027, 1), DateTime(2026, 8, 13));
+      expect(folgejahr.first, DateTime(2027, 1, 1));
+    });
+
+    test('Februar im Schaltjahr hat 29 Tage', () {
+      final order = moonWarmupOrder(DateTime(2028, 2), DateTime(2028, 2, 10));
+      expect(order.length, 29);
+      expect(order.toSet().length, 29);
+    });
+
+    test('gerechnet wird erst auf Zuruf, das Raster liest nur den Cache', () {
+      // Ein Tag weit weg, den bisher niemand angefasst hat: das Raster sieht
+      // ihn leer, weil sonst 42 Zellen gleichzeitig rechnen wuerden.
+      final fern = DateTime(2093, 4, 17);
+      expect(cachedMoonPhaseOnDay(fern), isNull);
+      moonPhaseOnDay(fern);
+      // Nach dem Rechnen steht die Antwort im Cache – auch wenn sie "kein
+      // Mond an diesem Tag" lautet, faellt sie danach nicht mehr auf.
+      expect(moonEventsBetween(DateTime.utc(2093, 4, 15),
+              DateTime.utc(2093, 4, 20))
+          .where((e) => dateOnly(e.timeUtc.toLocal()) == fern)
+          .map((e) => e.kind)
+          .firstOrNull,
+          cachedMoonPhaseOnDay(fern));
+    });
+  });
 }
