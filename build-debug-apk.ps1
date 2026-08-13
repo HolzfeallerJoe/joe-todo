@@ -13,7 +13,8 @@
 
 .PARAMETER Device
     Seriennummer fuer adb -s (nur zusammen mit -Install noetig, wenn mehrere
-    Geraete verbunden sind).
+    Geraete verbunden sind). Ohne Angabe nimmt das Skript das einzige
+    angeschlossene Geraet und listet sonst die vorhandenen auf.
 
 .PARAMETER Gradle
     Baut ueber android\gradlew assembleDebug statt ueber die Flutter-CLI.
@@ -26,6 +27,9 @@
 
 .EXAMPLE
     .\build-debug-apk.ps1 -Install
+
+.EXAMPLE
+    .\build-debug-apk.ps1 -Install -Device emulator-5554
 
 .EXAMPLE
     .\build-debug-apk.ps1 -Gradle
@@ -120,10 +124,6 @@ try {
     }
 
     if ($Install) {
-        $adbArgs = @()
-        if ($Device) { $adbArgs += @('-s', $Device) }
-        $adbArgs += @('install', '-r', $apk)
-
         $adb = (Get-Command adb -ErrorAction SilentlyContinue)?.Source
         if (-not $adb) {
             $adb = Join-Path $env:LOCALAPPDATA 'Android\Sdk\platform-tools\adb.exe'
@@ -131,8 +131,55 @@ try {
                 throw 'adb wurde nicht gefunden – bitte platform-tools in den PATH legen.'
             }
         }
-        Invoke-Step 'adb install -r' $adb $adbArgs
-        Write-Host 'Installiert.' -ForegroundColor Green
+
+        # Ohne -Device selbst nachsehen, wer dranhaengt. adb bricht bei mehreren
+        # Geraeten nur mit "more than one device/emulator" ab und sagt weder,
+        # welche das sind, noch wie man eines auswaehlt – und das nach einem
+        # fertigen Build, was wie ein Build-Fehler aussieht.
+        $target = $Device
+        if (-not $target) {
+            $attached = @(
+                & $adb devices -l |
+                    Select-Object -Skip 1 |
+                    Where-Object { $_.Trim() -match '^(\S+)\s+(\S+)' } |
+                    ForEach-Object {
+                        $line = $_.Trim()
+                        $null = $line -match '^(\S+)\s+(\S+)'
+                        $serial = $Matches[1]
+                        $state = $Matches[2]
+                        $model = if ($line -match 'model:(\S+)') { $Matches[1] } else { '' }
+                        [pscustomobject]@{ Serial = $serial; State = $state; Model = $model }
+                    }
+            )
+            $ready = @($attached | Where-Object { $_.State -eq 'device' })
+
+            if ($ready.Count -eq 0) {
+                if ($attached.Count -gt 0) {
+                    Write-Host 'Angeschlossen, aber nicht bereit:' -ForegroundColor Yellow
+                    foreach ($d in $attached) {
+                        Write-Host ("  {0,-24} {1}" -f $d.Serial, $d.State)
+                    }
+                }
+                throw 'Kein installierbares Geraet an adb. Emulator starten oder Telefon per USB-Debugging verbinden.'
+            }
+
+            if ($ready.Count -gt 1) {
+                Write-Host ''
+                Write-Host 'Mehrere Geraete haengen an adb:' -ForegroundColor Yellow
+                foreach ($d in $ready) {
+                    Write-Host ("  {0,-24} {1}" -f $d.Serial, $d.Model)
+                }
+                Write-Host ''
+                Write-Host 'Das APK ist gebaut, nur das Ziel fehlt. Nochmal mit:' -ForegroundColor DarkGray
+                Write-Host ("  .\build-debug-apk.ps1 -Install -SkipPubGet -Device {0}" -f $ready[0].Serial) -ForegroundColor DarkGray
+                throw 'Installation abgebrochen: bitte das Geraet mit -Device angeben.'
+            }
+
+            $target = $ready[0].Serial
+        }
+
+        Invoke-Step "adb -s $target install -r" $adb @('-s', $target, 'install', '-r', $apk)
+        Write-Host "Installiert auf $target." -ForegroundColor Green
     }
 }
 finally {

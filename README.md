@@ -139,6 +139,11 @@ woertlich der Gradle-Task `assembleDebug` wie in Android Studio (Ausgabe unter
 `app\build\app\outputs\apk\debug\app-debug.apk`). Weitere Schalter: `-Device`
 fuer eine adb-Seriennummer, `-SkipPubGet`.
 
+Haengen mehrere Geraete an adb – etwa ein Emulator und ein Telefon –, listet
+`-Install` sie mit Seriennummer und Modell auf und verlangt `-Device`, statt in
+das blosse `more than one device/emulator` von adb zu laufen. Das kommt nach
+dem fertigen Build und sieht sonst wie ein Build-Fehler aus.
+
 ## CI
 
 `.github/workflows/joe-todo-apk.yml` (im Repo-Wurzelverzeichnis) baut bei
