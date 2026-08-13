@@ -113,6 +113,28 @@ liegen 93 % des Hintergrunds unter 1,5:1 zur zweiten Reiterfarbe, auf Pfoten
 Schlagschatten. Eine Kontrastkante darum war ausprobiert und ist wieder
 rausgeflogen – sie sah nach Umrandung aus und nahm den Reitern die Ruhe.
 
+## Daten & Sicherheit
+
+Alles liegt lokal in den shared_preferences unter einem Schlüssel
+(`joe_data_v1`). Die App spricht nicht ins Netz: keine Netzwerk-Abhängigkeit,
+und die INTERNET-Permission steht nur in den Debug-/Profile-Manifesten fürs
+Flutter-Tooling, nicht im Release. Androids Auto-Backup bleibt auf dem
+Standard (an), damit der Bestand Gerätewechsel überlebt.
+
+Beim Laden gilt: **nichts darf den Start verhindern, und nie wird über die
+einzige Kopie geschrieben.** `main()` wartet auf `AppState.load()` – würfe
+das bei einem unlesbaren Bestand, bliebe die App auf ewig auf weißem
+Bildschirm, und der nächste Griff wäre „App-Daten löschen". Deshalb liest
+`load()` Eintrag für Eintrag (ein kaputter Eintrag kostet nur sich selbst,
+falsch getypte Einstellungen fallen auf ihren Standard), und sobald dabei
+etwas verloren ging, wandert der komplette alte Bestand unter
+`joe_data_v1_rescue`, bevor der bereinigte gespeichert wird.
+`test/persistence_test.dart` hält das fest.
+
+Löschen fragt überall nach (Aufgabe, Termin, Notiz – `confirmDelete` in
+`widgets.dart`): es gibt kein Undo, ein verrutschter Tipper wäre sonst
+endgültig.
+
 ## Bildmaterial
 
 Beide Bildsorten liegen im Repo nur in der Fassung, die auch im APK landet;

@@ -238,6 +238,10 @@ class HistoryEntry {
 class AppState extends ChangeNotifier {
   static const _storageKey = 'joe_data_v1';
 
+  /// Wohin ein unlesbarer Bestand gelegt wird, bevor die App weiterlaeuft.
+  /// Grundsatz beim Laden: nie ueber die einzige Kopie der Daten schreiben.
+  static const rescueKey = 'joe_data_v1_rescue';
+
   List<Task> tasks = [];
   List<Appointment> appointments = [];
   List<Note> notes = [];
@@ -262,21 +266,64 @@ class AppState extends ChangeNotifier {
       await _save();
       return;
     }
-    final data = jsonDecode(raw) as Map<String, dynamic>;
-    tasks = (data['tasks'] as List<dynamic>? ?? [])
-        .map((j) => Task.fromJson(j as Map<String, dynamic>))
-        .toList();
-    appointments = (data['appointments'] as List<dynamic>? ?? [])
-        .map((j) => Appointment.fromJson(j as Map<String, dynamic>))
-        .toList();
-    notes = (data['notes'] as List<dynamic>? ?? [])
-        .map((j) => Note.fromJson(j as Map<String, dynamic>))
-        .toList();
-    themeIndex = data['themeIndex'] as int? ?? 0;
+
+    // Nichts hier darf den Start verhindern: main() wartet auf load(), ein
+    // unlesbarer Bestand hiesse also weisser Bildschirm auf ewig – und der
+    // naechste Griff des Nutzers waere "App-Daten loeschen". Deshalb wird
+    // Eintrag fuer Eintrag gelesen: Kaputtes kostet nur sich selbst, und
+    // sobald etwas verloren ging, wandert der komplette alte Bestand unter
+    // [rescueKey], bevor der bereinigte gespeichert wird.
+    var losses = 0;
+    void loss() => losses++;
+
+    Map<String, dynamic> data = const {};
+    try {
+      data = jsonDecode(raw) as Map<String, dynamic>;
+    } catch (_) {
+      loss();
+    }
+    tasks = _readList(data['tasks'], Task.fromJson, onLoss: loss);
+    appointments =
+        _readList(data['appointments'], Appointment.fromJson, onLoss: loss);
+    notes = _readList(data['notes'], Note.fromJson, onLoss: loss);
+    // Falsch getypte Einstellungen sind kein Verlust, nur ihr Standardwert.
     // 'showCat' ist der alte Schluessel aus der Zeit vor den Begleiterbildern.
-    showPet = data['showPet'] as bool? ?? data['showCat'] as bool? ?? true;
-    petId = data['petId'] as String? ?? defaultPetId;
-    todayExpanded = data['todayExpanded'] as bool? ?? true;
+    final storedTheme = data['themeIndex'];
+    themeIndex = storedTheme is int ? storedTheme : 0;
+    final storedShowPet = data['showPet'] ?? data['showCat'];
+    showPet = storedShowPet is bool ? storedShowPet : true;
+    final storedPet = data['petId'];
+    petId = storedPet is String ? storedPet : defaultPetId;
+    final storedExpanded = data['todayExpanded'];
+    todayExpanded = storedExpanded is bool ? storedExpanded : true;
+
+    if (losses > 0) {
+      await prefs.setString(rescueKey, raw);
+      await _save();
+    }
+  }
+
+  /// Liest eine Liste Eintrag fuer Eintrag: ein einzelner kaputter Eintrag
+  /// kostet nur sich selbst, nicht die ganze Liste.
+  static List<T> _readList<T>(
+    Object? raw,
+    T Function(Map<String, dynamic>) fromJson, {
+    required void Function() onLoss,
+  }) {
+    if (raw == null) return [];
+    if (raw is! List) {
+      onLoss();
+      return [];
+    }
+    final out = <T>[];
+    for (final item in raw) {
+      try {
+        out.add(fromJson(item as Map<String, dynamic>));
+      } catch (_) {
+        onLoss();
+      }
+    }
+    return out;
   }
 
   void _seed() {

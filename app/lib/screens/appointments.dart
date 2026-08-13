@@ -65,7 +65,14 @@ class _AppointmentCard extends StatelessWidget {
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
         onTap: () => showAppointmentSheet(context, appointment: appointment),
-        onLongPress: () => _confirmDelete(context, state),
+        onLongPress: () async {
+          final confirmed = await confirmDelete(
+            context,
+            title: 'Termin löschen?',
+            subject: appointment.title,
+          );
+          if (confirmed) state.deleteAppointment(appointment);
+        },
         child: PaperCard(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           child: Row(
@@ -109,31 +116,6 @@ class _AppointmentCard extends StatelessWidget {
             ],
           ),
         ),
-      ),
-    );
-  }
-
-  void _confirmDelete(BuildContext context, AppState state) {
-    final theme = joeThemeOf(context);
-    showDialog<void>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        backgroundColor: theme.paper,
-        title: Text('Termin löschen?', style: TextStyle(color: theme.ink)),
-        content: Text(appointment.title, style: TextStyle(color: theme.inkSoft)),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: Text('Abbrechen', style: TextStyle(color: theme.ink)),
-          ),
-          TextButton(
-            onPressed: () {
-              state.deleteAppointment(appointment);
-              Navigator.pop(dialogContext);
-            },
-            child: Text('Löschen', style: TextStyle(color: theme.accent)),
-          ),
-        ],
       ),
     );
   }

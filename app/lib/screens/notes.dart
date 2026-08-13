@@ -160,9 +160,16 @@ class _NoteEditScreenState extends State<NoteEditScreen> {
             IconButton(
               icon: Icon(Icons.delete_outline, color: theme.accent),
               tooltip: 'Notiz löschen',
-              onPressed: () {
-                state.deleteNote(widget.note!);
-                Navigator.of(context).pop();
+              onPressed: () async {
+                final note = widget.note!;
+                final confirmed = await confirmDelete(
+                  context,
+                  title: 'Notiz löschen?',
+                  subject: note.title.isEmpty ? 'Ohne Titel' : note.title,
+                );
+                if (!confirmed || !mounted) return;
+                state.deleteNote(note);
+                if (context.mounted) Navigator.of(context).pop();
               },
             ),
         ],

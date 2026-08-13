@@ -351,6 +351,36 @@ class TaskTile extends StatelessWidget {
   }
 }
 
+/// Rueckfrage vor dem Loeschen – liefert nur die Entscheidung, loescht
+/// nichts selbst. Jeder Loeschweg der App fragt hierueber nach: es gibt
+/// kein Undo, ein verrutschter Tipper waere sonst endgueltig.
+Future<bool> confirmDelete(
+  BuildContext context, {
+  required String title,
+  required String subject,
+}) async {
+  final theme = joeThemeOf(context);
+  final confirmed = await showDialog<bool>(
+    context: context,
+    builder: (dialogContext) => AlertDialog(
+      backgroundColor: theme.paper,
+      title: Text(title, style: TextStyle(color: theme.ink)),
+      content: Text(subject, style: TextStyle(color: theme.inkSoft)),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(dialogContext, false),
+          child: Text('Abbrechen', style: TextStyle(color: theme.ink)),
+        ),
+        TextButton(
+          onPressed: () => Navigator.pop(dialogContext, true),
+          child: Text('Löschen', style: TextStyle(color: theme.accent)),
+        ),
+      ],
+    ),
+  );
+  return confirmed ?? false;
+}
+
 /// showModalBottomSheet im Joe-Gewand: Papierfarbe, oben gerundet.
 ///
 /// [expand] ist fuer Blaetter, die mit Tastatur oder Hoehenbegrenzung
@@ -395,9 +425,14 @@ void showTaskOptions(BuildContext context, Task task) {
           ListTile(
             leading: Icon(Icons.delete_outline, color: theme.accent),
             title: Text('Löschen', style: TextStyle(color: theme.accent)),
-            onTap: () {
-              state.deleteTask(task);
+            onTap: () async {
               Navigator.pop(sheetContext);
+              final confirmed = await confirmDelete(
+                context,
+                title: 'Aufgabe löschen?',
+                subject: task.title,
+              );
+              if (confirmed) state.deleteTask(task);
             },
           ),
         ],
