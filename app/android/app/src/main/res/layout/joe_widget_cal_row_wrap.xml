@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Dieselbe Woche, aber nur so hoch wie ihr Inhalt: fuer die Wochentagszeile
+     und fuer das Raster im Uebersichts-Widget, wo unter dem Kalender noch die
+     beiden Listen stehen und das Raster sich nicht alles nehmen darf. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/joe_cal_row"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:weightSum="7" />

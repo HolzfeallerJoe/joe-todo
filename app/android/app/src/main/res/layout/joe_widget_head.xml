@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Die Tagesueberschrift ueber einer Gruppe von Terminen ("Heute",
+     "Mi, 20. Aug"). Sie steht da, damit die Uhrzeit in der Zeile ohne Datum
+     auskommt – in einem 2x2-Widget ist fuer beides kein Platz. -->
+<TextView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/joe_head_title"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:paddingTop="3dp"
+    android:maxLines="1"
+    android:ellipsize="end"
+    android:textSize="10sp"
+    android:textStyle="bold" />

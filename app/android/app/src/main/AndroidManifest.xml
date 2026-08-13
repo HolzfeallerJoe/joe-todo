@@ -56,6 +56,67 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+        <!-- Die vier Startbildschirm-Widgets. exported="false" reicht: die
+             APPWIDGET_UPDATE-Rundrufe kommen vom System bzw. aus der eigenen
+             App, und beides darf auch an nicht exportierte Empfaenger. -->
+        <receiver
+            android:name=".widget.JoeTasksWidget"
+            android:exported="false"
+            android:label="@string/joe_widget_tasks_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/joe_widget_tasks_info" />
+        </receiver>
+        <receiver
+            android:name=".widget.JoeAppointmentsWidget"
+            android:exported="false"
+            android:label="@string/joe_widget_appointments_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/joe_widget_appointments_info" />
+        </receiver>
+        <receiver
+            android:name=".widget.JoeCalendarWidget"
+            android:exported="false"
+            android:label="@string/joe_widget_calendar_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/joe_widget_calendar_info" />
+        </receiver>
+        <receiver
+            android:name=".widget.JoeOverviewWidget"
+            android:exported="false"
+            android:label="@string/joe_widget_overview_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/joe_widget_overview_info" />
+        </receiver>
+        <!-- Der Tageswechsel. Der Wecker um Mitternacht kommt als eigene
+             Aktion herein und braucht keinen Filter (die Intent ist
+             ausdruecklich an diesen Empfaenger gerichtet); die drei hier sind
+             die Faelle, in denen die Uhr springt oder alle Wecker weg sind. -->
+        <receiver
+            android:name=".widget.JoeWidgetTick"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+                <action android:name="android.intent.action.TIME_SET" />
+                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+            </intent-filter>
+        </receiver>
         <!-- flutter_local_notifications: stellt geplante Erinnerungen zu und
              plant sie nach Reboot oder App-Update neu ein. -->
         <receiver android:exported="false"

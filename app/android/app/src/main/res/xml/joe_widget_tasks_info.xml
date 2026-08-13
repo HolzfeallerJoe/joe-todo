@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 2x2. Die targetCell*-Angaben gelten ab Android 12 und stellen das Widget
+     genau zwei mal zwei Felder gross auf; davor zaehlen minWidth/minHeight
+     (70dp je Feld minus 30dp Rand). updatePeriodMillis ist nur das Netz
+     darunter: der Regelfall ist, dass die App den Schnappschuss schiebt und
+     ein Wecker um Mitternacht den Tageswechsel nachzieht (JoeWidgets.kt). -->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:initialLayout="@layout/joe_widget_tasks"
+    android:previewLayout="@layout/joe_widget_tasks"
+    android:previewImage="@mipmap/ic_launcher"
+    android:description="@string/joe_widget_tasks_description"
+    android:minWidth="110dp"
+    android:minHeight="110dp"
+    android:minResizeWidth="110dp"
+    android:minResizeHeight="70dp"
+    android:targetCellWidth="2"
+    android:targetCellHeight="2"
+    android:resizeMode="horizontal|vertical"
+    android:updatePeriodMillis="1800000"
+    android:widgetCategory="home_screen" />

@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Ein Tag im grossen Raster. Wer das Kalender-Widget in die Laenge zieht,
+     soll nicht dieselben Miniaturzahlen mit viel Luft darum bekommen,
+     sondern ein Raster, das die Groesse auch nutzt. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="0dp"
+    android:layout_height="match_parent"
+    android:layout_weight="1"
+    android:minHeight="32dp"
+    android:orientation="vertical"
+    android:gravity="center">
+
+    <FrameLayout
+        android:layout_width="26dp"
+        android:layout_height="26dp">
+
+        <ImageView
+            android:id="@+id/joe_cell_today"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:src="@drawable/joe_widget_dot"
+            android:visibility="gone"
+            android:importantForAccessibility="no" />
+
+        <TextView
+            android:id="@+id/joe_cell_day"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:gravity="center"
+            android:includeFontPadding="false"
+            android:maxLines="1"
+            android:textSize="14sp" />
+    </FrameLayout>
+
+    <ImageView
+        android:id="@+id/joe_cell_dot"
+        android:layout_width="6dp"
+        android:layout_height="6dp"
+        android:layout_marginTop="2dp"
+        android:src="@drawable/joe_widget_dot"
+        android:visibility="invisible"
+        android:importantForAccessibility="no" />
+</LinearLayout>

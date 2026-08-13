@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Ein Tag im kleinen Raster (2x2). Hier ist kein Platz fuer einen Punkt
+     unter der Zahl: Wo etwas ansteht, traegt die Zahl selbst die Farbe des
+     Eintrags. Der heutige Tag sitzt in einem gefuellten Kreis.
+
+     Hoehe match_parent mit minHeight: in einer gewichteten Zeile fuellt die
+     Zelle, was da ist, in einer wrap_content-Zeile gibt minHeight ihr eine
+     verlaessliche Hoehe. -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="0dp"
+    android:layout_height="match_parent"
+    android:layout_weight="1"
+    android:minHeight="14dp">
+
+    <ImageView
+        android:id="@+id/joe_cell_today"
+        android:layout_width="13dp"
+        android:layout_height="13dp"
+        android:layout_gravity="center"
+        android:src="@drawable/joe_widget_dot"
+        android:visibility="gone"
+        android:importantForAccessibility="no" />
+
+    <TextView
+        android:id="@+id/joe_cell_day"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:gravity="center"
+        android:includeFontPadding="false"
+        android:maxLines="1"
+        android:textSize="9sp" />
+</FrameLayout>

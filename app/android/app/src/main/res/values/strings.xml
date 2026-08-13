@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Joe spricht Deutsch, ueberall und ohne Umschalter – wie der Rest der
+     App, die ihre Datumsnamen selbst mitbringt (lib/util.dart). Diese Texte
+     stehen hier, weil das Widget-Verzeichnis von Android sie aus den
+     Ressourcen liest, nicht aus dem Code. -->
+<resources>
+    <string name="joe_widget_tasks_label">Joe · Aufgaben</string>
+    <string name="joe_widget_tasks_description">Die Aufgaben von heute.</string>
+
+    <string name="joe_widget_appointments_label">Joe · Termine</string>
+    <string name="joe_widget_appointments_description">Die nächsten Termine.</string>
+
+    <string name="joe_widget_calendar_label">Joe · Kalender</string>
+    <string name="joe_widget_calendar_description">Der laufende Monat mit allem, was ansteht.</string>
+
+    <string name="joe_widget_overview_label">Joe · Übersicht</string>
+    <string name="joe_widget_overview_description">Kalender, Aufgaben und Termine auf einen Blick.</string>
+</resources>

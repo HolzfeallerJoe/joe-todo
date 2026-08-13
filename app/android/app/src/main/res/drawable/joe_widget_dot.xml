@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Der Punkt vor einer Zeile und der Kringel unter dem heutigen Tag. Weiss,
+     eingefaerbt wird zur Laufzeit. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="oval">
+    <solid android:color="#FFFFFFFF" />
+</shape>

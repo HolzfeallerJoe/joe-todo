@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Ein Wochentag ueber dem Raster ("Mo"). Eigene Zelle, weil die Zeile
+     darueber nur so hoch sein soll wie die Beschriftung – die Zellen der
+     Wochen darunter fuellen dagegen ihre Zeile. -->
+<TextView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/joe_cell_day"
+    android:layout_width="0dp"
+    android:layout_height="wrap_content"
+    android:layout_weight="1"
+    android:gravity="center"
+    android:includeFontPadding="false"
+    android:maxLines="1"
+    android:paddingBottom="2dp"
+    android:textSize="9sp" />

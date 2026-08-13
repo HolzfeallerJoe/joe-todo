@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Die Rundung der Widget-Karte. Ab Android 12 gibt das System selbst
+         vor, wie rund ein Widget ist (siehe values-v31); davor gilt dieser
+         Wert, damit die Karte nicht als Rechteck auf dem Startbildschirm
+         klebt. -->
+    <dimen name="joe_widget_radius">16dp</dimen>
+</resources>

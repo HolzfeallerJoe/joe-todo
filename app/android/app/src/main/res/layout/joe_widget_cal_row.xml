@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Eine Woche im Monatsraster, im Kalender-Widget.
+     Hoehe 0dp mit Gewicht: die Wochen teilen sich die Hoehe des Rasters zu
+     gleichen Teilen. Damit fuellt der Kalender jede Groesse, in die man ihn
+     zieht, statt unten Luft zu lassen. Die Zellen darin sind match_parent
+     hoch und zentrieren ihren Inhalt.
+     Achtung: Das funktioniert nur in einem Behaelter mit fester Hoehe. Wo
+     das Raster nur so hoch sein soll, wie es braucht (Uebersichts-Widget),
+     steht joe_widget_cal_row_wrap.xml. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/joe_cal_row"
+    android:layout_width="match_parent"
+    android:layout_height="0dp"
+    android:layout_weight="1"
+    android:orientation="horizontal"
+    android:weightSum="7" />

@@ -58,6 +58,15 @@ Dashboard, Kalender, wiederkehrenden Aufgaben, Notizen und Historie.
   starten mit dem Standard-Vorlauf aus den Einstellungen (30 Minuten),
   neue Aufgaben ohne; ein Hauptschalter schaltet alles auf einmal ab. Ein
   Antippen führt in den Kalender auf den Tag der Erinnerung.
+- **Startbildschirm-Widgets** – vier Stück: Aufgaben (2×2), Termine (2×2),
+  Kalender (2×2) und ein großer Block (4×4) mit Monatsraster, Aufgaben und
+  Terminen nebeneinander. Sie tragen die Farben des gewählten Designs,
+  markieren den heutigen Tag und führen beim Antippen dorthin, wo das
+  Angetippte auch in der App steht. Sie zeigen nur – abgehakt wird in der App
+  (siehe unten). Alle vier lassen sich in beide Richtungen frei ziehen (2×3,
+  2×4, 3×5 …) und wachsen dabei mit: mehr Zeilen, größere Schrift, größere
+  Kalenderzellen. Bleibt unter den Aufgaben von heute Platz, füllt ihn
+  „Demnächst" mit den nächsten Tagen.
 - **Meldungen** – Fehler und Bestätigungen erscheinen als Toast am oberen
   Rand (`lib/toast.dart`), drei Sekunden, mit Aktion länger; antippen oder
   nach oben wischen räumt sie weg. Bewusst ein Singleton statt einer
@@ -84,6 +93,10 @@ app/                  Flutter-Projekt (Android)
   lib/almanac.dart    Feiertage (Gauß) + Mondphasen (Meeus), rein berechnet
   lib/device_calendar.dart  Geraete-Kalender als lesende Ebene (Plugin-Kapsel)
   lib/reminders.dart  Erinnerungsplan (rechnend) + Zustellung (Plugin-Kapsel)
+  lib/home_widget.dart      Schnappschuss fuer die Widgets (rechnend) + Kanal
+  android/.../widget/       Die Widgets selbst: Daten lesen, zeichnen, wecken
+  android/app/src/main/res/layout/joe_widget_*.xml   ihre Layouts
+  android/app/src/main/res/xml/joe_widget_*_info.xml ihre Groessen
   lib/toast.dart      Meldungen am oberen Rand – der eine Weg zum Nutzer
   lib/theme.dart      Themes + Textur-Painter
   lib/pets.dart       Begleiter-Katalog (Name, Gruppe, Asset-Pfad)
@@ -165,6 +178,11 @@ damit eine weitere Plattform später nur ein
   Einzige Ausnahme ist `device_calendar_plus` (nur Android und iOS): reiner
   Dart-Code, baut also überall, und jeder Aufruf ist gefangen – anderswo
   bleibt die Geräte-Kalender-Ebene schlicht leer.
+- Die Startbildschirm-Widgets sind das einzige Stück Android-Code der App
+  (`android/.../widget/`). Auf jeder anderen Plattform fehlt der
+  Methodenkanal schlicht; `home_widget.dart` fängt das einmalig ab und
+  vermerkt es im Log, statt bei jedem Speichern zu klagen. Der Dart-Anteil –
+  der gerechnete Schnappschuss – ist plattformneutral und getestet.
 - `dart:io` kommt im App-Code nur im Datei-Backend des Logs vor, hinter
   einem bedingten Import (`log_sink_io.dart` / `log_sink_stub.dart`): auf
   Plattformen ohne Dateisystem (Web) trägt der Speicherpuffer, „Logs teilen"
@@ -185,10 +203,138 @@ damit eine weitere Plattform später nur ein
   „1 gestellt", die Erinnerungen laufen dort also wirklich und nicht nur auf
   dem Papier. Web ist die strengste Plattform, dort gibt es kein `dart:io`.
 
+## Startbildschirm-Widgets
+
+Vier Widgets, alle aus derselben Quelle: Aufgaben (2×2), Termine (2×2),
+Kalender (2×2) und die Übersicht (4×4). Sie sind reines Android
+(`AppWidgetProvider` + RemoteViews), kein Flutter – **wenn das Telefon sie
+zeichnet, ist die App fast immer tot.** Daraus folgt fast alles andere:
+
+- **Sie rechnen nichts.** Kein Wiederholungsmuster, keinen Feiertag, keine
+  Sortierung nach Priorität. Das alles steht in Dart und würde in Kotlin ein
+  zweites Mal stehen – mit der Aussicht, dass die beiden Fassungen
+  auseinanderlaufen. Stattdessen legt `lib/home_widget.dart` bei jeder
+  Änderung einen fertig gerechneten Schnappschuss ab
+  (`buildWidgetSnapshot`, JSON in den eigenen shared_preferences unter
+  `joe_widgets`), und Kotlin sucht sich daraus den Tag heraus, den die Uhr
+  gerade zeigt.
+- **Der Schnappschuss ist nach Tagen geordnet, nicht nach „heute".** Um
+  Mitternacht wechselt der Tag, und um Mitternacht läuft die App nicht. Eine
+  fertige Heute-Liste wäre jeden Morgen falsch, bis jemand die App öffnet.
+  Gerechnet wird deshalb vom Monatsersten bis 45 Tage voraus
+  (`widgetHorizonDays`); danach steht im Widget der Hinweis „Joe öffnen"
+  statt eines alten Standes.
+- **Liste und Kalenderpunkt sind zweierlei.** Die Heute-Liste trägt
+  Liegengebliebenes von Tag zu Tag weiter (so steht es auch im Dashboard) –
+  das Monatsraster darf das nicht, sonst wäre jeder kommende Tag markiert,
+  nur weil heute etwas offen ist. Der Punkt kommt deshalb aus einem eigenen
+  Feld (`mark`), das nur zählt, was an dem Tag fällig ist, in derselben
+  Reihenfolge wie im Kalender der App (Termine vor Aufgaben, Ring statt Punkt
+  für erledigt). `test/home_widget_test.dart` hält beides fest.
+- **Sie zeigen nur.** Abhaken direkt im Widget hieße, dass Kotlin in den
+  Bestand schreibt – dasselbe Datenmodell ein zweites Mal, und ein Rennen mit
+  der laufenden App um dieselbe Datei. Ein Antippen führt darum in die App,
+  und zwar dorthin, wo das Angetippte auch dort steht (Aufgaben, Termine,
+  Kalender). Beim Kaltstart holt Dart das Ziel ab, sobald der Navigator steht;
+  läuft die App schon, kommt es als `onNewIntent` herein. Beide Wege werden
+  gebraucht.
+- **Neu gezeichnet wird dreifach abgesichert:** die App schiebt bei jeder
+  Änderung (gebündelt, 250 ms – ein Zug an einer Aufgabe löst mehrere
+  Änderungen aus, und jeder Schnappschuss weckt vier Empfänger); ein Wecker
+  auf kurz nach Mitternacht zieht den Tageswechsel nach
+  (`setAndAllowWhileIdle`: ungenau, aber nicht im Doze verschlafend – ein
+  exakter Alarm wäre fürs Neuzeichnen nicht zu rechtfertigen); und darunter
+  liegt das `updatePeriodMillis` von einer halben Stunde plus Neustart,
+  Zeitumstellung und App-Update.
+
+**Größer ziehen soll etwas bringen.** Alle vier sind in beide Richtungen
+frei ziehbar (`resizeMode`, ohne obere Schranke); die Voreinstellung ist
+2×2 bzw. 4×4, nach unten geht es bis auf ein Feld Höhe bei den Listen. Wer
+zieht, soll aber nicht dieselbe Miniatur in einer größeren Karte bekommen,
+darum richtet sich alles nach der gemeldeten Höhe:
+
+- Das **Monatsraster im Kalender-Widget** teilt seine Wochen über die ganze
+  Höhe auf (Zeilen mit `layout_weight`), es füllt also jede Größe statt unten
+  Luft zu lassen. Die Zellen gibt es in drei Stufen (14/25/32 dp): klein trägt
+  die Farbe des Eintrags in der Zahl selbst, die beiden größeren haben den
+  Punkt darunter wie der Kalender der App. Im **Übersichts-Widget** wird das
+  Raster bewusst *nicht* gedehnt – darunter stehen noch zwei Listen, denen
+  mindestens fünf Zeilen bleiben sollen.
+- **Listenzeilen** haben zwei Stufen (20 dp/12 sp und 26 dp/14 sp). Ab etwa
+  drei Feldern Höhe wird die Zeile größer – und es passen trotzdem mehr
+  hinein als vorher.
+
+Bleibt unter der Heute-Liste noch Platz, füllt ihn der Blick nach vorn:
+„Morgen", „So, 16. Aug" und was dort ansteht, so weit es reicht. Die Zeilen
+auseinanderzuziehen, bis es voll aussieht, wäre die schlechtere Antwort
+gewesen – eine Liste wächst mit ihrem Inhalt, nicht mit ihrem Rahmen.
+
+Dabei gilt eine Feinheit, ohne die das Ganze Unsinn wäre: **die Tagesliste im
+Schnappschuss trägt Liegengebliebenes mit** (so steht es auch im Dashboard) –
+eine heute offene Aufgabe taucht deshalb an jedem kommenden Tag darin auf.
+Unter „Demnächst" darf nur stehen, was an dem Tag wirklich neu fällig ist.
+Jeder Eintrag bringt darum ein `over`-Kennzeichen mit, ob er an seinem Tag
+fällig ist oder nur mitgeschleppt wird; `test/home_widget_test.dart` hält das
+fest.
+
+Drei Fallen, die es beim Bauen wirklich gab:
+
+- **Zeichnen kann sich im Kreis drehen, und das legt das ganze Telefon
+  lahm.** Ein `updateAppWidget` lässt den Startbildschirm die Ansicht neu
+  vermessen; fällt sie anders aus als vorher, meldet er die neue Größe
+  zurück, das System ruft `onAppWidgetOptionsChanged` – und wer *dort* wieder
+  blind zeichnet, fängt von vorn an. Das Ergebnis waren hunderte Updates in
+  Sekunden, dann „System UI reagiert nicht", und danach ein **schwarzer
+  Bildschirm für alle Apps**, nicht nur für Joe. Die Suche lief lange in die
+  falsche Richtung, weil es aussah, als starte Joe nicht mehr – in Wahrheit
+  hing der Startbildschirm, der Joes Fenster mitzeichnet. Der Beweis war ein
+  Build vom letzten Commit, ganz ohne Widgets: auch der blieb schwarz.
+  Deshalb zeichnet `JoeWidget.show()` nur noch, wenn sich die Unterschrift
+  aus **Größe, Datenstand und Tag** geändert hat, und `JoeWidgetData.save()`
+  meldet einen unveränderten Schnappschuss zurück, statt einen Rundruf
+  auszulösen. Zum Nachsehen liegt beides im Log (`adb logcat -s JoeWidget`):
+  jede Zeichnung mit ihrer Unterschrift, jeder Schnappschuss mit „neu" oder
+  „unverändert".
+
+- **Die Höhe.** Der Startbildschirm meldet in `OPTION_APPWIDGET_MIN_HEIGHT`
+  nicht die Höhe von jetzt, sondern die Spanne über beide Lagen – hochkant
+  ist das Widget schmal und hoch, quer breit und flach. `MIN_HEIGHT` ist also
+  die Höhe im *Querformat*; wer sie hochkant nimmt, füllt nur die halbe Karte
+  und lässt den Rest leer. Hochkant zählt `MAX_HEIGHT`.
+- **Kein `FLAG_ACTIVITY_NEW_TASK` beim Antippen.** Joes Activity trägt
+  `taskAffinity=""` (so kommt die Vorlage von Flutter). Mit leerer Affinität
+  macht NEW_TASK aus jedem Antipper eine *neue* Aufgabe, statt die
+  vorhandene nach vorn zu holen – samt Übergangsanimation auf ein Fenster,
+  das gerade erst seine Oberfläche bekommt. Einmal endete das in einem
+  `SurfaceSyncGroup: Failed to receive transaction ready in 1000ms` und
+  einem schwarzen Bild. Was `PendingIntent.getActivity` an Flags braucht,
+  ergänzt das System selbst; damit läuft der Weg wie beim Antippen einer
+  Erinnerung, und der ist erprobt.
+- **`<View>` gibt es nicht.** RemoteViews lässt im fremden Prozess nur eine
+  Handvoll View-Klassen zu, und ein blankes `<View>` gehört nicht dazu. Der
+  Trennstrich im großen Widget war zuerst eines – das Ergebnis war „Widget
+  kann nicht geladen werden", schon im Widget-Verzeichnis. Jetzt ist es ein
+  `ImageView`.
+
+Was die Widgets bewusst **nicht** können: scrollen (das wäre ein
+`RemoteViewsService` mit eigenem Adapter; in 2×2 ist dafür kein Platz, und
+was nicht mehr hineinpasst, sagt die letzte Zeile als „+3 weitere"), das
+Foto-Design zeigen (die Karte trägt die Papierfarbe, kein Bild – ein Foto
+müsste als Bitmap in den fremden Prozess und stritte dort mit dem
+Hintergrundbild) und die Termine der Geräte-Kalender (die liest Joe nur,
+während er selbst einen Monat anzeigt).
+
 ## Daten & Sicherheit
 
 Alles liegt lokal in den shared_preferences unter einem Schlüssel
-(`joe_data_v1`). Die App spricht nicht ins Netz: keine Netzwerk-Abhängigkeit,
+(`joe_data_v1`). Daneben liegt seit den Widgets eine zweite, abgeleitete
+Kopie: `joe_widgets` trägt den Schnappschuss, und darin stehen zwangsläufig
+auch Titel – ein Widget, das nur Punkte zeigte, wäre keins. Beides sind die
+privaten Einstellungen der App, kein anderes Programm kommt daran, und
+„Logs teilen" fasst den Schnappschuss nicht an (das Log hält Titel weiterhin
+draußen). Die Widgets brauchen **keine zusätzliche Berechtigung**: der Wecker
+um Mitternacht ist ein ungefährer.
+Die App spricht nicht ins Netz: keine Netzwerk-Abhängigkeit,
 und die INTERNET-Permission steht nur in den Debug-/Profile-Manifesten fürs
 Flutter-Tooling, nicht im Release. Androids Auto-Backup bleibt auf dem
 Standard (an), damit der Bestand Gerätewechsel überlebt.

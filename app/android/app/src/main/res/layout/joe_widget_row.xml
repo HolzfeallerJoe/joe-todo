@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Eine Zeile in einer Widget-Liste: Punkt (bzw. Ring, wenn erledigt),
+     optional eine Uhrzeit davor, dann der Titel. Dieselbe Zeile traegt
+     Aufgaben wie Termine. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:gravity="center_vertical"
+    android:paddingTop="2dp"
+    android:paddingBottom="2dp">
+
+    <ImageView
+        android:id="@+id/joe_row_dot"
+        android:layout_width="7dp"
+        android:layout_height="7dp"
+        android:layout_marginEnd="5dp"
+        android:src="@drawable/joe_widget_dot"
+        android:importantForAccessibility="no" />
+
+    <TextView
+        android:id="@+id/joe_row_lead"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginEnd="4dp"
+        android:maxLines="1"
+        android:textSize="11sp"
+        android:visibility="gone" />
+
+    <TextView
+        android:id="@+id/joe_row_title"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:ellipsize="end"
+        android:maxLines="1"
+        android:textSize="12sp" />
+</LinearLayout>

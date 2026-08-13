@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Die Karte hinter jedem Widget. Weiss gemalt und zur Laufzeit mit der
+     Papierfarbe des gewaehlten Designs eingefaerbt (setColorFilter, SRC_ATOP):
+     so bleiben die runden Ecken durchsichtig, waehrend die Flaeche die Farbe
+     annimmt. Ein setBackgroundColor auf die Wurzel koennte das nicht, das
+     malt immer ein Rechteck. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="#FFFFFFFF" />
+    <corners android:radius="@dimen/joe_widget_radius" />
+</shape>

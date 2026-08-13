@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Ab Android 12 rundet das System alle Widgets gleich; wer sich daran
+         haelt, sitzt neben den Widgets der anderen Apps, statt daneben. -->
+    <dimen name="joe_widget_radius">@android:dimen/system_app_widget_background_radius</dimen>
+</resources>

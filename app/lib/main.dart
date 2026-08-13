@@ -4,13 +4,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'device_calendar.dart';
+import 'home_widget.dart';
 import 'log.dart';
 import 'models.dart';
 import 'reminders.dart';
 import 'theme.dart';
 import 'toast.dart';
+import 'screens/appointments.dart';
 import 'screens/calendar.dart';
 import 'screens/dashboard.dart';
+import 'screens/tasks.dart';
 
 /// Damit eine angetippte Erinnerung navigieren kann – die kommt vom System
 /// und hat keinen `BuildContext`.
@@ -51,7 +54,14 @@ Future<void> main() async {
   state.addListener(() {
     DeviceCalendarFeed.instance.setCalendarIds(state.deviceCalendarIds);
     JoeReminders.instance.sync(state);
+    // Die Widgets auf dem Startbildschirm lesen einen Schnappschuss, den nur
+    // die App schreiben kann – ohne das blieben sie auf dem Stand des
+    // letzten Starts stehen.
+    JoeHomeWidgets.instance.schedule(state);
   });
+  JoeHomeWidgets.instance.onOpen = _openWidgetTarget;
+  JoeHomeWidgets.instance.listen();
+  unawaited(JoeHomeWidgets.instance.push(state));
   // Bewusst ohne await: nichts davon darf den Start aufhalten.
   unawaited(JoeReminders.instance.init().then((_) {
     JoeReminders.instance.tapHandler = _openReminder;
@@ -73,6 +83,34 @@ void _openReminder(ReminderTarget target) {
       builder: (_) => CalendarScreen(initialDay: target.day),
     ),
   );
+}
+
+/// Ein angetipptes Widget fuehrt dorthin, wo das Angetippte auch in der App
+/// steht: der Aufgaben-Block in die Aufgaben, der Termin-Block in die
+/// Termine, das Monatsraster in den Kalender.
+///
+/// Beim Kaltstart kommt das Ziel schon an, bevor der Navigator steht – dann
+/// wartet der Sprung auf das erste Bild, statt lautlos zu verfallen.
+void _openWidgetTarget(WidgetTarget target) {
+  void go() {
+    final navigator = navigatorKey.currentState;
+    if (navigator == null) return;
+    navigator.push(
+      MaterialPageRoute<void>(
+        builder: (_) => switch (target) {
+          WidgetTarget.tasks => const TasksScreen(),
+          WidgetTarget.appointments => const AppointmentsScreen(),
+          WidgetTarget.calendar => const CalendarScreen(),
+        },
+      ),
+    );
+  }
+
+  if (navigatorKey.currentState == null) {
+    WidgetsBinding.instance.addPostFrameCallback((_) => go());
+  } else {
+    go();
+  }
 }
 
 class JoeApp extends StatelessWidget {
