@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'log.dart';
 import 'pets.dart';
 import 'util.dart';
 
@@ -262,6 +263,7 @@ class AppState extends ChangeNotifier {
     final prefs = await SharedPreferences.getInstance();
     final raw = prefs.getString(_storageKey);
     if (raw == null) {
+      JoeLog.log('Erster Start: Beispieldaten angelegt');
       _seed();
       await _save();
       return;
@@ -297,7 +299,11 @@ class AppState extends ChangeNotifier {
     final storedExpanded = data['todayExpanded'];
     todayExpanded = storedExpanded is bool ? storedExpanded : true;
 
+    JoeLog.log('Geladen: ${tasks.length} Aufgaben, '
+        '${appointments.length} Termine, ${notes.length} Notizen');
     if (losses > 0) {
+      JoeLog.log('ACHTUNG: $losses Eintraege unlesbar, '
+          'alter Bestand unter $rescueKey gesichert');
       await prefs.setString(rescueKey, raw);
       await _save();
     }
@@ -392,19 +398,25 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> _save() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(
-      _storageKey,
-      jsonEncode({
-        'tasks': tasks.map((t) => t.toJson()).toList(),
-        'appointments': appointments.map((a) => a.toJson()).toList(),
-        'notes': notes.map((n) => n.toJson()).toList(),
-        'themeIndex': themeIndex,
-        'showPet': showPet,
-        'petId': petId,
-        'todayExpanded': todayExpanded,
-      }),
-    );
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(
+        _storageKey,
+        jsonEncode({
+          'tasks': tasks.map((t) => t.toJson()).toList(),
+          'appointments': appointments.map((a) => a.toJson()).toList(),
+          'notes': notes.map((n) => n.toJson()).toList(),
+          'themeIndex': themeIndex,
+          'showPet': showPet,
+          'petId': petId,
+          'todayExpanded': todayExpanded,
+        }),
+      );
+    } catch (e) {
+      // _changed() wirft das Speichern fire-and-forget an; ohne das Log
+      // verschwaende ein Fehler hier spurlos.
+      JoeLog.log('FEHLER beim Speichern: $e');
+    }
   }
 
   void _changed() {
@@ -415,6 +427,7 @@ class AppState extends ChangeNotifier {
   // ---- Tasks ----
 
   void addTask(Task task) {
+    JoeLog.log('Aufgabe angelegt (${task.id})');
     tasks.add(task);
     _changed();
   }
@@ -422,6 +435,7 @@ class AppState extends ChangeNotifier {
   void updateTask(Task task) => _changed();
 
   void deleteTask(Task task) {
+    JoeLog.log('Aufgabe geloescht (${task.id})');
     tasks.removeWhere((t) => t.id == task.id);
     _changed();
   }
@@ -567,6 +581,7 @@ class AppState extends ChangeNotifier {
   // ---- Appointments ----
 
   void addAppointment(Appointment a) {
+    JoeLog.log('Termin angelegt (${a.id})');
     appointments.add(a);
     _changed();
   }
@@ -574,6 +589,7 @@ class AppState extends ChangeNotifier {
   void updateAppointment(Appointment a) => _changed();
 
   void deleteAppointment(Appointment a) {
+    JoeLog.log('Termin geloescht (${a.id})');
     appointments.removeWhere((x) => x.id == a.id);
     _changed();
   }
@@ -603,6 +619,7 @@ class AppState extends ChangeNotifier {
   // ---- Notes ----
 
   void addNote(Note n) {
+    JoeLog.log('Notiz angelegt (${n.id})');
     notes.insert(0, n);
     _changed();
   }
@@ -614,6 +631,7 @@ class AppState extends ChangeNotifier {
   }
 
   void deleteNote(Note n) {
+    JoeLog.log('Notiz geloescht (${n.id})');
     notes.removeWhere((x) => x.id == n.id);
     _changed();
   }

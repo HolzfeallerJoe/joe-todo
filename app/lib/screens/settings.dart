@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:share_plus/share_plus.dart';
 
+import '../log.dart';
 import '../models.dart';
 import '../pets.dart';
 import '../theme.dart';
@@ -83,6 +85,27 @@ class SettingsScreen extends StatelessWidget {
                 ),
               ),
             ),
+            const SectionTitle('Fehlersuche'),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  backgroundColor: theme.paper,
+                  foregroundColor: theme.ink,
+                  side: BorderSide(color: theme.inkSoft.withValues(alpha: 0.5)),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
+                icon: const Icon(Icons.share_outlined, size: 18),
+                label: const Text(
+                  'Logs teilen',
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                ),
+                onPressed: () => _shareLogs(context),
+              ),
+            ),
             const SizedBox(height: 24),
             Center(
               child: Text(
@@ -103,6 +126,23 @@ class SettingsScreen extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Reicht die Logdateien an den Share-Intent des Systems weiter; solange
+/// noch keine Datei existiert, den Speicherpuffer als Text.
+Future<void> _shareLogs(BuildContext context) async {
+  final payload = await JoeLog.instance.sharePayload();
+  await SharePlus.instance.share(
+    payload.paths.isNotEmpty
+        ? ShareParams(
+            subject: 'Joe – Logs',
+            files: [
+              for (final path in payload.paths)
+                XFile(path, mimeType: 'text/plain'),
+            ],
+          )
+        : ShareParams(subject: 'Joe – Logs', text: payload.text),
+  );
 }
 
 /// One row in the theme dropdown: preview swatch plus name. Photo themes show

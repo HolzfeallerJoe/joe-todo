@@ -135,6 +135,19 @@ Löschen fragt überall nach (Aufgabe, Termin, Notiz – `confirmDelete` in
 `widgets.dart`): es gibt kein Undo, ein verrutschter Tipper wäre sonst
 endgültig.
 
+### Logs
+
+`lib/log.dart` schreibt ein schlichtes App-Log (Zeitstempel je Zeile) nach
+`joe.log` im Support-Verzeichnis der App, mit einfacher Rotation ab 256 KB
+(`joe.log` → `joe.log.1`). Geloggt werden App-Start, Laden (samt
+Rettungsfall), Speicherfehler, Anlegen/Löschen sowie unbehandelte Fehler
+(`FlutterError.onError`, `PlatformDispatcher.onError`) – **nur Ereignisse,
+Anzahlen und IDs, nie Titel oder Notiztexte**, denn „Logs teilen" in den
+Einstellungen reicht die Dateien per Share-Intent an Dritte weiter
+(share_plus; ohne Dateisystem trägt ein Speicherpuffer). Zwei Grundsätze,
+festgehalten in `test/log_test.dart`: Loggen darf nie stören, und Inhalte
+bleiben draußen.
+
 ## Bildmaterial
 
 Beide Bildsorten liegen im Repo nur in der Fassung, die auch im APK landet;
