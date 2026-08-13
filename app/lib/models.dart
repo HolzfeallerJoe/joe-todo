@@ -7,6 +7,9 @@ import 'pets.dart';
 import 'util.dart';
 
 /// Warm color palette for tasks and appointments.
+///
+/// The first eight are the original palette and keep their index: a stored
+/// `colorIndex` points into this list, so new colors only ever get appended.
 const taskPalette = [
   Color(0xFFC0563B), // Terrakotta
   Color(0xFFD98E32), // Bernstein
@@ -16,14 +19,47 @@ const taskPalette = [
   Color(0xFF7A5C3E), // Walnuss
   Color(0xFF5B7C99), // Taubenblau
   Color(0xFFC9A227), // Senf
+  Color(0xFFA34A22), // Rost
+  Color(0xFFE08A6A), // Lachs
+  Color(0xFFE07B39), // Kürbis
+  Color(0xFFD9B382), // Sand
+  Color(0xFF6E7A3A), // Oliv
+  Color(0xFF5A8F4C), // Farn
+  Color(0xFF7FBFA5), // Minze
+  Color(0xFF3A6E78), // Petrol
+  Color(0xFF3B4E70), // Nachtblau
+  Color(0xFF7B4B6E), // Pflaume
+  Color(0xFFC77F92), // Altrosa
+  Color(0xFF8E7BB0), // Lavendel
 ];
 
 const taskPaletteNames = [
   'Terrakotta', 'Bernstein', 'Salbei', 'Tanne',
   'Beere', 'Walnuss', 'Taubenblau', 'Senf',
+  'Rost', 'Lachs', 'Kürbis', 'Sand',
+  'Oliv', 'Farn', 'Minze', 'Petrol',
+  'Nachtblau', 'Pflaume', 'Altrosa', 'Lavendel',
 ];
 
 enum RecurrenceType { none, daily, weekly, monthly, everyXDays }
+
+/// Three priority levels for tasks and appointments. Level 3 ("Niedrig") is
+/// the quiet one: those tasks stay out of the open-count on the dashboard and
+/// only show up inside the fold-out list.
+enum Priority {
+  hoch(1, 'Hoch'),
+  mittel(2, 'Mittel'),
+  niedrig(3, 'Niedrig');
+
+  final int level;
+  final String label;
+  const Priority(this.level, this.label);
+
+  static Priority fromJson(Object? value) => Priority.values.firstWhere(
+        (p) => p.name == value,
+        orElse: () => Priority.mittel,
+      );
+}
 
 class Task {
   final String id;
@@ -32,6 +68,7 @@ class Task {
   int intervalDays;
   DateTime startDate;
   int colorIndex;
+  Priority priority;
   Set<String> completedDates;
 
   Task({
@@ -41,6 +78,7 @@ class Task {
     this.intervalDays = 2,
     required this.startDate,
     this.colorIndex = 0,
+    this.priority = Priority.mittel,
     Set<String>? completedDates,
   }) : completedDates = completedDates ?? {};
 
@@ -97,6 +135,7 @@ class Task {
         'intervalDays': intervalDays,
         'startDate': dateKey(startDate),
         'colorIndex': colorIndex,
+        'priority': priority.name,
         'completedDates': completedDates.toList(),
       };
 
@@ -108,6 +147,7 @@ class Task {
         intervalDays: json['intervalDays'] as int? ?? 2,
         startDate: parseDateKey(json['startDate'] as String),
         colorIndex: json['colorIndex'] as int? ?? 0,
+        priority: Priority.fromJson(json['priority']),
         completedDates: (json['completedDates'] as List<dynamic>? ?? []).cast<String>().toSet(),
       );
 }
@@ -117,12 +157,14 @@ class Appointment {
   String title;
   DateTime when;
   int colorIndex;
+  Priority priority;
 
   Appointment({
     required this.id,
     required this.title,
     required this.when,
     this.colorIndex = 4,
+    this.priority = Priority.mittel,
   });
 
   Color get color => taskPalette[colorIndex % taskPalette.length];
@@ -132,6 +174,7 @@ class Appointment {
         'title': title,
         'when': when.toIso8601String(),
         'colorIndex': colorIndex,
+        'priority': priority.name,
       };
 
   factory Appointment.fromJson(Map<String, dynamic> json) => Appointment(
@@ -139,6 +182,7 @@ class Appointment {
         title: json['title'] as String,
         when: DateTime.parse(json['when'] as String),
         colorIndex: json['colorIndex'] as int? ?? 4,
+        priority: Priority.fromJson(json['priority']),
       );
 }
 
@@ -146,6 +190,11 @@ class Note {
   final String id;
   String title;
   String body;
+
+  /// The day the note belongs to – this is what the calendar marks with "N".
+  /// Defaults to the day it was written and can be moved in the editor;
+  /// [updatedAt] keeps tracking the last edit for the notes list order.
+  DateTime date;
   DateTime updatedAt;
 
   Note({
@@ -153,21 +202,30 @@ class Note {
     required this.title,
     required this.body,
     required this.updatedAt,
-  });
+    DateTime? date,
+  }) : date = dateOnly(date ?? updatedAt);
 
   Map<String, dynamic> toJson() => {
         'id': id,
         'title': title,
         'body': body,
+        'date': dateKey(date),
         'updatedAt': updatedAt.toIso8601String(),
       };
 
-  factory Note.fromJson(Map<String, dynamic> json) => Note(
-        id: json['id'] as String,
-        title: json['title'] as String? ?? '',
-        body: json['body'] as String? ?? '',
-        updatedAt: DateTime.parse(json['updatedAt'] as String),
-      );
+  factory Note.fromJson(Map<String, dynamic> json) {
+    final updatedAt = DateTime.parse(json['updatedAt'] as String);
+    final stored = json['date'] as String?;
+    return Note(
+      id: json['id'] as String,
+      title: json['title'] as String? ?? '',
+      body: json['body'] as String? ?? '',
+      updatedAt: updatedAt,
+      // Notes written before the calendar marker keep the day they were
+      // last touched, which is the only date they ever had.
+      date: stored == null ? updatedAt : parseDateKey(stored),
+    );
+  }
 }
 
 /// A single completed occurrence, used for the history screen.
@@ -186,6 +244,10 @@ class AppState extends ChangeNotifier {
   int themeIndex = 0;
   bool showPet = true;
   String petId = defaultPetId;
+
+  /// Whether the dashboard's "Heute abhaken" fold-out stands open. Kept in
+  /// storage so the dashboard comes back the way it was left.
+  bool todayExpanded = true;
 
   int _idCounter = 0;
 
@@ -214,6 +276,7 @@ class AppState extends ChangeNotifier {
     // 'showCat' ist der alte Schluessel aus der Zeit vor den Begleiterbildern.
     showPet = data['showPet'] as bool? ?? data['showCat'] as bool? ?? true;
     petId = data['petId'] as String? ?? defaultPetId;
+    todayExpanded = data['todayExpanded'] as bool? ?? true;
   }
 
   void _seed() {
@@ -242,6 +305,16 @@ class AppState extends ChangeNotifier {
         title: 'Joe ausprobieren',
         startDate: t,
         colorIndex: 0,
+        priority: Priority.hoch,
+      ),
+      // Stufe 3: zaehlt nicht in "offene Aufgaben heute" mit und steht nur
+      // im Ausklappmenue unter "Kann warten".
+      Task(
+        id: nextId(),
+        title: 'Bücherregal sortieren',
+        startDate: t.subtract(const Duration(days: 5)),
+        colorIndex: 5,
+        priority: Priority.niedrig,
       ),
     ];
     appointments = [
@@ -256,6 +329,7 @@ class AppState extends ChangeNotifier {
         title: 'Zahnarzt',
         when: t.add(const Duration(days: 3, hours: 9, minutes: 30)),
         colorIndex: 6,
+        priority: Priority.hoch,
       ),
     ];
     notes = [
@@ -281,6 +355,7 @@ class AppState extends ChangeNotifier {
         'themeIndex': themeIndex,
         'showPet': showPet,
         'petId': petId,
+        'todayExpanded': todayExpanded,
       }),
     );
   }
@@ -330,11 +405,11 @@ class AppState extends ChangeNotifier {
     }).toList();
   }
 
-  /// Tasks for the dashboard "Heute" list: today's occurrences (open and
+  /// Everything that lands on today's plate: today's occurrences (open and
   /// done, so completed items stay visible) plus overdue one-offs.
-  List<Task> tasksDueToday() {
+  List<Task> _dueToday() {
     final t = today();
-    final result = tasks.where((task) {
+    return tasks.where((task) {
       if (task.occursOn(t)) return true;
       if (!task.isRecurring &&
           task.completedDates.isEmpty &&
@@ -343,10 +418,37 @@ class AppState extends ChangeNotifier {
       }
       return false;
     }).toList();
+  }
+
+  /// Tasks for the dashboard "Heute abhaken" list, without the unimportant
+  /// ones – those get their own section further down, see [openLowTasks].
+  /// Open items first, then the ones already ticked off.
+  List<Task> tasksDueToday() {
+    final t = today();
+    final result =
+        _dueToday().where((task) => task.priority != Priority.niedrig).toList();
     result.sort((a, b) {
       final ad = a.isCompletedOn(t) ? 1 : 0;
       final bd = b.isCompletedOn(t) ? 1 : 0;
-      return ad != bd ? ad - bd : a.title.compareTo(b.title);
+      if (ad != bd) return ad - bd;
+      if (a.priority != b.priority) return a.priority.level - b.priority.level;
+      return a.title.compareTo(b.title);
+    });
+    return result;
+  }
+
+  /// Open level-3 tasks, newest first. They are deliberately kept out of
+  /// [openTodayCount] – an unimportant leftover should not nag from the
+  /// headline – and are listed on their own inside the fold-out.
+  List<Task> openLowTasks() {
+    final t = today();
+    final result = _dueToday()
+        .where((task) =>
+            task.priority == Priority.niedrig && !task.isCompletedOn(t))
+        .toList();
+    result.sort((a, b) {
+      final byDate = b.startDate.compareTo(a.startDate);
+      return byDate != 0 ? byDate : a.title.compareTo(b.title);
     });
     return result;
   }
@@ -354,6 +456,59 @@ class AppState extends ChangeNotifier {
   int openTodayCount() {
     final t = today();
     return tasksDueToday().where((task) => !task.isCompletedOn(t)).length;
+  }
+
+  // ---- Sections of the tasks screen ----
+
+  /// Everything due today in one list, open first, then by priority.
+  List<Task> tasksToday() {
+    final t = today();
+    final result = _dueToday();
+    result.sort((a, b) {
+      final ad = a.isCompletedOn(t) ? 1 : 0;
+      final bd = b.isCompletedOn(t) ? 1 : 0;
+      if (ad != bd) return ad - bd;
+      if (a.priority != b.priority) return a.priority.level - b.priority.level;
+      return a.title.compareTo(b.title);
+    });
+    return result;
+  }
+
+  /// One-off tasks dated after today, soonest first.
+  List<Task> upcomingTasks() {
+    final t = today();
+    final result = tasks
+        .where((task) =>
+            !task.isRecurring &&
+            task.completedDates.isEmpty &&
+            dateOnly(task.startDate).isAfter(t))
+        .toList();
+    result.sort((a, b) {
+      final byDate = a.startDate.compareTo(b.startDate);
+      return byDate != 0 ? byDate : a.title.compareTo(b.title);
+    });
+    return result;
+  }
+
+  /// All recurring tasks, most important first.
+  List<Task> recurringTasks() {
+    final result = tasks.where((task) => task.isRecurring).toList();
+    result.sort((a, b) {
+      if (a.priority != b.priority) return a.priority.level - b.priority.level;
+      return a.title.compareTo(b.title);
+    });
+    return result;
+  }
+
+  /// One-off tasks that are done and stay done, newest completion first.
+  List<Task> doneTasks() {
+    final result = tasks
+        .where((task) => !task.isRecurring && task.completedDates.isNotEmpty)
+        .toList();
+    String doneOn(Task task) =>
+        task.completedDates.reduce((a, b) => a.compareTo(b) >= 0 ? a : b);
+    result.sort((a, b) => doneOn(b).compareTo(doneOn(a)));
+    return result;
   }
 
   // ---- Appointments ----
@@ -410,6 +565,13 @@ class AppState extends ChangeNotifier {
     _changed();
   }
 
+  /// Notes filed under [day] – the calendar marks those days with an "N".
+  List<Note> notesForDay(DateTime day) {
+    final d = dateOnly(day);
+    return notes.where((n) => dateOnly(n.date) == d).toList()
+      ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+  }
+
   // ---- History ----
 
   List<HistoryEntry> history() {
@@ -432,6 +594,11 @@ class AppState extends ChangeNotifier {
 
   void setShowPet(bool value) {
     showPet = value;
+    _changed();
+  }
+
+  void setTodayExpanded(bool value) {
+    todayExpanded = value;
     _changed();
   }
 

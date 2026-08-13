@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 
 import '../models.dart';
+import '../theme.dart';
 import '../util.dart';
 import '../widgets.dart';
+import 'notes.dart';
 
 class CalendarScreen extends StatefulWidget {
   const CalendarScreen({super.key});
@@ -40,6 +42,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
 
     final dayTasks = state.tasksForDay(_selected);
     final dayAppointments = state.appointmentsForDay(_selected);
+    final dayNotes = state.notesForDay(_selected);
 
     return JoeScaffold(
       title: 'Kalender',
@@ -144,16 +147,19 @@ class _CalendarScreenState extends State<CalendarScreen> {
                           ),
                         ),
                       ),
-                      TextButton.icon(
-                        icon: Icon(Icons.add, size: 18, color: theme.accent),
-                        label: Text('Aufgabe',
-                            style: TextStyle(color: theme.accent)),
+                      // Ein Plus fuer den Tag: fragt, ob Aufgabe oder Termin.
+                      IconButton(
+                        icon: Icon(Icons.add_circle_outline,
+                            color: theme.accent),
+                        tooltip: 'Eintrag hinzufügen',
                         onPressed: () =>
-                            showTaskSheet(context, initialDate: _selected),
+                            showAddChooser(context, initialDate: _selected),
                       ),
                     ],
                   ),
-                  if (dayTasks.isEmpty && dayAppointments.isEmpty)
+                  if (dayTasks.isEmpty &&
+                      dayAppointments.isEmpty &&
+                      dayNotes.isEmpty)
                     Padding(
                       padding: const EdgeInsets.symmetric(vertical: 10),
                       child: Text(
@@ -162,33 +168,85 @@ class _CalendarScreenState extends State<CalendarScreen> {
                       ),
                     ),
                   for (final a in dayAppointments)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 6),
-                      child: Row(
-                        children: [
-                          Icon(Icons.schedule, size: 18, color: a.color),
-                          const SizedBox(width: 10),
-                          Text(
-                            formatTime(a.when),
-                            style: TextStyle(
-                              color: theme.inkSoft,
-                              fontWeight: FontWeight.w600,
-                              fontSize: 14,
+                    InkWell(
+                      borderRadius: BorderRadius.circular(10),
+                      onTap: () =>
+                          showAppointmentSheet(context, appointment: a),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 6),
+                        child: Row(
+                          children: [
+                            Icon(Icons.schedule, size: 18, color: a.color),
+                            const SizedBox(width: 10),
+                            Text(
+                              formatTime(a.when),
+                              style: TextStyle(
+                                color: theme.inkSoft,
+                                fontWeight: FontWeight.w600,
+                                fontSize: 14,
+                              ),
                             ),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Text(
-                              a.title,
-                              style:
-                                  TextStyle(color: theme.ink, fontSize: 15),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                a.title,
+                                style:
+                                    TextStyle(color: theme.ink, fontSize: 15),
+                              ),
                             ),
-                          ),
-                        ],
+                            PriorityMark(
+                              priority: a.priority,
+                              color: a.priority == Priority.hoch
+                                  ? theme.accent
+                                  : theme.inkSoft,
+                              size: 16,
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   for (final task in dayTasks)
                     TaskTile(task: task, day: _selected),
+                  // Notizen des Tages – im Monatsraster stehen sie als "N".
+                  for (final note in dayNotes)
+                    InkWell(
+                      borderRadius: BorderRadius.circular(10),
+                      onTap: () => Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => NoteEditScreen(note: note),
+                        ),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        child: Row(
+                          children: [
+                            _NoteBadge(theme: theme),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                note.title.isEmpty ? 'Ohne Titel' : note.title,
+                                style:
+                                    TextStyle(color: theme.ink, fontSize: 15),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: TextButton.icon(
+                      icon: Icon(Icons.edit_note, size: 20, color: theme.accent),
+                      label: Text('Notiz hinzufügen',
+                          style: TextStyle(color: theme.accent)),
+                      onPressed: () => Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => NoteEditScreen(initialDate: _selected),
+                        ),
+                      ),
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -218,6 +276,7 @@ class _DayCell extends StatelessWidget {
     final theme = joeThemeOf(context);
     final tasks = state.tasksForDay(day);
     final appointments = state.appointmentsForDay(day);
+    final hasNotes = state.notesForDay(day).isNotEmpty;
 
     final markers = <Widget>[];
     for (final a in appointments) {
@@ -244,13 +303,27 @@ class _DayCell extends StatelessWidget {
         padding: const EdgeInsets.only(top: 4),
         child: Column(
           children: [
-            Text(
-              '${day.day}',
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: isToday ? FontWeight.w800 : FontWeight.w500,
-                color: isToday ? theme.accent : theme.ink,
-              ),
+            Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Text(
+                  '${day.day}',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: isToday ? FontWeight.w800 : FontWeight.w500,
+                    color: isToday ? theme.accent : theme.ink,
+                  ),
+                ),
+                // Notizen bekommen kein Farbpunkt, sondern ein "N" neben der
+                // Tageszahl – sie haben keine eigene Farbe und sollen die
+                // Punktreihe der Aufgaben nicht verwaessern.
+                if (hasNotes)
+                  Positioned(
+                    right: -11,
+                    top: -1,
+                    child: _NoteBadge(theme: theme, size: 12),
+                  ),
+              ],
             ),
             const SizedBox(height: 2),
             Expanded(
@@ -276,6 +349,40 @@ class _DayCell extends StatelessWidget {
         color: done ? Colors.transparent : color,
         shape: BoxShape.circle,
         border: done ? Border.all(color: color, width: 1.4) : null,
+      ),
+    );
+  }
+}
+
+/// Das "N", mit dem Notizen im Kalender markiert sind.
+class _NoteBadge extends StatelessWidget {
+  final JoeTheme theme;
+  final double size;
+
+  const _NoteBadge({required this.theme, this.size = 18});
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      label: 'Notiz',
+      child: Container(
+        width: size,
+        height: size,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: theme.accent.withValues(alpha: 0.16),
+          borderRadius: BorderRadius.circular(size * 0.28),
+          border: Border.all(color: theme.accent, width: 1),
+        ),
+        child: Text(
+          'N',
+          style: TextStyle(
+            color: theme.accent,
+            fontSize: size * 0.62,
+            height: 1,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
       ),
     );
   }

@@ -1,0 +1,29 @@
+appId: dev.joe.joe_todo
+name: Aufgaben-Reiter mit Prioritaeten
+---
+- launchApp:
+    clearState: true
+- scrollUntilVisible:
+    element: "Aufgaben"
+    direction: DOWN
+    centerElement: true
+- tapOn:
+    text: "Aufgaben"
+    retryTapIfNoChange: false
+- assertVisible: "Heute"
+- assertVisible: "(?s).*Joe ausprobieren.*"
+# Stufe 3 steht hier mit drin, anders als im Zaehler auf dem Dashboard.
+- assertVisible: "(?s).*Bücherregal sortieren.*"
+- assertVisible: "Wiederkehrend"
+- takeScreenshot: shots/08_tasks
+# Neue Aufgabe mit Stufe 1 anlegen. Hinweis: inputText kann nur ASCII.
+- tapOn: "Neue Aufgabe"
+- inputText: "Steuer machen"
+- hideKeyboard
+# Stufe und Beschriftung liegen in einem Knoten ("Stufe 1 Hoch"), deshalb
+# der umschliessende Regex – ein blosses "Hoch" matcht nicht.
+- tapOn: "(?s).*Stufe 1.*Hoch.*"
+- tapOn: "Speichern"
+- assertVisible: "(?s).*Steuer machen.*"
+- takeScreenshot: shots/08_tasks_prioritaet
+- back

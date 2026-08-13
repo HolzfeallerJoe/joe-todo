@@ -8,6 +8,7 @@ import 'appointments.dart';
 import 'notes.dart';
 import 'history.dart';
 import 'settings.dart';
+import 'tasks.dart';
 
 class DashboardScreen extends StatelessWidget {
   const DashboardScreen({super.key});
@@ -18,6 +19,7 @@ class DashboardScreen extends StatelessWidget {
     final theme = joeThemeOf(context);
     final t = today();
     final dueTasks = state.tasksDueToday();
+    final lowTasks = state.openLowTasks();
     final openCount = state.openTodayCount();
     final nextAppointments = state.upcomingAppointments(limit: 3);
 
@@ -59,16 +61,21 @@ class DashboardScreen extends StatelessWidget {
                             ),
                           ),
                           const SizedBox(width: 8),
-                          Padding(
-                            padding: const EdgeInsets.only(bottom: 5),
-                            child: Text(
-                              openCount == 1
-                                  ? 'offene Aufgabe heute'
-                                  : 'offene Aufgaben heute',
-                              style: TextStyle(
-                                color: theme.ink,
-                                fontSize: 17,
-                                fontWeight: FontWeight.w600,
+                          // Flexibel, damit ein dreistelliger Zaehler oder
+                          // eine grosse Systemschrift die Zeile nicht
+                          // ueber den Kartenrand schiebt.
+                          Flexible(
+                            child: Padding(
+                              padding: const EdgeInsets.only(bottom: 5),
+                              child: Text(
+                                openCount == 1
+                                    ? 'offene Aufgabe heute'
+                                    : 'offene Aufgaben heute',
+                                style: TextStyle(
+                                  color: theme.ink,
+                                  fontSize: 17,
+                                  fontWeight: FontWeight.w600,
+                                ),
                               ),
                             ),
                           ),
@@ -103,6 +110,21 @@ class DashboardScreen extends StatelessWidget {
                           ),
                         ),
                       ],
+
+                      // "Heute abhaken" sits inside the today card now, as a
+                      // fold-out right under the open count.
+                      Padding(
+                        padding: const EdgeInsets.only(top: 12, bottom: 2),
+                        child: Divider(
+                          height: 1,
+                          color: theme.inkSoft.withValues(alpha: 0.25),
+                        ),
+                      ),
+                      _TodayFold(
+                        dueTasks: dueTasks,
+                        lowTasks: lowTasks,
+                        day: t,
+                      ),
                     ],
                   ),
                 ),
@@ -126,25 +148,6 @@ class DashboardScreen extends StatelessWidget {
                     ),
                   ),
               ],
-            ),
-
-            const SectionTitle('Heute abhaken'),
-            PaperCard(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              child: dueTasks.isEmpty
-                  ? Padding(
-                      padding: const EdgeInsets.all(12),
-                      child: Text(
-                        'Alles erledigt – lehn dich zurück 🌿',
-                        style: TextStyle(color: theme.inkSoft, fontSize: 15),
-                      ),
-                    )
-                  : Column(
-                      children: [
-                        for (final task in dueTasks)
-                          TaskTile(task: task, day: t, showOverdue: true),
-                      ],
-                    ),
             ),
 
             const SectionTitle('Nächste Termine'),
@@ -209,10 +212,10 @@ class DashboardScreen extends StatelessWidget {
 
             // Folder-register navigation, like tabs in a notebook.
             FolderTabButton(
-              icon: Icons.calendar_month_outlined,
-              label: 'Kalender',
+              icon: Icons.check_circle_outline,
+              label: 'Aufgaben',
               color: theme.tabColors[0],
-              onTap: () => _push(context, const CalendarScreen()),
+              onTap: () => _push(context, const TasksScreen()),
             ),
             FolderTabButton(
               icon: Icons.access_time,
@@ -221,21 +224,27 @@ class DashboardScreen extends StatelessWidget {
               onTap: () => _push(context, const AppointmentsScreen()),
             ),
             FolderTabButton(
+              icon: Icons.calendar_month_outlined,
+              label: 'Kalender',
+              color: theme.tabColors[2],
+              onTap: () => _push(context, const CalendarScreen()),
+            ),
+            FolderTabButton(
               icon: Icons.edit_note,
               label: 'Notizen',
-              color: theme.tabColors[2],
+              color: theme.tabColors[3],
               onTap: () => _push(context, const NotesScreen()),
             ),
             FolderTabButton(
               icon: Icons.history,
               label: 'Historie',
-              color: theme.tabColors[3],
+              color: theme.tabColors[4],
               onTap: () => _push(context, const HistoryScreen()),
             ),
             FolderTabButton(
               icon: Icons.tune,
               label: 'Einstellungen',
-              color: theme.tabColors[4],
+              color: theme.tabColors[5],
               onTap: () => _push(context, const SettingsScreen()),
             ),
           ],
@@ -245,7 +254,7 @@ class DashboardScreen extends StatelessWidget {
         backgroundColor: theme.accent,
         foregroundColor: Colors.white,
         tooltip: 'Hinzufügen',
-        onPressed: () => _showAddMenu(context),
+        onPressed: () => showAddChooser(context),
         child: const Icon(Icons.add),
       ),
     );
@@ -255,38 +264,101 @@ class DashboardScreen extends StatelessWidget {
     Navigator.of(context)
         .push(MaterialPageRoute<void>(builder: (_) => screen));
   }
+}
 
-  void _showAddMenu(BuildContext context) {
+/// The "Heute abhaken" fold-out inside the today card: a tappable header with
+/// the task list underneath. Level-3 tasks are gathered in their own block at
+/// the bottom – they are out of the headline count, so this is the one place
+/// they still show up.
+class _TodayFold extends StatelessWidget {
+  final List<Task> dueTasks;
+  final List<Task> lowTasks;
+  final DateTime day;
+
+  const _TodayFold({
+    required this.dueTasks,
+    required this.lowTasks,
+    required this.day,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final state = AppScope.of(context);
     final theme = joeThemeOf(context);
-    showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: theme.paper,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (sheetContext) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: Icon(Icons.check_circle_outline, color: theme.ink),
-              title: Text('Neue Aufgabe', style: TextStyle(color: theme.ink)),
-              onTap: () {
-                Navigator.pop(sheetContext);
-                showTaskSheet(context);
-              },
+    final open = state.todayExpanded;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        InkWell(
+          borderRadius: BorderRadius.circular(10),
+          onTap: () => state.setTodayExpanded(!open),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 10),
+            child: Row(
+              children: [
+                Text(
+                  'Heute abhaken',
+                  style: TextStyle(
+                    color: theme.ink,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  '${dueTasks.length + lowTasks.length}',
+                  style: TextStyle(color: theme.inkSoft, fontSize: 13),
+                ),
+                const Spacer(),
+                AnimatedRotation(
+                  turns: open ? 0.5 : 0,
+                  duration: const Duration(milliseconds: 200),
+                  child: Icon(Icons.expand_more, color: theme.ink),
+                ),
+              ],
             ),
-            ListTile(
-              leading: Icon(Icons.event_outlined, color: theme.ink),
-              title: Text('Neuer Termin', style: TextStyle(color: theme.ink)),
-              onTap: () {
-                Navigator.pop(sheetContext);
-                showAppointmentSheet(context);
-              },
-            ),
-          ],
+          ),
         ),
-      ),
+        AnimatedCrossFade(
+          duration: const Duration(milliseconds: 200),
+          sizeCurve: Curves.easeOut,
+          crossFadeState:
+              open ? CrossFadeState.showSecond : CrossFadeState.showFirst,
+          firstChild: const SizedBox(width: double.infinity, height: 0),
+          secondChild: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (dueTasks.isEmpty && lowTasks.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: Text(
+                    'Alles erledigt – lehn dich zurück 🌿',
+                    style: TextStyle(color: theme.inkSoft, fontSize: 15),
+                  ),
+                ),
+              for (final task in dueTasks)
+                TaskTile(task: task, day: day, showOverdue: true),
+              if (lowTasks.isNotEmpty) ...[
+                Padding(
+                  padding: const EdgeInsets.only(top: 8, bottom: 2),
+                  child: Text(
+                    'Kann warten',
+                    style: TextStyle(
+                      color: theme.inkSoft,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                for (final task in lowTasks)
+                  TaskTile(task: task, day: day, showOverdue: true),
+              ],
+              const SizedBox(height: 4),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

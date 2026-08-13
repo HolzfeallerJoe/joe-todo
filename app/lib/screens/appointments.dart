@@ -99,6 +99,12 @@ class _AppointmentCard extends StatelessWidget {
                   ],
                 ),
               ),
+              PriorityMark(
+                priority: appointment.priority,
+                color: appointment.priority == Priority.hoch
+                    ? theme.accent
+                    : theme.inkSoft,
+              ),
               Icon(Icons.chevron_right, color: theme.inkSoft),
             ],
           ),

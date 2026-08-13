@@ -58,7 +58,7 @@ class NotesScreen extends StatelessWidget {
                             ],
                             const SizedBox(height: 6),
                             Text(
-                              formatDateYear(note.updatedAt),
+                              formatDateYear(note.date),
                               style: TextStyle(
                                   color: theme.inkSoft, fontSize: 12),
                             ),
@@ -89,7 +89,12 @@ class NotesScreen extends StatelessWidget {
 
 class NoteEditScreen extends StatefulWidget {
   final Note? note;
-  const NoteEditScreen({super.key, this.note});
+
+  /// Tag, unter dem eine neue Notiz abgelegt wird – der Kalender legt hier
+  /// den ausgewaehlten Tag hinein.
+  final DateTime? initialDate;
+
+  const NoteEditScreen({super.key, this.note, this.initialDate});
 
   @override
   State<NoteEditScreen> createState() => _NoteEditScreenState();
@@ -98,12 +103,14 @@ class NoteEditScreen extends StatefulWidget {
 class _NoteEditScreenState extends State<NoteEditScreen> {
   late final TextEditingController _title;
   late final TextEditingController _body;
+  late DateTime _date;
 
   @override
   void initState() {
     super.initState();
     _title = TextEditingController(text: widget.note?.title ?? '');
     _body = TextEditingController(text: widget.note?.body ?? '');
+    _date = dateOnly(widget.note?.date ?? widget.initialDate ?? DateTime.now());
   }
 
   @override
@@ -124,12 +131,14 @@ class _NoteEditScreenState extends State<NoteEditScreen> {
           id: state.nextId(),
           title: title,
           body: body,
+          date: _date,
           updatedAt: DateTime.now(),
         ));
       }
     } else {
       existing.title = title;
       existing.body = body;
+      existing.date = _date;
       state.updateNote(existing);
     }
     Navigator.of(context).pop();
@@ -175,6 +184,34 @@ class _NoteEditScreenState extends State<NoteEditScreen> {
                       hintText: 'Titel',
                       hintStyle: TextStyle(color: theme.inkSoft),
                       border: InputBorder.none,
+                    ),
+                  ),
+                  // Der Tag, an dem die Notiz im Kalender als "N" auftaucht.
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: TextButton.icon(
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 4),
+                        minimumSize: Size.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                      icon: Icon(Icons.event_outlined,
+                          size: 18, color: theme.inkSoft),
+                      label: Text(
+                        formatDateYear(_date),
+                        style: TextStyle(color: theme.inkSoft, fontSize: 13),
+                      ),
+                      onPressed: () async {
+                        final picked = await showDatePicker(
+                          context: context,
+                          initialDate: _date,
+                          firstDate: DateTime(2020),
+                          lastDate: DateTime(2035),
+                        );
+                        if (picked != null) {
+                          setState(() => _date = dateOnly(picked));
+                        }
+                      },
                     ),
                   ),
                   Divider(color: theme.inkSoft.withValues(alpha: 0.4)),

@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 enum TextureStyle { paper, wood, fabric, watercolor }
 
@@ -39,6 +40,31 @@ class JoeTheme {
   });
 
   Color get onBg => onBackground ?? ink;
+
+  /// Wie Android Status- und Navigationsleiste ueber der App zeichnen soll.
+  ///
+  /// Die App laeuft randlos, der Hintergrund liegt also schon hinter beiden
+  /// Leisten. Ohne diese Angabe legt das System unten einen schwarzen
+  /// Kontrastbalken darueber – ein schwarzer Klotz unter einem warmen
+  /// Notizbuch. Beides transparent, und die Symbole richten sich nach dem
+  /// Hintergrund: Wo [onBg] hell ist, ist der Hintergrund dunkel, dort
+  /// brauchen auch die Systemsymbole die helle Fassung.
+  SystemUiOverlayStyle get systemOverlayStyle {
+    final darkBackground = onBg.computeLuminance() > 0.5;
+    final icons = darkBackground ? Brightness.light : Brightness.dark;
+    return SystemUiOverlayStyle(
+      statusBarColor: Colors.transparent,
+      statusBarIconBrightness: icons,
+      // iOS dreht die Bedeutung um: hier ist die Helligkeit der Leiste selbst
+      // gemeint, nicht die der Symbole.
+      statusBarBrightness: darkBackground ? Brightness.dark : Brightness.light,
+      systemNavigationBarColor: Colors.transparent,
+      systemNavigationBarDividerColor: Colors.transparent,
+      systemNavigationBarIconBrightness: icons,
+      // Das schaltet den Kontrastbalken ab.
+      systemNavigationBarContrastEnforced: false,
+    );
+  }
 
   /// Contrasting halo behind on-background text. Photos swing from very light
   /// to very dark within one image (on Maritim/Ozean/Regenbogen a flat text
@@ -106,6 +132,7 @@ const joeThemes = [
       Color(0xFFB9C29B),
       Color(0xFFC79A63),
       Color(0xFFC96480),
+      Color(0xFF9AAFC9),
     ],
   ),
   JoeTheme(
@@ -123,6 +150,7 @@ const joeThemes = [
       Color(0xFFC3CBA4),
       Color(0xFFD3A878),
       Color(0xFFD2788F),
+      Color(0xFFA9BFD8),
     ],
   ),
   JoeTheme(
@@ -140,6 +168,7 @@ const joeThemes = [
       Color(0xFFB5BE97),
       Color(0xFFC49B6F),
       Color(0xFFC57287),
+      Color(0xFF9FB4CC),
     ],
   ),
   JoeTheme(
@@ -157,6 +186,7 @@ const joeThemes = [
       Color(0xFFC9D2AC),
       Color(0xFFDCB183),
       Color(0xFFDD8BA0),
+      Color(0xFFAFC8E0),
     ],
   ),
 
@@ -176,6 +206,7 @@ const joeThemes = [
       Color(0xFFC8B28A),
       Color(0xFFA66A42),
       Color(0xFF4F6B4A),
+      Color(0xFF3F5147),
     ],
   ),
   JoeTheme(
@@ -193,6 +224,7 @@ const joeThemes = [
       Color(0xFF548AB0),
       Color(0xFF3E759C),
       Color(0xFF2A5D94),
+      Color(0xFF1E4570),
     ],
   ),
   JoeTheme(
@@ -211,6 +243,7 @@ const joeThemes = [
       Color(0xFF7C4394),
       Color(0xFF448740),
       Color(0xFF5FC546),
+      Color(0xFFE8862B),
     ],
   ),
   JoeTheme(
@@ -229,6 +262,7 @@ const joeThemes = [
       Color(0xFF00A8A8),
       Color(0xFF1FA38B),
       Color(0xFFD4BA82),
+      Color(0xFF1B4F7A),
     ],
   ),
   JoeTheme(
@@ -247,6 +281,7 @@ const joeThemes = [
       Color(0xFF00A8A8),
       Color(0xFFD4BA82),
       Color(0xFFB8954A),
+      Color(0xFF0A5F62),
     ],
   ),
   JoeTheme(
@@ -264,6 +299,7 @@ const joeThemes = [
       Color(0xFFBAA691),
       Color(0xFFA38F79),
       Color(0xFF8C7863),
+      Color(0xFF6E5A48),
     ],
   ),
   JoeTheme(
@@ -281,6 +317,7 @@ const joeThemes = [
       Color(0xFFFAF1B6),
       Color(0xFFD3FAC8),
       Color(0xFFC3DEF7),
+      Color(0xFFE6D2F7),
     ],
   ),
   JoeTheme(
@@ -299,6 +336,7 @@ const joeThemes = [
       Color(0xFF15C04D),
       Color(0xFFF6DA17),
       Color(0xFFEC0D10),
+      Color(0xFFF57C00),
     ],
   ),
   JoeTheme(
@@ -317,6 +355,7 @@ const joeThemes = [
       Color(0xFFC7A46C),
       Color(0xFF335A2E),
       Color(0xFF476E3F),
+      Color(0xFF7C9BB5),
     ],
   ),
   JoeTheme(
@@ -334,6 +373,7 @@ const joeThemes = [
       Color(0xFF9FBE43),
       Color(0xFF6D9C37), // nudged darker so the white label clears 3:1
       Color(0xFF549034),
+      Color(0xFF3E7226),
     ],
   ),
   JoeTheme(
@@ -347,6 +387,7 @@ const joeThemes = [
     accent: Color(0xFF9C5A2E),
     onBackground: Color(0xFFF3E4D2),
     tabColors: [
+      Color(0xFFE3C9A3),
       Color(0xFFC9A46B),
       Color(0xFFA9724A),
       Color(0xFF8A6A4E),

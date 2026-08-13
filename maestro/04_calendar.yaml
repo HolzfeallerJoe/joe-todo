@@ -3,15 +3,33 @@ name: Kalender-Monatsansicht mit Tagesdetail
 ---
 - launchApp:
     clearState: true
-- tapOn: "Kalender"
-- assertVisible: "(?s)Juli 2026.*"
+# Monatsnamen aus dem heutigen Datum statt fest verdrahtet – sonst laeuft der
+# Flow ab dem naechsten Monatswechsel auf einen falschen Titel.
+- evalScript: |
+    ${
+      var monate = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni',
+                    'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
+      var heute = new Date();
+      var naechster = new Date(heute.getFullYear(), heute.getMonth() + 1, 1);
+      output.dieserMonat = monate[heute.getMonth()] + ' ' + heute.getFullYear();
+      output.naechsterMonat = monate[naechster.getMonth()] + ' ' + naechster.getFullYear();
+    }
+# Kalender ist der dritte Reiter und liegt unter dem Falz.
+- scrollUntilVisible:
+    element: "Kalender"
+    direction: DOWN
+    centerElement: true
+- tapOn:
+    text: "Kalender"
+    retryTapIfNoChange: false
+- assertVisible: "(?s).*${output.dieserMonat}.*"
 # Tagesdetail des heutigen Tages zeigt die Aufgaben
 - assertVisible: "(?s)Blumen gießen.*"
 - takeScreenshot: shots/04_calendar
 # Monat wechseln
 - tapOn: "Nächster Monat"
-- assertVisible: "(?s)August 2026.*"
+- assertVisible: "(?s).*${output.naechsterMonat}.*"
 - takeScreenshot: shots/04_calendar_next_month
 - tapOn: "Voriger Monat"
-- assertVisible: "(?s)Juli 2026.*"
+- assertVisible: "(?s).*${output.dieserMonat}.*"
 - back

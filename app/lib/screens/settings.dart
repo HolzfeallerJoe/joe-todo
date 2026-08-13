@@ -203,6 +203,8 @@ void _showPetSheet(BuildContext context) {
     context: context,
     backgroundColor: theme.paper,
     isScrollControlled: true,
+    // Haelt das Blatt unter der Statusleiste.
+    useSafeArea: true,
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
     ),
