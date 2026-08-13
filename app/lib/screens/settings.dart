@@ -87,7 +87,15 @@ class SettingsScreen extends StatelessWidget {
             Center(
               child: Text(
                 'Joe · dein warmes Notizbuch 🌿',
-                style: TextStyle(color: theme.inkSoft, fontSize: 13),
+                // Die Fusszeile steht ohne Karte auf dem Hintergrund, also
+                // dieselbe Behandlung wie die Abschnittsueberschriften: die
+                // Kontrastfarbe des Designs samt Halo.
+                style: TextStyle(
+                  color: theme.onBg,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  shadows: theme.onBgShadows,
+                ),
               ),
             ),
           ],

@@ -151,6 +151,41 @@ void main() {
       expect(state.openLowTasks().map((x) => x.id), ['neu', 'mittig', 'alt']);
     });
 
+    test('Aufgaben-Reiter haelt Stufe 3 aus "Heute" heraus', () {
+      final t = today();
+      final done = Task(
+        id: 'erledigt',
+        title: 'Schon abgehakt',
+        recurrence: RecurrenceType.daily,
+        startDate: t.subtract(const Duration(days: 3)),
+        priority: Priority.niedrig,
+        completedDates: {dateKey(t)},
+      );
+      final state = stateWith(tasks: [
+        Task(id: 'normal', title: 'Normal', startDate: t),
+        Task(
+          id: 'alt',
+          title: 'Alt',
+          startDate: t.subtract(const Duration(days: 5)),
+          priority: Priority.niedrig,
+        ),
+        Task(
+          id: 'neu',
+          title: 'Neu',
+          startDate: t,
+          priority: Priority.niedrig,
+        ),
+        done,
+      ]);
+      expect(state.tasksDueToday().map((x) => x.id), ['normal']);
+      // Offen zuerst und darin neuste zuerst, Abgehaktes bleibt am Ende
+      // stehen – nur hier laesst sich ein Haken zurueckziehen.
+      expect(
+        state.lowTasksToday().map((x) => x.id),
+        ['neu', 'alt', 'erledigt'],
+      );
+    });
+
     test('abgehakte Stufe-3-Aufgaben verschwinden aus der Liste', () {
       final t = today();
       final task = Task(

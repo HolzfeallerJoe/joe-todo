@@ -14,7 +14,8 @@ class TasksScreen extends StatelessWidget {
     final state = AppScope.of(context);
     final theme = joeThemeOf(context);
     final t = today();
-    final todayTasks = state.tasksToday();
+    final todayTasks = state.tasksDueToday();
+    final lowToday = state.lowTasksToday();
     final upcoming = state.upcomingTasks();
     final recurring = state.recurringTasks();
     final done = state.doneTasks();
@@ -37,6 +38,18 @@ class TasksScreen extends StatelessWidget {
               _TaskCard(
                 children: [
                   for (final task in todayTasks)
+                    TaskTile(task: task, day: t, showOverdue: true),
+                ],
+              ),
+            ],
+            // Stufe 3 steht auch hier fuer sich: sie zaehlt nirgends in
+            // "heute faellig" mit, sonst waere der Reiter wieder die Liste,
+            // vor der die Prioritaeten schuetzen sollen.
+            if (lowToday.isNotEmpty) ...[
+              const SectionTitle('Kann warten'),
+              _TaskCard(
+                children: [
+                  for (final task in lowToday)
                     TaskTile(task: task, day: t, showOverdue: true),
                 ],
               ),

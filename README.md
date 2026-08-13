@@ -14,11 +14,13 @@ Dashboard, Kalender, wiederkehrenden Aufgaben, Notizen und Historie.
   ist die leise: solche Aufgaben zählen nicht in „x offene Aufgaben heute" und
   stehen nur im Ausklappmenü unter „Kann warten", neuste zuerst und mit
   „offen seit …".
-- **Aufgaben** – eigener Reiter mit allen Aufgaben nach Heute, Demnächst,
-  Wiederkehrend und Erledigt.
+- **Aufgaben** – eigener Reiter mit allen Aufgaben nach Heute, Kann warten,
+  Demnächst, Wiederkehrend und Erledigt. Stufe 3 steht auch dort für sich und
+  nicht unter „Heute"; abgehakt bleibt sie im Block stehen, damit sich ein
+  wiederkehrender Haken zurücknehmen lässt.
 - **Kalender** – Monatsansicht mit farbigen Markern; erledigte Aufgaben bleiben
-  am jeweiligen Tag sichtbar (Ring statt Punkt), Tage mit Notizen tragen ein
-  „N". Tagesdetail darunter, mit einem Plus, das nach Aufgabe oder Termin
+  am jeweiligen Tag sichtbar (Ring statt Punkt), Tage mit Notizen tragen unten
+  mittig ein „N". Tagesdetail darunter, mit einem Plus, das nach Aufgabe oder Termin
   fragt, und einem Knopf für eine Notiz an diesem Tag.
 - **Wiederkehrende Aufgaben** – täglich, wöchentlich, monatlich, alle X Tage.
 - **Notizen** – einfache Liste + Editor, ohne Untermenüs; speichert beim
@@ -29,7 +31,8 @@ Dashboard, Kalender, wiederkehrenden Aufgaben, Notizen und Historie.
   Löschen.
 - **Design** – vier Notizbuch-Themen mit gemalten Texturen (Holz, Papier,
   Stoff, Aquarell) plus elf Foto-Hintergründe, wählbar über eine Klappliste in
-  den Einstellungen; 20 warme frei wählbare Farben pro Aufgabe/Termin. Der
+  den Einstellungen; 20 warme frei wählbare Farben pro Aufgabe/Termin. Die
+  Reiterfarben der Foto-Designs stehen in der Vorlage (siehe unten). Der
   Hintergrund läuft randlos hinter Status- und Navigationsleiste durch; die
   Systemsymbole richten sich nach dem Design (siehe unten).
 - **Begleiter** – 53 gemalte Tierchen, die oben rechts über der Heute-Karte
@@ -52,7 +55,8 @@ app/                  Flutter-Projekt (Android)
   assets/themes/      Hintergründe – Originale + ausgelieferte compressed/
   assets/pets/        Begleiter als WebP, ein Ordner je Gruppe
   test/               Unit-Tests (Wiederholung, Priorität, Notiz-Datum,
-                      Reiterfarben) + Widget-Tests fürs Dashboard
+                      Reiterfarben) + Widget-Tests für Dashboard und
+                      Aufgaben-Reiter
 maestro/              Maestro-UI-Flows (01–08) + Screenshots in shots/
 requirements/         Original-Anforderungen (PDF + Layout-Referenzbild)
 ```
@@ -69,6 +73,45 @@ flutter test                      # Unit-Tests
 cd ..\maestro
 maestro test .                    # alle UI-Flows auf dem Emulator
 ```
+
+## Reiterfarben aus der Vorlage
+
+Zu jedem Foto-Hintergrund gehört im Themes-Ordner der Vorlage ein Blatt
+`<Name>Set.jpg`: links das Bild, rechts genau sechs beschriftete Farbfelder –
+so viele, wie es Reiter gibt. Diese sechs Werte sind die Reiterfarben, in der
+Reihenfolge des Blattes. Die Blätter selbst liegen nicht im Repo (~4 MB je
+Blatt), ihre Werte hier:
+
+| Design | Reiter 1–6 |
+| --- | --- |
+| Eisig | `CCE2EF` `9FBAD5` `75A0C0` `548AB0` `3E759C` `2A5D94` |
+| Halloween | `D2D1D9` `6A7175` `9F1BCF` `7C4394` `448740` `5FC546` |
+| Holzmaser | `D19D6D` `7B4316` `C8B28A` `A66A42` `4F6B4A` (`3F5147`) |
+| Maritim | `2F6FAF` `248FC9` `5EB8C7` `00A8A8` `1FA38B` `D4BA82` |
+| Ozean | `0B888C` `74BEC7` `BCD8DB` `00A8A8` `D4BA82` `B8954A` |
+| Pfoten | `F5EEE7` `E8DDD3` `D1C0AE` `BAA691` `A38F79` `8C7863` |
+| Rainbow | `FAD1CD` `FAE0BE` `FAF1B6` `D3FAC8` `C3DEF7` `F8D2FA` |
+| Regenbogen | `AB10B2` `1078D9` `15C04D` `F6DA17` `EF9608` `EC0D10` |
+| Weihnachten | `EED8A7` `C8252A` `A6131D` `C7A46C` `335A2E` `476E3F` |
+| Zitronen | `F8E8C8` `FCF09F` `EFCA31` `9FBE43` `72A33B` `549034` |
+
+Zwei Ausnahmen: Auf `HolzSet.jpg` trägt das dritte Feld dieselbe Beschriftung
+wie das erste (`#D19D6D`), obwohl die Felder verschieden gefüllt sind – dort
+steht bis auf Weiteres `3F5147` als sechster Reiter. Und zu `Kaffee.jpg` gibt
+es gar kein Blatt; dessen sechs Töne sind aus dem Foto gezogen.
+
+Übernommen wird immer die **Beschriftung**, nicht der Pixelwert: die JPEGs
+tragen ein Farbprofil aus dem Corel-Export, ihre Rohwerte sind deutlich dunkler
+(`#D19D6D` liegt in der Datei als `8D4C18` vor). Ob die Beschriftung auf ihrer
+Fläche lesbar ist, entscheidet `JoeTheme.onTab`; `test/models_test.dart` prüft
+für jede Reiterfarbe 3:1.
+
+Dass die Laschen sich farblich kaum vom Hintergrund abheben, ist so gewollt und
+kein Fehler: Die Farben stammen aus dem Foto, also gleichen sie ihm (auf Eisig
+liegen 93 % des Hintergrunds unter 1,5:1 zur zweiten Reiterfarbe, auf Pfoten
+98 %, auf Rainbow 100 %). Getragen wird die Lasche von ihrer Form und ihrem
+Schlagschatten. Eine Kontrastkante darum war ausprobiert und ist wieder
+rausgeflogen – sie sah nach Umrandung aus und nahm den Reitern die Ruhe.
 
 ## Bildmaterial
 

@@ -460,16 +460,21 @@ class AppState extends ChangeNotifier {
 
   // ---- Sections of the tasks screen ----
 
-  /// Everything due today in one list, open first, then by priority.
-  List<Task> tasksToday() {
+  /// Level-3 tasks due today for the "Kann warten" block on the tasks screen.
+  /// Open first and inside that newest first, like in the dashboard fold-out.
+  /// Unlike the dashboard this keeps the ticked ones: the tasks screen is the
+  /// one place where a recurring level-3 tick can be taken back again.
+  List<Task> lowTasksToday() {
     final t = today();
-    final result = _dueToday();
+    final result = _dueToday()
+        .where((task) => task.priority == Priority.niedrig)
+        .toList();
     result.sort((a, b) {
       final ad = a.isCompletedOn(t) ? 1 : 0;
       final bd = b.isCompletedOn(t) ? 1 : 0;
       if (ad != bd) return ad - bd;
-      if (a.priority != b.priority) return a.priority.level - b.priority.level;
-      return a.title.compareTo(b.title);
+      final byDate = b.startDate.compareTo(a.startDate);
+      return byDate != 0 ? byDate : a.title.compareTo(b.title);
     });
     return result;
   }

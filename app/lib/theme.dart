@@ -86,15 +86,21 @@ class JoeTheme {
   /// Beats a fixed luminance threshold, which misjudges mid-tone fills.
   /// If the darker option wins but still misses the 3:1 non-text bar (a
   /// mid-olive ink on amber, say), it is deepened until it clears.
+  ///
+  /// Weiss zaehlt dabei nur, solange es die 3:1 selbst schafft. Auf einem
+  /// mittleren Gruen wie dem #72A33B der Zitronen-Vorlage kommt es auf 2,99
+  /// und liegt damit knapp vorn, ohne lesbar zu sein – dort gewinnt die
+  /// abgedunkelte Tinte.
   Color bestOn(Color bg) {
-    if (contrastRatio(Colors.white, bg) >= contrastRatio(ink, bg)) {
-      return Colors.white;
-    }
+    final white = contrastRatio(Colors.white, bg);
+    if (white >= 3.0 && white >= contrastRatio(ink, bg)) return Colors.white;
     var c = ink;
     for (var i = 0; i < 10 && contrastRatio(c, bg) < 3.0; i++) {
       c = Color.lerp(c, Colors.black, 0.2)!;
     }
-    return c;
+    final dark = contrastRatio(c, bg);
+    if (dark >= 3.0) return c;
+    return white >= dark ? Colors.white : c;
   }
 
   /// Readable label color for a folder tab painted in [tabColor].
@@ -191,6 +197,14 @@ const joeThemes = [
   ),
 
   // ---- Photo backgrounds ----
+  //
+  // Die sechs Reiterfarben stehen je Design in der Vorlage: zu jedem
+  // Hintergrund gehoert ein Blatt "<Name>Set.jpg" mit dem Bild und genau sechs
+  // beschrifteten Farbfeldern – so viele, wie es Reiter gibt. Die Blaetter
+  // liegen im Themes-Ordner der Vorlage (nicht im Repo, ~4 MB je Blatt); die
+  // Werte stehen als Tabelle im README. Uebernommen wird die Beschriftung in
+  // der Reihenfolge des Blattes, nicht der Pixelwert: das JPEG traegt ein
+  // Farbprofil aus dem Corel-Export, seine Rohwerte sind deutlich dunkler.
   JoeTheme(
     name: 'Holzmaser',
     backgroundAsset: 'assets/themes/compressed/holz.jpg',
@@ -200,6 +214,10 @@ const joeThemes = [
     ink: Color(0xFF4A2E14),
     inkSoft: Color(0xFF7E6A58),
     accent: Color(0xFF97603C),
+    // Einziges Blatt mit einem Fehler: das dritte Feld traegt dieselbe
+    // Beschriftung wie das erste (#D19D6D), obwohl die beiden Felder
+    // verschieden gefuellt sind. Statt zweimal derselben Farbe steht hier das
+    // dunkle Tannengruen als sechster Reiter, bis die Vorlage nachgezogen ist.
     tabColors: [
       Color(0xFFD19D6D),
       Color(0xFF7B4316),
@@ -219,12 +237,12 @@ const joeThemes = [
     inkSoft: Color(0xFF477596),
     accent: Color(0xFF2A5D94),
     tabColors: [
+      Color(0xFFCCE2EF),
       Color(0xFF9FBAD5),
       Color(0xFF75A0C0),
       Color(0xFF548AB0),
       Color(0xFF3E759C),
       Color(0xFF2A5D94),
-      Color(0xFF1E4570),
     ],
   ),
   JoeTheme(
@@ -238,12 +256,12 @@ const joeThemes = [
     accent: Color(0xFF9F1BCF),
     onBackground: Color(0xFFF3EEF8),
     tabColors: [
+      Color(0xFFD2D1D9),
       Color(0xFF6A7175),
       Color(0xFF9F1BCF),
       Color(0xFF7C4394),
       Color(0xFF448740),
       Color(0xFF5FC546),
-      Color(0xFFE8862B),
     ],
   ),
   JoeTheme(
@@ -259,10 +277,10 @@ const joeThemes = [
     tabColors: [
       Color(0xFF2F6FAF),
       Color(0xFF248FC9),
+      Color(0xFF5EB8C7),
       Color(0xFF00A8A8),
       Color(0xFF1FA38B),
       Color(0xFFD4BA82),
-      Color(0xFF1B4F7A),
     ],
   ),
   JoeTheme(
@@ -278,10 +296,10 @@ const joeThemes = [
     tabColors: [
       Color(0xFF0B888C),
       Color(0xFF74BEC7),
+      Color(0xFFBCD8DB),
       Color(0xFF00A8A8),
       Color(0xFFD4BA82),
       Color(0xFFB8954A),
-      Color(0xFF0A5F62),
     ],
   ),
   JoeTheme(
@@ -294,12 +312,12 @@ const joeThemes = [
     inkSoft: Color(0xFF7C6D5C),
     accent: Color(0xFF7E6C59),
     tabColors: [
+      Color(0xFFF5EEE7),
       Color(0xFFE8DDD3),
       Color(0xFFD1C0AE),
       Color(0xFFBAA691),
       Color(0xFFA38F79),
       Color(0xFF8C7863),
-      Color(0xFF6E5A48),
     ],
   ),
   JoeTheme(
@@ -317,7 +335,7 @@ const joeThemes = [
       Color(0xFFFAF1B6),
       Color(0xFFD3FAC8),
       Color(0xFFC3DEF7),
-      Color(0xFFE6D2F7),
+      Color(0xFFF8D2FA),
     ],
   ),
   JoeTheme(
@@ -335,8 +353,8 @@ const joeThemes = [
       Color(0xFF1078D9),
       Color(0xFF15C04D),
       Color(0xFFF6DA17),
+      Color(0xFFEF9608),
       Color(0xFFEC0D10),
-      Color(0xFFF57C00),
     ],
   ),
   JoeTheme(
@@ -352,10 +370,10 @@ const joeThemes = [
     tabColors: [
       Color(0xFFEED8A7),
       Color(0xFFC8252A),
+      Color(0xFFA6131D),
       Color(0xFFC7A46C),
       Color(0xFF335A2E),
       Color(0xFF476E3F),
-      Color(0xFF7C9BB5),
     ],
   ),
   JoeTheme(
@@ -368,12 +386,12 @@ const joeThemes = [
     inkSoft: Color(0xFF557A2C),
     accent: Color(0xFF497D2D),
     tabColors: [
+      Color(0xFFF8E8C8),
       Color(0xFFFCF09F),
       Color(0xFFEFCA31),
       Color(0xFF9FBE43),
-      Color(0xFF6D9C37), // nudged darker so the white label clears 3:1
+      Color(0xFF72A33B),
       Color(0xFF549034),
-      Color(0xFF3E7226),
     ],
   ),
   JoeTheme(
@@ -386,6 +404,9 @@ const joeThemes = [
     inkSoft: Color(0xFF83654A),
     accent: Color(0xFF9C5A2E),
     onBackground: Color(0xFFF3E4D2),
+    // Das einzige Design ohne Blatt in der Vorlage – zu Kaffee.jpg gibt es
+    // kein KaffeeSet.jpg. Die sechs Toene sind deshalb aus dem Foto gezogen
+    // und gehoeren ersetzt, sobald das Blatt nachkommt.
     tabColors: [
       Color(0xFFE3C9A3),
       Color(0xFFC9A46B),

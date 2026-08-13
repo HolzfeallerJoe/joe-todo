@@ -12,7 +12,8 @@ name: Aufgaben-Reiter mit Prioritaeten
     retryTapIfNoChange: false
 - assertVisible: "Heute"
 - assertVisible: "(?s).*Joe ausprobieren.*"
-# Stufe 3 steht hier mit drin, anders als im Zaehler auf dem Dashboard.
+# Stufe 3 steht auch hier fuer sich, in einem eigenen Block unter "Heute".
+- assertVisible: "Kann warten"
 - assertVisible: "(?s).*Bücherregal sortieren.*"
 - assertVisible: "Wiederkehrend"
 - takeScreenshot: shots/08_tasks
