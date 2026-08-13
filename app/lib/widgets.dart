@@ -25,8 +25,7 @@ class JoeScaffold extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final state = AppScope.of(context);
-    final theme = joeThemes[state.themeIndex % joeThemes.length];
+    final theme = joeThemeOf(context);
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: theme.systemOverlayStyle,
       child: Stack(
@@ -352,15 +351,35 @@ class TaskTile extends StatelessWidget {
   }
 }
 
-void showTaskOptions(BuildContext context, Task task) {
-  final state = AppScope.of(context);
-  final theme = joeThemeOf(context);
-  showModalBottomSheet<void>(
+/// showModalBottomSheet im Joe-Gewand: Papierfarbe, oben gerundet.
+///
+/// [expand] ist fuer Blaetter, die mit Tastatur oder Hoehenbegrenzung
+/// arbeiten: isScrollControlled hebt die Halbe-Hoehe-Grenze auf, und
+/// useSafeArea haelt das Blatt unter der Statusleiste – ohne das nimmt
+/// showModalBottomSheet padding.top heraus und der Titel rutscht bei
+/// offener Tastatur hinter die Uhr.
+Future<void> showJoeSheet(
+  BuildContext context, {
+  bool expand = false,
+  required WidgetBuilder builder,
+}) {
+  return showModalBottomSheet<void>(
     context: context,
-    backgroundColor: theme.paper,
+    isScrollControlled: expand,
+    useSafeArea: expand,
+    backgroundColor: joeThemeOf(context).paper,
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
     ),
+    builder: builder,
+  );
+}
+
+void showTaskOptions(BuildContext context, Task task) {
+  final state = AppScope.of(context);
+  final theme = joeThemeOf(context);
+  showJoeSheet(
+    context,
     builder: (sheetContext) => SafeArea(
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -610,6 +629,42 @@ class SheetLabel extends StatelessWidget {
   }
 }
 
+/// Das Titelfeld, mit dem beide Eingabeblaetter beginnen.
+class SheetTextField extends StatelessWidget {
+  final TextEditingController controller;
+  final String hint;
+  final bool autofocus;
+
+  const SheetTextField({
+    super.key,
+    required this.controller,
+    required this.hint,
+    this.autofocus = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = joeThemeOf(context);
+    return TextField(
+      controller: controller,
+      autofocus: autofocus,
+      style: TextStyle(color: theme.ink),
+      decoration: InputDecoration(
+        hintText: hint,
+        hintStyle: TextStyle(color: theme.inkSoft),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: theme.inkSoft),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: theme.accent, width: 2),
+        ),
+      ),
+    );
+  }
+}
+
 /// The save button both sheets end with.
 class SheetSaveButton extends StatelessWidget {
   final VoidCallback onPressed;
@@ -680,40 +735,18 @@ Future<void> showTaskSheet(
     Navigator.pop(sheetContext);
   }
 
-  return showModalBottomSheet<void>(
-    context: context,
-    isScrollControlled: true,
-    // Haelt das Blatt unter der Statusleiste; ohne das nimmt
-    // showModalBottomSheet padding.top heraus und der Titel rutscht
-    // bei offener Tastatur hinter die Uhr.
-    useSafeArea: true,
-    backgroundColor: theme.paper,
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-    ),
+  return showJoeSheet(
+    context,
+    expand: true,
     builder: (sheetContext) => StatefulBuilder(
       builder: (sheetContext, setSheetState) => SheetFrame(
         title: task == null ? 'Neue Aufgabe' : 'Aufgabe bearbeiten',
         footer: SheetSaveButton(onPressed: () => save(sheetContext)),
         children: [
-          TextField(
+          SheetTextField(
             controller: titleController,
+            hint: 'Was ist zu tun?',
             autofocus: task == null,
-            style: TextStyle(color: theme.ink),
-            decoration: InputDecoration(
-              hintText: 'Was ist zu tun?',
-              hintStyle: TextStyle(color: theme.inkSoft),
-              filled: true,
-              fillColor: theme.paper,
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide(color: theme.inkSoft),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide(color: theme.accent, width: 2),
-              ),
-            ),
           ),
           const SizedBox(height: 14),
           const SheetLabel('Wiederholung'),
@@ -860,38 +893,18 @@ Future<void> showAppointmentSheet(
     Navigator.pop(sheetContext);
   }
 
-  return showModalBottomSheet<void>(
-    context: context,
-    isScrollControlled: true,
-    // Haelt das Blatt unter der Statusleiste; ohne das nimmt
-    // showModalBottomSheet padding.top heraus und der Titel rutscht
-    // bei offener Tastatur hinter die Uhr.
-    useSafeArea: true,
-    backgroundColor: theme.paper,
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-    ),
+  return showJoeSheet(
+    context,
+    expand: true,
     builder: (sheetContext) => StatefulBuilder(
       builder: (sheetContext, setSheetState) => SheetFrame(
         title: appointment == null ? 'Neuer Termin' : 'Termin bearbeiten',
         footer: SheetSaveButton(onPressed: () => save(sheetContext)),
         children: [
-          TextField(
+          SheetTextField(
             controller: titleController,
+            hint: 'Worum geht es?',
             autofocus: appointment == null,
-            style: TextStyle(color: theme.ink),
-            decoration: InputDecoration(
-              hintText: 'Worum geht es?',
-              hintStyle: TextStyle(color: theme.inkSoft),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide(color: theme.inkSoft),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide(color: theme.accent, width: 2),
-              ),
-            ),
           ),
           const SizedBox(height: 12),
           Row(
@@ -957,12 +970,8 @@ Future<void> showAppointmentSheet(
 /// matching sheet. [initialDate] pre-fills the day, used by the calendar.
 void showAddChooser(BuildContext context, {DateTime? initialDate}) {
   final theme = joeThemeOf(context);
-  showModalBottomSheet<void>(
-    context: context,
-    backgroundColor: theme.paper,
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-    ),
+  showJoeSheet(
+    context,
     builder: (sheetContext) => SafeArea(
       child: Column(
         mainAxisSize: MainAxisSize.min,

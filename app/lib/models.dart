@@ -420,21 +420,42 @@ class AppState extends ChangeNotifier {
     }).toList();
   }
 
+  // ---- Sortierbausteine ----
+  //
+  // Die Listen unten sortieren alle aus denselben Kriterien; [_ordered] reiht
+  // sie aneinander, und den Gleichstand bricht am Ende immer der Titel –
+  // List.sort ist nicht stabil, ohne den Titel wackelte die Reihenfolge.
+
+  static Comparator<Task> _ordered(List<Comparator<Task>> steps) => (a, b) {
+        for (final step in steps) {
+          final r = step(a, b);
+          if (r != 0) return r;
+        }
+        return a.title.compareTo(b.title);
+      };
+
+  /// Offene vor erledigten Aufgaben, bezogen auf [day].
+  static Comparator<Task> _openFirstOn(DateTime day) => (a, b) =>
+      (a.isCompletedOn(day) ? 1 : 0) - (b.isCompletedOn(day) ? 1 : 0);
+
+  static int _importantFirst(Task a, Task b) =>
+      a.priority.level - b.priority.level;
+
+  static int _newestFirst(Task a, Task b) =>
+      b.startDate.compareTo(a.startDate);
+
+  static int _soonestFirst(Task a, Task b) =>
+      a.startDate.compareTo(b.startDate);
+
   /// Tasks for the dashboard "Heute abhaken" list, without the unimportant
   /// ones – those get their own section further down, see [openLowTasks].
   /// Open items first, then the ones already ticked off.
   List<Task> tasksDueToday() {
     final t = today();
-    final result =
-        _dueToday().where((task) => task.priority != Priority.niedrig).toList();
-    result.sort((a, b) {
-      final ad = a.isCompletedOn(t) ? 1 : 0;
-      final bd = b.isCompletedOn(t) ? 1 : 0;
-      if (ad != bd) return ad - bd;
-      if (a.priority != b.priority) return a.priority.level - b.priority.level;
-      return a.title.compareTo(b.title);
-    });
-    return result;
+    return _dueToday()
+        .where((task) => task.priority != Priority.niedrig)
+        .toList()
+      ..sort(_ordered([_openFirstOn(t), _importantFirst]));
   }
 
   /// Open level-3 tasks, newest first. They are deliberately kept out of
@@ -442,15 +463,11 @@ class AppState extends ChangeNotifier {
   /// headline – and are listed on their own inside the fold-out.
   List<Task> openLowTasks() {
     final t = today();
-    final result = _dueToday()
+    return _dueToday()
         .where((task) =>
             task.priority == Priority.niedrig && !task.isCompletedOn(t))
-        .toList();
-    result.sort((a, b) {
-      final byDate = b.startDate.compareTo(a.startDate);
-      return byDate != 0 ? byDate : a.title.compareTo(b.title);
-    });
-    return result;
+        .toList()
+      ..sort(_ordered([_newestFirst]));
   }
 
   int openTodayCount() {
@@ -466,54 +483,38 @@ class AppState extends ChangeNotifier {
   /// one place where a recurring level-3 tick can be taken back again.
   List<Task> lowTasksToday() {
     final t = today();
-    final result = _dueToday()
+    return _dueToday()
         .where((task) => task.priority == Priority.niedrig)
-        .toList();
-    result.sort((a, b) {
-      final ad = a.isCompletedOn(t) ? 1 : 0;
-      final bd = b.isCompletedOn(t) ? 1 : 0;
-      if (ad != bd) return ad - bd;
-      final byDate = b.startDate.compareTo(a.startDate);
-      return byDate != 0 ? byDate : a.title.compareTo(b.title);
-    });
-    return result;
+        .toList()
+      ..sort(_ordered([_openFirstOn(t), _newestFirst]));
   }
 
   /// One-off tasks dated after today, soonest first.
   List<Task> upcomingTasks() {
     final t = today();
-    final result = tasks
+    return tasks
         .where((task) =>
             !task.isRecurring &&
             task.completedDates.isEmpty &&
             dateOnly(task.startDate).isAfter(t))
-        .toList();
-    result.sort((a, b) {
-      final byDate = a.startDate.compareTo(b.startDate);
-      return byDate != 0 ? byDate : a.title.compareTo(b.title);
-    });
-    return result;
+        .toList()
+      ..sort(_ordered([_soonestFirst]));
   }
 
   /// All recurring tasks, most important first.
   List<Task> recurringTasks() {
-    final result = tasks.where((task) => task.isRecurring).toList();
-    result.sort((a, b) {
-      if (a.priority != b.priority) return a.priority.level - b.priority.level;
-      return a.title.compareTo(b.title);
-    });
-    return result;
+    return tasks.where((task) => task.isRecurring).toList()
+      ..sort(_ordered([_importantFirst]));
   }
 
   /// One-off tasks that are done and stay done, newest completion first.
   List<Task> doneTasks() {
-    final result = tasks
-        .where((task) => !task.isRecurring && task.completedDates.isNotEmpty)
-        .toList();
     String doneOn(Task task) =>
         task.completedDates.reduce((a, b) => a.compareTo(b) >= 0 ? a : b);
-    result.sort((a, b) => doneOn(b).compareTo(doneOn(a)));
-    return result;
+    return tasks
+        .where((task) => !task.isRecurring && task.completedDates.isNotEmpty)
+        .toList()
+      ..sort(_ordered([(a, b) => doneOn(b).compareTo(doneOn(a))]));
   }
 
   // ---- Appointments ----

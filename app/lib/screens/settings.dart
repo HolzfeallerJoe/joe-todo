@@ -207,15 +207,9 @@ class _PetOption extends StatelessWidget {
 void _showPetSheet(BuildContext context) {
   final state = AppScope.of(context);
   final theme = joeThemeOf(context);
-  showModalBottomSheet<void>(
-    context: context,
-    backgroundColor: theme.paper,
-    isScrollControlled: true,
-    // Haelt das Blatt unter der Statusleiste.
-    useSafeArea: true,
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-    ),
+  showJoeSheet(
+    context,
+    expand: true,
     builder: (_) => _PetSheet(state: state, theme: theme),
   );
 }
