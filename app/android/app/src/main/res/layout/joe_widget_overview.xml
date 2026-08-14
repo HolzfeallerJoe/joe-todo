@@ -92,12 +92,26 @@
                     android:textSize="11sp"
                     android:textStyle="bold" />
 
-                <LinearLayout
+                <!-- Beide Spalten scrollen fuer sich (JoeWidgetListService);
+                     was nicht hineinpasst, ist damit nicht weg, sondern nur
+                     noch nicht gescrollt. -->
+                <ListView
                     android:id="@+id/joe_list"
                     android:layout_width="match_parent"
                     android:layout_height="0dp"
                     android:layout_weight="1"
-                    android:orientation="vertical" />
+                    android:divider="@null"
+                    android:dividerHeight="0dp" />
+
+                <TextView
+                    android:id="@+id/joe_empty"
+                    android:layout_width="match_parent"
+                    android:layout_height="0dp"
+                    android:layout_weight="1"
+                    android:paddingTop="4dp"
+                    android:maxLines="3"
+                    android:textSize="11sp"
+                    android:visibility="gone" />
             </LinearLayout>
 
             <LinearLayout
@@ -117,12 +131,23 @@
                     android:textSize="11sp"
                     android:textStyle="bold" />
 
-                <LinearLayout
+                <ListView
                     android:id="@+id/joe_list_two"
                     android:layout_width="match_parent"
                     android:layout_height="0dp"
                     android:layout_weight="1"
-                    android:orientation="vertical" />
+                    android:divider="@null"
+                    android:dividerHeight="0dp" />
+
+                <TextView
+                    android:id="@+id/joe_empty_two"
+                    android:layout_width="match_parent"
+                    android:layout_height="0dp"
+                    android:layout_weight="1"
+                    android:paddingTop="4dp"
+                    android:maxLines="3"
+                    android:textSize="11sp"
+                    android:visibility="gone" />
             </LinearLayout>
         </LinearLayout>
     </LinearLayout>

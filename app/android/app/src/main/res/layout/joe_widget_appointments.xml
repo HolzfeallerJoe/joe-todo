@@ -45,19 +45,25 @@
                 android:textSize="11sp" />
         </LinearLayout>
 
-        <LinearLayout
+        <!-- Die Liste scrollt (JoeWidgetListService); die leere Ansicht
+             daneben blendet der Startbildschirm selbst ein. -->
+        <ListView
             android:id="@+id/joe_list"
             android:layout_width="match_parent"
             android:layout_height="0dp"
             android:layout_weight="1"
-            android:orientation="vertical" />
+            android:paddingTop="3dp"
+            android:clipToPadding="false"
+            android:divider="@null"
+            android:dividerHeight="0dp" />
 
         <TextView
             android:id="@+id/joe_empty"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
+            android:layout_height="0dp"
+            android:layout_weight="1"
             android:paddingTop="4dp"
-            android:maxLines="2"
+            android:maxLines="3"
             android:textSize="11sp"
             android:visibility="gone" />
     </LinearLayout>

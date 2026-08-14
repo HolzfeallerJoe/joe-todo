@@ -39,9 +39,14 @@ abstract class JoeWidget : AppWidgetProvider() {
 
     protected abstract fun render(
         context: Context,
+        widgetId: Int,
         options: Bundle,
         snapshot: WidgetSnapshot?,
     ): RemoteViews
+
+    /** Die Listen dieses Widgets – nach jedem Zeichnen bekommen sie den
+     *  Wink, ihren Inhalt neu zu holen. Leer, wo es keine gibt. */
+    protected open val lists: IntArray = IntArray(0)
 
     override fun onUpdate(
         context: Context,
@@ -114,9 +119,18 @@ abstract class JoeWidget : AppWidgetProvider() {
         }
         if (lastShown[id] == signature) return
         Log.d(TAG, "zeichne $id ($signature)")
-        val built = build(context, options, snapshot)
+        val built = build(context, id, options, snapshot)
         try {
             manager.updateAppWidget(id, built.views)
+            // Die Liste haengt an einer Verbindung, nicht an der
+            // Bauanleitung: ohne diesen Wink haelt der Startbildschirm an
+            // dem fest, was er sich beim letzten Mal geholt hat.
+            //
+            // Der Weg ueber den Dienst gilt inzwischen als veraltet; der
+            // Nachfolger (die Zeilen gleich mitschicken) gibt es aber erst ab
+            // Android 12, und Joe laeuft auch darunter.
+            @Suppress("DEPRECATION")
+            for (list in lists) manager.notifyAppWidgetViewDataChanged(id, list)
             // Nur ein wirklich fertig gezeichnetes Widget darf kuenftige
             // Aktualisierungen mit derselben Signatur ausbremsen. Die leere
             // Ersatzkarte wird dagegen beim naechsten System-Tick erneut
@@ -136,9 +150,14 @@ abstract class JoeWidget : AppWidgetProvider() {
      */
     private class BuiltWidget(val views: RemoteViews, val complete: Boolean)
 
-    private fun build(context: Context, options: Bundle, snapshot: WidgetSnapshot?): BuiltWidget =
+    private fun build(
+        context: Context,
+        widgetId: Int,
+        options: Bundle,
+        snapshot: WidgetSnapshot?,
+    ): BuiltWidget =
         try {
-            BuiltWidget(render(context, options, snapshot), true)
+            BuiltWidget(render(context, widgetId, options, snapshot), true)
         } catch (e: Exception) {
             Log.w(TAG, "Zeichnen fehlgeschlagen", e)
             BuiltWidget(RemoteViews(context.packageName, layout), false)
@@ -157,29 +176,32 @@ abstract class JoeWidget : AppWidgetProvider() {
 /** 2x2: die Aufgaben von heute. */
 class JoeTasksWidget : JoeWidget() {
     override val layout = R.layout.joe_widget_tasks
-    override fun render(context: Context, options: Bundle, snapshot: WidgetSnapshot?) =
-        JoeWidgetViews.tasks(context, options, snapshot)
+    override val lists = intArrayOf(R.id.joe_list)
+    override fun render(context: Context, widgetId: Int, options: Bundle, snapshot: WidgetSnapshot?) =
+        JoeWidgetViews.tasks(context, widgetId, options, snapshot)
 }
 
 /** 2x2: die naechsten Termine. */
 class JoeAppointmentsWidget : JoeWidget() {
     override val layout = R.layout.joe_widget_appointments
-    override fun render(context: Context, options: Bundle, snapshot: WidgetSnapshot?) =
-        JoeWidgetViews.appointments(context, options, snapshot)
+    override val lists = intArrayOf(R.id.joe_list)
+    override fun render(context: Context, widgetId: Int, options: Bundle, snapshot: WidgetSnapshot?) =
+        JoeWidgetViews.appointments(context, widgetId, options, snapshot)
 }
 
 /** 2x2: der laufende Monat. */
 class JoeCalendarWidget : JoeWidget() {
     override val layout = R.layout.joe_widget_calendar
-    override fun render(context: Context, options: Bundle, snapshot: WidgetSnapshot?) =
-        JoeWidgetViews.calendar(context, options, snapshot)
+    override fun render(context: Context, widgetId: Int, options: Bundle, snapshot: WidgetSnapshot?) =
+        JoeWidgetViews.calendar(context, widgetId, options, snapshot)
 }
 
 /** Der grosse Block: Kalender, Aufgaben und Termine zusammen. */
 class JoeOverviewWidget : JoeWidget() {
     override val layout = R.layout.joe_widget_overview
-    override fun render(context: Context, options: Bundle, snapshot: WidgetSnapshot?) =
-        JoeWidgetViews.overview(context, options, snapshot)
+    override val lists = intArrayOf(R.id.joe_list, R.id.joe_list_two)
+    override fun render(context: Context, widgetId: Int, options: Bundle, snapshot: WidgetSnapshot?) =
+        JoeWidgetViews.overview(context, widgetId, options, snapshot)
 }
 
 /**
@@ -231,19 +253,43 @@ object JoeWidgets {
      * der Weg genauso wie beim Antippen einer Erinnerung, und der ist in
      * dieser App erprobt.
      */
-    fun open(context: Context, target: String): PendingIntent {
-        val intent = Intent(context, MainActivity::class.java)
+    fun open(context: Context, target: String): PendingIntent =
+        PendingIntent.getActivity(
+            context,
+            target.hashCode(),
+            openIntent(context, target),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+
+    /**
+     * Derselbe Weg, aber als Vorlage fuer die Zeilen einer scrollbaren Liste.
+     *
+     * Eine Liste setzt nicht auf jede Zeile eine eigene Absicht, sondern eine
+     * Vorlage auf die Liste und auf jede Zeile eine Ergaenzung dazu. Die
+     * Vorlage muss deshalb veraenderbar sein – eine unveraenderliche liesse
+     * sich nicht ergaenzen, und ab Android 12 wirft das System die Zeile
+     * gleich ganz weg. Joe ergaenzt nichts, aber die Regel gilt trotzdem.
+     */
+    fun openTemplate(context: Context, target: String): PendingIntent {
+        val mutable = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            PendingIntent.FLAG_MUTABLE
+        } else {
+            0
+        }
+        return PendingIntent.getActivity(
+            context,
+            "template:$target".hashCode(),
+            openIntent(context, target),
+            PendingIntent.FLAG_UPDATE_CURRENT or mutable,
+        )
+    }
+
+    private fun openIntent(context: Context, target: String): Intent =
+        Intent(context, MainActivity::class.java)
             .setAction(ACTION_OPEN)
             .setData(Uri.parse("joe://widget/$target"))
             .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP)
             .putExtra(EXTRA_TARGET, target)
-        return PendingIntent.getActivity(
-            context,
-            target.hashCode(),
-            intent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
-        )
-    }
 
     /** Alle gesetzten Joe-Widgets neu zeichnen lassen. */
     fun updateAll(context: Context) {

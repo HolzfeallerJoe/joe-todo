@@ -1,24 +1,26 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Ein Tag im grossen Raster. Wer das Kalender-Widget in die Laenge zieht,
-     soll nicht dieselben Miniaturzahlen mit viel Luft darum bekommen,
-     sondern ein Raster, das die Groesse auch nutzt. -->
+<!-- Ein Tag im grossen Raster: dieselbe Zelle wie mittel, nur mit Platz fuer
+     eine groessere Zahl, einen groesseren Punkt und die Notiz als gerahmtes
+     "N" – dort ist das Kaestchen so gross wie in der App, also auch so
+     lesbar. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="0dp"
     android:layout_height="match_parent"
     android:layout_weight="1"
-    android:minHeight="32dp"
+    android:minHeight="36dp"
+    android:gravity="top|center_horizontal"
     android:orientation="vertical"
-    android:gravity="center">
+    android:paddingTop="2dp">
 
     <FrameLayout
-        android:layout_width="26dp"
-        android:layout_height="26dp">
+        android:layout_width="22dp"
+        android:layout_height="22dp">
 
         <ImageView
             android:id="@+id/joe_cell_today"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:src="@drawable/joe_widget_dot"
+            android:src="@drawable/joe_widget_today"
             android:visibility="gone"
             android:importantForAccessibility="no" />
 
@@ -33,9 +35,9 @@
     </FrameLayout>
 
     <LinearLayout
-        android:layout_width="18dp"
-        android:layout_height="9dp"
-        android:layout_marginTop="2dp"
+        android:layout_width="wrap_content"
+        android:layout_height="11dp"
+        android:layout_marginTop="1dp"
         android:gravity="center"
         android:orientation="horizontal">
 
@@ -44,19 +46,36 @@
             android:layout_width="6dp"
             android:layout_height="6dp"
             android:src="@drawable/joe_widget_dot"
-            android:visibility="invisible"
+            android:visibility="gone"
             android:importantForAccessibility="no" />
 
-        <TextView
+        <!-- Das "N" der App: Kaestchen und Buchstabe sind zwei Ansichten,
+             weil RemoteViews nur einem ImageView eine Farbe geben kann – der
+             Rahmen wird eingefaerbt, die Schrift bekommt sie gesetzt. -->
+        <FrameLayout
             android:id="@+id/joe_cell_note"
-            android:layout_width="7dp"
-            android:layout_height="9dp"
-            android:layout_marginStart="2dp"
-            android:gravity="center"
-            android:includeFontPadding="false"
-            android:text="N"
-            android:textSize="7sp"
-            android:textStyle="bold"
-            android:visibility="invisible" />
+            android:layout_width="11dp"
+            android:layout_height="11dp"
+            android:layout_marginStart="3dp"
+            android:visibility="gone">
+
+            <ImageView
+                android:id="@+id/joe_cell_note_box"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:src="@drawable/joe_widget_note_badge"
+                android:importantForAccessibility="no" />
+
+            <TextView
+                android:id="@+id/joe_cell_note_letter"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:gravity="center"
+                android:includeFontPadding="false"
+                android:maxLines="1"
+                android:text="@string/joe_widget_note_mark"
+                android:textSize="7sp"
+                android:textStyle="bold" />
+        </FrameLayout>
     </LinearLayout>
 </LinearLayout>

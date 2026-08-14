@@ -3,6 +3,7 @@
      optional eine Uhrzeit davor, dann der Titel. Dieselbe Zeile traegt
      Aufgaben wie Termine. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/joe_row_root"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="horizontal"

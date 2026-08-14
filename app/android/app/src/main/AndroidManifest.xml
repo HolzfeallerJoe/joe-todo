@@ -103,6 +103,15 @@
                 android:name="android.appwidget.provider"
                 android:resource="@xml/joe_widget_overview_info" />
         </receiver>
+        <!-- Der Nachschub fuer die scrollbaren Listen. Gebunden wird er vom
+             System im Auftrag des Startbildschirms, nicht von einer fremden
+             App – exported="false" reicht deshalb. Die Berechtigung ist
+             dagegen Pflicht: ohne sie bindet das System nicht, und die
+             Listen blieben leer. -->
+        <service
+            android:name=".widget.JoeWidgetListService"
+            android:exported="false"
+            android:permission="android.permission.BIND_REMOTEVIEWS" />
         <!-- Der Tageswechsel. Der Wecker um Mitternacht kommt als eigene
              Aktion herein und braucht keinen Filter (die Intent ist
              ausdruecklich an diesen Empfaenger gerichtet); die drei hier sind

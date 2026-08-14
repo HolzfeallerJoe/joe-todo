@@ -2,6 +2,7 @@ package dev.joe.joe_todo.widget
 
 import android.appwidget.AppWidgetManager
 import android.content.Context
+import android.content.Intent
 import android.content.res.Configuration
 import android.os.Bundle
 import android.util.TypedValue
@@ -15,10 +16,13 @@ import java.util.Calendar
  *
  * Alles hier ist RemoteViews: das Widget lebt im Prozess des
  * Startbildschirms, nicht in Joe. Zeichnen heisst darum, dem fremden Prozess
- * eine Bauanleitung zu schicken – Zeilen und Kalenderzellen kommen als
- * verschachtelte RemoteViews per addView dazu. Eine Liste zum Scrollen waere
- * ein RemoteViewsService mit eigenem Adapter; dafuer ist in 2x2 kein Platz,
- * und was nicht mehr hineinpasst, sagt die letzte Zeile als "+3 weitere".
+ * eine Bauanleitung zu schicken – die Kalenderzellen kommen als
+ * verschachtelte RemoteViews per addView dazu.
+ *
+ * Die Listen sind dagegen keine Bauanleitung, sondern eine Verbindung: der
+ * Startbildschirm zeigt eine ListView und fragt beim Scrollen Zeile fuer
+ * Zeile bei JoeWidgetListService nach. Was nicht hineinpasst, ist damit
+ * nicht mehr weg, sondern nur noch nicht gescrollt.
  *
  * Die Farben kommen aus dem Schnappschuss, also aus dem Design, das in der
  * App gewaehlt ist. Der Hintergrund ist eine weiss gemalte Karte, die zur
@@ -26,18 +30,10 @@ import java.util.Calendar
  */
 object JoeWidgetViews {
 
-    // Deutsch, wie ueberall in Joe (lib/util.dart) – und ohne Locale-Gerate:
-    // ein Telefon auf Englisch soll im Widget nicht ploetzlich "Mon" sagen,
-    // waehrend die App daneben "Mo" schreibt.
-    private val WEEKDAYS = arrayOf("Mo", "Di", "Mi", "Do", "Fr", "Sa", "So")
-    private val MONTHS = arrayOf(
-        "Januar", "Februar", "März", "April", "Mai", "Juni",
-        "Juli", "August", "September", "Oktober", "November", "Dezember",
-    )
-    private val MONTHS_SHORT = arrayOf(
-        "Jan", "Feb", "Mär", "Apr", "Mai", "Jun",
-        "Jul", "Aug", "Sep", "Okt", "Nov", "Dez",
-    )
+    /** Wenn es keinen Schnappschuss gibt: frisch installiert, oder die App
+     *  war so lange nicht offen, dass der Zeitraum abgelaufen ist. Lieber
+     *  ehrlich nichts zeigen als einen alten Stand von gestern. */
+    private const val HINT = "Joe öffnen, dann steht hier, was ansteht."
 
     /** Hoehe einer Zeile bzw. einer Kalenderzeile in dp – so hoch sind die
      *  Layouts, und danach richtet sich, wie viel hineinpasst. */
@@ -46,16 +42,26 @@ object JoeWidgetViews {
     /** Was Titelzeile und Rand von der Hoehe wegnehmen. */
     private const val HEADER_DP = 30
 
-    /** Wie weit der Blick nach vorn hoechstens sucht. Der Schnappschuss
-     *  endet ohnehin frueher; das hier ist nur die Bremse. */
-    private const val AHEAD_DAYS = 60
+    /** So hoch sind die drei Kalenderzellen, und ab so viel Platz pro Woche
+     *  wird die naechstgroessere genommen. */
     private const val CELL_DP = 14
-    private const val CELL_BIG_DP = 25
-    private const val CELL_XL_DP = 32
+    private const val CELL_BIG_DP = 26
+    private const val CELL_XL_DP = 36
+
+    /** Das grosse Raster braucht auch Breite: Punkt und Notizkaestchen stehen
+     *  dort nebeneinander unter der Zahl. In einem Widget, das nur zwei
+     *  Felder breit ist, hat eine Spalte keine 20dp – dort bleibt es beim
+     *  mittleren Raster, auch wenn die Hoehe fuer mehr reichen wuerde. */
+    private const val CELL_XL_COLUMN_DP = 26
 
     // ---- Die vier Widgets ----
 
-    fun tasks(context: Context, options: Bundle, snapshot: WidgetSnapshot?): RemoteViews {
+    fun tasks(
+        context: Context,
+        widgetId: Int,
+        options: Bundle,
+        snapshot: WidgetSnapshot?,
+    ): RemoteViews {
         val theme = snapshot?.theme ?: WidgetTheme.fallback
         val views = card(context, R.layout.joe_widget_tasks, theme)
         views.setOnClickPendingIntent(
@@ -66,31 +72,31 @@ object JoeWidgetViews {
 
         val today = Calendar.getInstance()
         val day = snapshot?.day(JoeWidgetData.dayKey(today))
-        if (snapshot == null || day == null) {
-            hint(views, theme)
-            return views
-        }
         views.setTextViewText(
             R.id.joe_count,
-            if (day.open == 0) "erledigt" else "${day.open} offen",
+            when {
+                day == null -> ""
+                day.open == 0 -> "erledigt"
+                else -> "${day.open} offen"
+            },
         )
-        val style = rowStyle(height(context, options) - HEADER_DP)
-        val max = rowCount(context, options, style)
-        val used = if (day.tasks.isEmpty()) {
-            note(context, views, R.id.joe_list, theme, style, "Nichts für heute 🌿")
-            1
-        } else {
-            list(context, views, R.id.joe_list, theme, style, day.tasks,
-                day.taskCount, max) { entry ->
-                row(context, theme, style, entry.title, null, entry.color, entry.done)
-            }
-        }
-        // Was danach noch an Platz bleibt, fuellt der Blick nach vorn.
-        ahead(context, views, R.id.joe_list, theme, style, snapshot, today, max - used)
+        // Die Liste traegt die Aufgaben von heute und danach den Blick nach
+        // vorn; leer ist sie nur, wenn beides leer ist.
+        bindList(
+            context, views, widgetId, theme,
+            R.id.joe_list, R.id.joe_empty,
+            JoeWidgetList.KIND_TASKS, JoeWidgets.TARGET_TASKS,
+            if (day == null) HINT else "Nichts für heute 🌿",
+        )
         return views
     }
 
-    fun appointments(context: Context, options: Bundle, snapshot: WidgetSnapshot?): RemoteViews {
+    fun appointments(
+        context: Context,
+        widgetId: Int,
+        options: Bundle,
+        snapshot: WidgetSnapshot?,
+    ): RemoteViews {
         val theme = snapshot?.theme ?: WidgetTheme.fallback
         val views = card(context, R.layout.joe_widget_appointments, theme)
         views.setOnClickPendingIntent(
@@ -100,20 +106,23 @@ object JoeWidgetViews {
         views.setTextColor(R.id.joe_count, theme.inkSoft)
 
         val today = Calendar.getInstance()
-        views.setTextViewText(R.id.joe_count, shortDate(today))
-        if (snapshot == null || !snapshot.covers(JoeWidgetData.dayKey(today))) {
-            hint(views, theme)
-            return views
-        }
-        val style = rowStyle(height(context, options) - HEADER_DP)
-        val max = rowCount(context, options, style)
-        val added =
-            upcoming(context, views, R.id.joe_list, theme, style, snapshot, today, max)
-        if (added == 0) empty(views, theme, "Keine Termine in Sicht.")
+        views.setTextViewText(R.id.joe_count, JoeWidgetText.shortDate(today))
+        val known = snapshot != null && snapshot.covers(JoeWidgetData.dayKey(today))
+        bindList(
+            context, views, widgetId, theme,
+            R.id.joe_list, R.id.joe_empty,
+            JoeWidgetList.KIND_APPOINTMENTS, JoeWidgets.TARGET_APPOINTMENTS,
+            if (known) "Keine Termine in Sicht." else HINT,
+        )
         return views
     }
 
-    fun calendar(context: Context, options: Bundle, snapshot: WidgetSnapshot?): RemoteViews {
+    fun calendar(
+        context: Context,
+        widgetId: Int,
+        options: Bundle,
+        snapshot: WidgetSnapshot?,
+    ): RemoteViews {
         val theme = snapshot?.theme ?: WidgetTheme.fallback
         val views = card(context, R.layout.joe_widget_calendar, theme)
         views.setOnClickPendingIntent(
@@ -121,10 +130,7 @@ object JoeWidgetViews {
             JoeWidgets.open(context, JoeWidgets.TARGET_CALENDAR),
         )
         val today = Calendar.getInstance()
-        views.setTextViewText(
-            R.id.joe_title,
-            "${MONTHS[today.get(Calendar.MONTH)]} ${today.get(Calendar.YEAR)}",
-        )
+        views.setTextViewText(R.id.joe_title, JoeWidgetText.month(today))
         if (snapshot == null || !snapshot.covers(JoeWidgetData.dayKey(today))) {
             views.setViewVisibility(R.id.joe_grid, View.GONE)
             views.setViewVisibility(R.id.joe_empty, View.VISIBLE)
@@ -135,16 +141,22 @@ object JoeWidgetViews {
         views.setViewVisibility(R.id.joe_grid, View.VISIBLE)
         views.setViewVisibility(R.id.joe_empty, View.GONE)
         // Was nach Titel, Wochentagszeile und Rand uebrig bleibt, teilen sich
-        // die Wochen. Groesser gezogen wachsen die Zellen mit und bekommen
-        // den Punkt unter der Zahl; im 2x2 traegt die Zahl die Farbe selbst,
-        // dort ist fuer beides kein Platz.
+        // die Wochen. Im 2x2 ist eine Zeile keine 14dp hoch: dort sagt die
+        // eingefaerbte Flaeche, was ansteht. Groesser gezogen ist Platz fuer
+        // den Punkt unter der Zahl wie in der App, und noch groesser fuer die
+        // Notiz als gerahmtes "N".
         val free = height(context, options) - 18 - CELL_DP - 16
-        val style = cellStyle(free / weeks(today))
+        val style = cellStyle(free / weeks(today), perColumn(context, options, 16))
         grid(context, views, R.id.joe_grid, theme, snapshot, today, style, stretch = true)
         return views
     }
 
-    fun overview(context: Context, options: Bundle, snapshot: WidgetSnapshot?): RemoteViews {
+    fun overview(
+        context: Context,
+        widgetId: Int,
+        options: Bundle,
+        snapshot: WidgetSnapshot?,
+    ): RemoteViews {
         val theme = snapshot?.theme ?: WidgetTheme.fallback
         val views = card(context, R.layout.joe_widget_overview, theme)
         views.setOnClickPendingIntent(
@@ -167,50 +179,47 @@ object JoeWidgetViews {
         views.setTextViewText(R.id.joe_appointments_title, "Termine")
 
         val today = Calendar.getInstance()
-        views.setTextViewText(
-            R.id.joe_title,
-            "${MONTHS[today.get(Calendar.MONTH)]} ${today.get(Calendar.YEAR)}",
-        )
+        views.setTextViewText(R.id.joe_title, JoeWidgetText.month(today))
 
         val day = snapshot?.day(JoeWidgetData.dayKey(today))
-        if (snapshot == null || day == null) {
-            views.setTextViewText(R.id.joe_count, "")
-            grid(context, views, R.id.joe_grid, theme, null, today,
-                cellStyle(0), stretch = false)
-            note(context, views, R.id.joe_list, theme, rowStyle(0), "Joe öffnen")
-            note(context, views, R.id.joe_list_two, theme, rowStyle(0), "Joe öffnen")
-            return views
-        }
         views.setTextViewText(
             R.id.joe_count,
-            if (day.open == 0) "erledigt" else "${day.open} offen",
+            when {
+                day == null -> ""
+                day.open == 0 -> "erledigt"
+                else -> "${day.open} offen"
+            },
         )
+        bindList(
+            context, views, widgetId, theme,
+            R.id.joe_list, R.id.joe_empty,
+            JoeWidgetList.KIND_TASKS, JoeWidgets.TARGET_TASKS,
+            if (day == null) "Joe öffnen" else "Nichts für heute 🌿",
+        )
+        bindList(
+            context, views, widgetId, theme,
+            R.id.joe_list_two, R.id.joe_empty_two,
+            JoeWidgetList.KIND_APPOINTMENTS, JoeWidgets.TARGET_APPOINTMENTS,
+            if (day == null) "Joe öffnen" else "Keine Termine in Sicht.",
+        )
+        if (snapshot == null || day == null) {
+            grid(context, views, R.id.joe_grid, theme, null, today,
+                cellStyle(0, 0), stretch = false)
+            return views
+        }
 
         // Das Raster nimmt sich, was es braucht, aber nie so viel, dass fuer
-        // die beiden Listen darunter weniger als fuenf Zeilen bleiben – hier
+        // die beiden Listen darunter weniger als drei Zeilen bleiben – hier
         // wird es deshalb nicht gedehnt, sondern nur passend gross gewaehlt.
+        // Drei Zeilen reichen als Rest, weil die Listen scrollen; was nicht
+        // hineinpasst, ist nicht verloren.
         val weekCount = weeks(today)
         val free = height(context, options) - 30 - CELL_DP - 12
-        val style = cellStyle((free - 5 * ROW_DP) / weekCount)
+        val style = cellStyle(
+            (free - 3 * ROW_DP) / weekCount,
+            perColumn(context, options, 20),
+        )
         grid(context, views, R.id.joe_grid, theme, snapshot, today, style, stretch = false)
-
-        val forLists = free - weekCount * style.heightDp - 16
-        val rows = rowStyle(forLists)
-        val max = (forLists / rows.heightDp).coerceIn(1, 12)
-        val used = if (day.tasks.isEmpty()) {
-            note(context, views, R.id.joe_list, theme, rows, "Nichts für heute 🌿")
-            1
-        } else {
-            list(context, views, R.id.joe_list, theme, rows, day.tasks, day.taskCount,
-                max) { entry ->
-                row(context, theme, rows, entry.title, null, entry.color, entry.done)
-            }
-        }
-        ahead(context, views, R.id.joe_list, theme, rows, snapshot, today, max - used)
-        if (upcoming(context, views, R.id.joe_list_two, theme, rows, snapshot, today,
-                max) == 0) {
-            note(context, views, R.id.joe_list_two, theme, rows, "Keine Termine in Sicht.")
-        }
         return views
     }
 
@@ -223,162 +232,59 @@ object JoeWidgetViews {
         return views
     }
 
-    /** Die Zeilen einer Liste, mit "+n weitere" als letzter Zeile, wenn nicht
-     *  alles hineinpasst. */
-    private fun <T> list(
-        context: Context,
-        views: RemoteViews,
-        container: Int,
-        theme: WidgetTheme,
-        style: RowStyle,
-        entries: List<T>,
-        total: Int,
-        max: Int,
-        build: (T) -> RemoteViews,
-    ): Int {
-        views.removeAllViews(container)
-        // Passt nicht alles, kostet der Hinweis selbst eine Zeile.
-        val room = if (total > max) max - 1 else max
-        val shown = entries.take(room.coerceAtLeast(0))
-        for (entry in shown) views.addView(container, build(entry))
-        val rest = total - shown.size
-        if (rest == 0) return shown.size
-        views.addView(
-            container,
-            muted(context, theme, style,
-                if (rest == 1) "+1 weiterer" else "+$rest weitere"),
-        )
-        return shown.size + 1
-    }
-
     /**
-     * Was in den naechsten Tagen ansteht, nach Tagen gruppiert – der Rest
-     * eines langen Widgets, unter dem, was heute dran ist.
+     * Eine Liste an ihren Nachschub haengen.
      *
-     * Gezeigt wird nur, was an dem Tag wirklich neu faellig ist: die
-     * Tagesliste im Schnappschuss traegt Liegengebliebenes mit (so steht es
-     * auch im Dashboard), und ohne diesen Filter stuende jede heute offene
-     * Aufgabe hier an jedem einzelnen kommenden Tag noch einmal.
+     * Statt fertiger Zeilen bekommt der Startbildschirm eine Adresse: von da
+     * holt er sich beim Scrollen, was er gerade braucht
+     * (JoeWidgetListService). Was leer bleibt, sagt die Ansicht daneben – das
+     * Umblenden macht der Startbildschirm selbst, sobald keine Zeile da ist.
      */
-    private fun ahead(
+    @Suppress("DEPRECATION")
+    private fun bindList(
         context: Context,
         views: RemoteViews,
-        container: Int,
+        widgetId: Int,
         theme: WidgetTheme,
-        style: RowStyle,
-        snapshot: WidgetSnapshot,
-        today: Calendar,
-        max: Int,
+        listId: Int,
+        emptyId: Int,
+        kind: String,
+        target: String,
+        emptyText: String,
     ) {
-        if (max <= 0) return
-        val cursor = today.clone() as Calendar
-        cursor.add(Calendar.DAY_OF_MONTH, 1)
-        var used = 0
-        var days = 0
-        while (used < max && days < AHEAD_DAYS) {
-            val key = JoeWidgetData.dayKey(cursor)
-            if (!snapshot.covers(key)) break
-            val due = snapshot.marked(key)?.tasks?.filter { !it.carried }.orEmpty()
-            // Die Ueberschrift lohnt nur, wenn unter ihr auch etwas steht.
-            if (due.isNotEmpty() && used + 1 < max) {
-                views.addView(
-                    container, head(context, theme, style, relativeDay(cursor, today)))
-                used++
-                for (entry in due) {
-                    if (used >= max) break
-                    views.addView(
-                        container,
-                        row(context, theme, style, entry.title, null, entry.color,
-                            entry.done),
-                    )
-                    used++
-                }
-            }
-            cursor.add(Calendar.DAY_OF_MONTH, 1)
-            days++
-        }
+        views.setRemoteAdapter(listId, JoeWidgetList.intent(context, widgetId, kind))
+        views.setEmptyView(listId, emptyId)
+        views.setTextViewText(emptyId, emptyText)
+        views.setTextColor(emptyId, theme.inkSoft)
+        // Eine angetippte Zeile faellt nicht an die Karte durch – eine Liste
+        // faengt die Beruehrung selbst ab. Ohne Vorlage waeren die Zeilen
+        // tot; mit ihr fuehren sie dorthin, wohin auch die Karte fuehrt.
+        views.setPendingIntentTemplate(listId, JoeWidgets.openTemplate(context, target))
     }
 
     /**
-     * Die naechsten Termine ab [today], nach Tagen gruppiert. Gibt zurueck,
-     * wie viele Termine wirklich gezeigt wurden.
-     *
-     * Die Uhrzeit steht in der Zeile, das Datum in der Ueberschrift darueber –
-     * in einem 2x2 waere fuer beides in einer Zeile kein Platz.
+     * Eine fertige Zeile – das, was der Nachschub-Dienst beim Scrollen
+     * zurueckgibt.
      */
-    private fun upcoming(
+    internal fun line(
         context: Context,
-        views: RemoteViews,
-        container: Int,
         theme: WidgetTheme,
         style: RowStyle,
-        snapshot: WidgetSnapshot,
-        today: Calendar,
-        max: Int,
-    ): Int {
-        views.removeAllViews(container)
-        val cursor = today.clone() as Calendar
-        var used = 0
-        var shown = 0
-        var days = 0
-        while (used < max && days < 400) {
-            val key = JoeWidgetData.dayKey(cursor)
-            if (!snapshot.covers(key)) break
-            val day = snapshot.marked(key)
-            if (day != null && day.appointments.isNotEmpty() &&
-                JoeWidgetLayoutLogic.canStartGroup(used, max)) {
-                views.addView(
-                    container, head(context, theme, style, relativeDay(cursor, today)))
-                used++
-                val available = max - used
-                val total = maxOf(day.appointmentCount, day.appointments.size)
-                val plan = JoeWidgetLayoutLogic.appointments(
-                    total = total,
-                    loaded = day.appointments.size,
-                    available = available,
-                )
-                if (plan.summaryOnly) {
-                    views.addView(
-                        container,
-                        muted(context, theme, style,
-                            if (total == 1) "1 Termin" else "$total Termine"),
-                    )
-                    used++
-                    shown++
-                    break
-                }
-
-                val entries = day.appointments.take(plan.entries)
-                for (entry in entries) {
-                    views.addView(
-                        container,
-                        row(context, theme, style, entry.title, time(entry.minute),
-                            entry.color, false),
-                    )
-                    used++
-                    shown++
-                }
-                val remaining = plan.hidden
-                if (remaining > 0 && used < max) {
-                    views.addView(
-                        container,
-                        muted(
-                            context,
-                            theme,
-                            style,
-                            if (remaining == 1) "+1 weiterer Termin"
-                            else "+$remaining weitere Termine",
-                        ),
-                    )
-                    used++
-                    shown++
-                    break
-                }
-            }
-            cursor.add(Calendar.DAY_OF_MONTH, 1)
-            days++
+        line: WidgetLine,
+    ): RemoteViews {
+        val views = when (line.kind) {
+            WidgetLine.Kind.HEAD -> head(context, theme, style, line.title)
+            WidgetLine.Kind.MUTED -> muted(context, theme, style, line.title)
+            WidgetLine.Kind.ENTRY ->
+                row(context, theme, style, line.title, line.lead, line.color, line.done)
         }
-        return shown
+        // Die Vorlage der Liste traegt schon alles; die Zeile muss nur sagen,
+        // dass sie ueberhaupt angetippt werden kann.
+        views.setOnClickFillInIntent(
+            if (line.kind == WidgetLine.Kind.HEAD) R.id.joe_head_title else R.id.joe_row_root,
+            Intent(),
+        )
+        return views
     }
 
     private fun row(
@@ -446,32 +352,6 @@ object JoeWidgetViews {
         return views
     }
 
-    private fun note(
-        context: Context,
-        views: RemoteViews,
-        container: Int,
-        theme: WidgetTheme,
-        style: RowStyle,
-        text: String,
-    ) {
-        views.removeAllViews(container)
-        views.addView(container, muted(context, theme, style, text))
-    }
-
-    private fun empty(views: RemoteViews, theme: WidgetTheme, text: String) {
-        views.removeAllViews(R.id.joe_list)
-        views.setViewVisibility(R.id.joe_empty, View.VISIBLE)
-        views.setTextViewText(R.id.joe_empty, text)
-        views.setTextColor(R.id.joe_empty, theme.inkSoft)
-    }
-
-    /** Wenn es keinen Schnappschuss gibt: frisch installiert, oder die App
-     *  war so lange nicht offen, dass der Zeitraum abgelaufen ist. Lieber
-     *  ehrlich nichts zeigen als einen alten Stand von gestern. */
-    private fun hint(views: RemoteViews, theme: WidgetTheme) {
-        empty(views, theme, "Joe öffnen, dann steht hier, was ansteht.")
-    }
-
     // ---- Monatsraster ----
 
     /**
@@ -479,25 +359,68 @@ object JoeWidgetViews {
      * nach dem Platz, den eine Woche bekommt: Wer das Widget in die Laenge
      * zieht, soll nicht dieselben Miniaturzahlen mit viel Luft darum sehen.
      *
-     * [dots] sagt, ob die Zelle den Punkt unter der Zahl hat. Die kleinste
-     * hat ihn nicht – dort traegt die Zahl selbst die Farbe des Eintrags.
+     * Alle drei sind gebaut wie die Zelle im Kalender der App: Zahl in
+     * Tinte, heute ein Rahmen um die Zelle.
+     *
+     * [dots] sagt, wie der Eintrag am Tag steht: als Punkt unter der Zahl wie
+     * in der App – oder, wenn dafuer kein Platz ist, als leichte Einfaerbung
+     * der ganzen Zelle. [letter] sagt, ob die Notiz das gerahmte "N" der App
+     * traegt; dafuer braucht es Platz, den nur das grosse Raster hat, die
+     * kleineren zeigen nur das Kaestchen.
      */
     private class CellStyle(
         val layout: Int,
         val dots: Boolean,
+        val letter: Boolean,
+        val daySp: Float,
         val labelSp: Float,
         /** So hoch ist die Zelle von sich aus – gebraucht dort, wo das Raster
          *  nicht gedehnt wird und man wissen muss, was es wegnimmt. */
         val heightDp: Int,
     )
 
-    private fun cellStyle(perWeekDp: Int): CellStyle = when {
-        perWeekDp >= CELL_XL_DP ->
-            CellStyle(R.layout.joe_widget_cal_cell_xl, true, 12f, CELL_XL_DP)
-        perWeekDp >= CELL_BIG_DP ->
-            CellStyle(R.layout.joe_widget_cal_cell_big, true, 11f, CELL_BIG_DP)
-        else ->
-            CellStyle(R.layout.joe_widget_cal_cell, false, 11f, CELL_DP)
+    /**
+     * Die Zelle zur vorhandenen Flaeche – es zaehlen beide Richtungen.
+     *
+     * Die Hoehe entscheidet, was unter die Zahl passt: der Punkt, der Punkt
+     * mit Notizkaestchen, oder nichts (dann faerbt der Eintrag die Flaeche).
+     * Die Zahl richtet sich nach der knapperen der beiden Richtungen – ein
+     * Widget, das nur zwei Felder breit, aber vier hoch ist, hat viel Hoehe
+     * und trotzdem keine 20dp pro Spalte, und grosse Zahlen stuenden dort
+     * Schulter an Schulter.
+     */
+    private fun cellStyle(perWeekDp: Int, perColumnDp: Int): CellStyle {
+        val room = minOf(perWeekDp, perColumnDp)
+        val wanted = when {
+            room >= 26 -> 15f
+            room >= 20 -> 13f
+            room >= 15 -> 11f
+            else -> 9f
+        }
+        return when {
+            perWeekDp >= CELL_XL_DP && perColumnDp >= CELL_XL_COLUMN_DP ->
+                cell(R.layout.joe_widget_cal_cell_xl, true, true, wanted, 15f, CELL_XL_DP)
+            perWeekDp >= CELL_BIG_DP ->
+                cell(R.layout.joe_widget_cal_cell_big, true, false, wanted, 13f, CELL_BIG_DP)
+            else ->
+                cell(R.layout.joe_widget_cal_cell, false, false, wanted, 11f, CELL_DP)
+        }
+    }
+
+    /** [cap] ist, was das Layout traegt: die Zahl sitzt dort in einem Kasten
+     *  fester Groesse und darf nicht groesser werden als der. */
+    private fun cell(
+        layout: Int,
+        dots: Boolean,
+        letter: Boolean,
+        wantedSp: Float,
+        cap: Float,
+        heightDp: Int,
+    ): CellStyle {
+        val daySp = minOf(wantedSp, cap)
+        // Die Wochentage stehen eine Spur kleiner als die Zahlen, wie in der
+        // App (13 zu 12).
+        return CellStyle(layout, dots, letter, daySp, minOf(daySp - 1f, 12f), heightDp)
     }
 
     /**
@@ -521,10 +444,15 @@ object JoeWidgetViews {
         views.removeAllViews(container)
 
         val header = RemoteViews(context.packageName, R.layout.joe_widget_cal_row_wrap)
-        for (name in WEEKDAYS) {
+        for (name in JoeWidgetText.WEEKDAYS) {
             val cell = RemoteViews(context.packageName, R.layout.joe_widget_cal_head_cell)
             cell.setTextViewText(R.id.joe_cell_day, name)
-            cell.setTextColor(R.id.joe_cell_day, theme.inkSoft)
+            // Leise, aber nicht blass: "Mo" bis "So" stehen so klein da, dass
+            // ein zu heller Ton auf dem Papier verschwindet.
+            cell.setTextColor(
+                R.id.joe_cell_day,
+                JoeWidgetColors.readable(theme.inkSoft, theme.paper, JoeWidgetColors.MIN_GLYPH),
+            )
             cell.setTextViewTextSize(R.id.joe_cell_day, TypedValue.COMPLEX_UNIT_SP, style.labelSp)
             header.addView(R.id.joe_cal_row, cell)
         }
@@ -534,7 +462,7 @@ object JoeWidgetViews {
             if (stretch) R.layout.joe_widget_cal_row else R.layout.joe_widget_cal_row_wrap
         val cursor = today.clone() as Calendar
         cursor.set(Calendar.DAY_OF_MONTH, 1)
-        val offset = mondayFirst(cursor)
+        val offset = JoeWidgetText.mondayFirst(cursor)
         val length = cursor.getActualMaximum(Calendar.DAY_OF_MONTH)
         val todayKey = JoeWidgetData.dayKey(today)
 
@@ -545,9 +473,10 @@ object JoeWidgetViews {
                 val cell = RemoteViews(context.packageName, style.layout)
                 val number = slot - offset + 1
                 if (number < 1 || number > length) {
+                    // Ein Feld vor dem Ersten oder nach dem Letzten bleibt
+                    // leer; Kreis, Punkt und Notizzeichen sind im Layout
+                    // ohnehin schon weg.
                     cell.setTextViewText(R.id.joe_cell_day, "")
-                    cell.setViewVisibility(R.id.joe_cell_note, View.INVISIBLE)
-                    if (style.dots) cell.setViewVisibility(R.id.joe_cell_dot, View.INVISIBLE)
                 } else {
                     cursor.set(Calendar.DAY_OF_MONTH, number)
                     fill(cell, theme, snapshot?.marked(JoeWidgetData.dayKey(cursor)), number,
@@ -568,55 +497,87 @@ object JoeWidgetViews {
         isToday: Boolean,
         style: CellStyle,
     ) {
-        val big = style.dots
         cell.setTextViewText(R.id.joe_cell_day, number.toString())
-        cell.setViewVisibility(
-            R.id.joe_cell_note,
-            if (day?.note == true) View.VISIBLE else View.INVISIBLE,
+        cell.setTextViewTextSize(R.id.joe_cell_day, TypedValue.COMPLEX_UNIT_SP, style.daySp)
+        val accent = JoeWidgetColors.readable(theme.accent, theme.paper)
+
+        // Die Zahl steht wie in der App immer in Tinte – nur heute traegt sie
+        // den Akzent, und ein Feiertag auch: dafuer hat die App den Stern in
+        // der Badge-Zeile, und ohne den bleibt die Farbe der einzige Hinweis.
+        cell.setTextColor(
+            R.id.joe_cell_day,
+            when {
+                isToday -> accent
+                day?.holiday != null -> accent
+                else -> theme.ink
+            },
         )
-        cell.setTextColor(R.id.joe_cell_note, theme.accent)
-        val marker = day?.markerColor
+
+        // Heute: ein Rahmen um die Zelle statt einer gefuellten Flaeche, wie
+        // im Kalender der App. So bleibt darin alles so gefaerbt wie an jedem
+        // anderen Tag.
         if (isToday) {
             cell.setViewVisibility(R.id.joe_cell_today, View.VISIBLE)
-            cell.setInt(R.id.joe_cell_today, "setColorFilter", theme.accent)
-            cell.setTextColor(R.id.joe_cell_day, theme.paper)
+            cell.setInt(R.id.joe_cell_today, "setColorFilter", accent)
         } else {
             cell.setViewVisibility(R.id.joe_cell_today, View.GONE)
-            cell.setTextColor(
-                R.id.joe_cell_day,
-                when {
-                    // Im kleinen Raster traegt die Zahl selbst die Farbe des
-                    // Eintrags, im grossen der Punkt darunter.
-                    !big && marker != null -> marker
-                    day?.holiday != null -> theme.accent
-                    else -> theme.ink
+        }
+
+        // Was am Tag ansteht: im grossen Raster der Punkt unter der Zahl wie
+        // in der App, gefuellt fuer offen und als Ring fuer erledigt. Im
+        // kleinen ist dafuer kein Platz – dort traegt die Flaeche die Farbe,
+        // kraeftig fuer offen und leiser fuer erledigt.
+        //
+        // Beide Male darf die Farbe des Eintrags nicht blass auf blassem
+        // Papier liegen: eine Markierung muss auffindbar sein (aber nicht
+        // lesbar, sie darf also heller bleiben als eine Zahl).
+        val mark = if (style.dots) R.id.joe_cell_dot else R.id.joe_cell_fill
+        val marker = day?.markerColor
+        if (day == null || marker == null) {
+            cell.setViewVisibility(mark, View.GONE)
+        } else {
+            cell.setViewVisibility(mark, View.VISIBLE)
+            cell.setImageViewResource(
+                mark,
+                if (style.dots) {
+                    if (day.markerDone) R.drawable.joe_widget_ring
+                    else R.drawable.joe_widget_dot
+                } else {
+                    if (day.markerDone) R.drawable.joe_widget_cell_fill_soft
+                    else R.drawable.joe_widget_cell_fill
                 },
             )
+            cell.setInt(
+                mark,
+                "setColorFilter",
+                JoeWidgetColors.readable(marker, theme.paper, JoeWidgetColors.MIN_GLYPH),
+            )
         }
-        if (big) {
-            if (day == null || marker == null) {
-                cell.setViewVisibility(R.id.joe_cell_dot, View.INVISIBLE)
+
+        if (day?.note == true) {
+            cell.setViewVisibility(R.id.joe_cell_note, View.VISIBLE)
+            // Im grossen Raster ist die Notiz das gerahmte "N" der App: der
+            // Rahmen ist ein Bild und wird eingefaerbt, der Buchstabe liegt
+            // als eigene Ansicht darin. Die kleineren Raster haben nur das
+            // Kaestchen, und das ist selbst das Bild.
+            if (style.letter) {
+                cell.setInt(R.id.joe_cell_note_box, "setColorFilter", accent)
+                cell.setTextColor(R.id.joe_cell_note_letter, accent)
             } else {
-                cell.setViewVisibility(R.id.joe_cell_dot, View.VISIBLE)
-                cell.setImageViewResource(
-                    R.id.joe_cell_dot,
-                    if (day.markerDone) R.drawable.joe_widget_ring else R.drawable.joe_widget_dot,
-                )
-                cell.setInt(R.id.joe_cell_dot, "setColorFilter", marker)
+                cell.setInt(R.id.joe_cell_note, "setColorFilter", accent)
             }
+        } else {
+            cell.setViewVisibility(R.id.joe_cell_note, View.GONE)
         }
     }
 
     // ---- Rechnerei ----
 
-    /** Der Wochentag als Spalte, Montag zuerst – wie im Kalender der App. */
-    private fun mondayFirst(cal: Calendar): Int =
-        (cal.get(Calendar.DAY_OF_WEEK) + 5) % 7
-
     private fun weeks(today: Calendar): Int {
         val first = today.clone() as Calendar
         first.set(Calendar.DAY_OF_MONTH, 1)
-        val slots = mondayFirst(first) + first.getActualMaximum(Calendar.DAY_OF_MONTH)
+        val slots =
+            JoeWidgetText.mondayFirst(first) + first.getActualMaximum(Calendar.DAY_OF_MONTH)
         return (slots + 6) / 7
     }
 
@@ -642,18 +603,34 @@ object JoeWidgetViews {
         return if (value > 0) value else 110
     }
 
-    private fun rowCount(context: Context, options: Bundle, style: RowStyle): Int =
-        ((height(context, options) - HEADER_DP) / style.heightDp).coerceIn(1, 12)
+    /**
+     * Die Breite des Widgets in dp – dieselbe Rechnung wie bei der Hoehe, nur
+     * andersherum: hochkant ist das Widget schmal, also steht die Breite von
+     * jetzt in MIN_WIDTH, quer in MAX_WIDTH.
+     */
+    private fun width(context: Context, options: Bundle): Int {
+        val portrait = context.resources.configuration.orientation !=
+            Configuration.ORIENTATION_LANDSCAPE
+        val value = options.getInt(
+            if (portrait) AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH
+            else AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH,
+            0,
+        )
+        return if (value > 0) value else 110
+    }
+
+    /** Was eine Spalte des Monatsrasters an Breite bekommt. */
+    private fun perColumn(context: Context, options: Bundle, paddingDp: Int): Int =
+        ((width(context, options) - paddingDp) / 7).coerceAtLeast(1)
 
     /**
      * Wie gross eine Listenzeile ausfaellt.
      *
      * Zwei Stufen, ausgesucht nach dem Platz, den die Liste bekommt. Wer ein
      * Widget in die Laenge zieht, will nicht dieselbe Miniaturschrift in
-     * einer grossen Karte sehen – ab etwa drei Feldern Hoehe wird die Zeile
-     * groesser, und es passen immer noch mehr hinein als vorher.
+     * einer grossen Karte sehen.
      */
-    private class RowStyle(
+    internal class RowStyle(
         val heightDp: Int,
         val titleSp: Float,
         val leadSp: Float,
@@ -664,27 +641,20 @@ object JoeWidgetViews {
         if (listAreaDp >= 200) RowStyle(26, 14f, 13f, 12f)
         else RowStyle(ROW_DP, 12f, 11f, 11f)
 
-    /** "15:00" aus der Minute seit Mitternacht. */
-    private fun time(minute: Int): String? {
-        if (minute < 0 || minute >= 24 * 60) return null
-        val hour = minute / 60
-        val rest = minute % 60
-        return "${if (hour < 10) "0$hour" else "$hour"}:${if (rest < 10) "0$rest" else "$rest"}"
+    /**
+     * Dasselbe fuer den Nachschub-Dienst: der kennt nur die Nummer des
+     * Widgets und muss sich dessen Groesse selbst holen. Ohne Nummer (oder
+     * ohne Auskunft) gilt das kleine Mass – lieber zu klein als
+     * abgeschnitten.
+     */
+    internal fun rowStyleFor(context: Context, widgetId: Int): RowStyle {
+        val options = if (widgetId == AppWidgetManager.INVALID_APPWIDGET_ID) {
+            Bundle.EMPTY
+        } else {
+            AppWidgetManager.getInstance(context)?.getAppWidgetOptions(widgetId) ?: Bundle.EMPTY
+        }
+        return rowStyle(height(context, options) - HEADER_DP)
     }
-
-    /** "Heute", "Morgen", sonst "Mi, 20. Aug" – wie formatRelativeDay in der App. */
-    private fun relativeDay(day: Calendar, today: Calendar): String {
-        val key = JoeWidgetData.dayKey(day)
-        if (key == JoeWidgetData.dayKey(today)) return "Heute"
-        val tomorrow = today.clone() as Calendar
-        tomorrow.add(Calendar.DAY_OF_MONTH, 1)
-        if (key == JoeWidgetData.dayKey(tomorrow)) return "Morgen"
-        return "${WEEKDAYS[mondayFirst(day)]}, ${shortDate(day)}"
-    }
-
-    /** "20. Aug" */
-    private fun shortDate(day: Calendar): String =
-        "${day.get(Calendar.DAY_OF_MONTH)}. ${MONTHS_SHORT[day.get(Calendar.MONTH)]}"
 
     /** Dieselbe Farbe, nur leise – fuer die Trennlinie im grossen Widget. */
     private fun fade(color: Int): Int = (color and 0x00FFFFFF) or 0x33000000

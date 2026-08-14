@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Der heutige Tag im Monatsraster: ein Rahmen um die ganze Zelle, wie im
+     Kalender der App (_DayCell, Border 1.6 bei Radius 10). Innen bleibt es
+     durchsichtig, damit Punkt und Notizzeichen dieselbe Farbe behalten wie an
+     jedem anderen Tag. Weiss, eingefaerbt wird zur Laufzeit. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="#00000000" />
+    <corners android:radius="6dp" />
+    <stroke
+        android:width="1.4dp"
+        android:color="#FFFFFFFF" />
+</shape>

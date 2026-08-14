@@ -15,4 +15,7 @@
 
     <string name="joe_widget_overview_label">Joe · Übersicht</string>
     <string name="joe_widget_overview_description">Kalender, Aufgaben und Termine auf einen Blick.</string>
+
+    <!-- Das Zeichen fuer eine Notiz am Tag, wie im Kalender der App. -->
+    <string name="joe_widget_note_mark">N</string>
 </resources>

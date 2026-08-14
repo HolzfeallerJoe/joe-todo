@@ -43,7 +43,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:paddingTop="2dp"
-            android:text="● Aufgabe   N Notiz"
+            android:text="Farbe = Eintrag   N = Notiz"
             android:textColor="@color/joe_widget_preview_accent"
             android:textSize="8sp" />
     </LinearLayout>

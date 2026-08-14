@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Die Notiz in den kleinen Rastern. Fuer das "N" der App ist dort kein
+     Platz – was bleibt, ist die Silhouette der Marke: ein Kaestchen mit
+     weichen Ecken neben dem runden Punkt des Eintrags. Bei vier Pixeln ist
+     gefuellt das einzige, was man noch sieht; das gerahmte Kaestchen mit
+     Buchstabe steht im grossen Raster (joe_widget_note_badge.xml). -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="#FFFFFFFF" />
+    <corners android:radius="1dp" />
+</shape>

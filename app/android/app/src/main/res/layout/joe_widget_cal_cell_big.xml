@@ -1,13 +1,23 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Ein Tag im mittleren Raster: dieselbe Zelle wie klein, nur mit Platz fuer
-     den Punkt unter der Zahl – wie im Kalender der App. -->
+<!-- Ein Tag im mittleren Raster: Zahl oben, darunter der Punkt in der Farbe
+     des Eintrags – wie im Kalender der App.
+
+     Der Inhalt sitzt oben und nicht in der Mitte: eine Wochenzeile wird so
+     hoch, wie das Widget hergibt, und ein in der Mitte schwebendes Datum
+     verliert dabei den Bezug zu seiner Zeile.
+
+     Der Rahmen fuer heute umschliesst nur die Zahl. In der App umschliesst er
+     die ganze Zelle, aber die ist dort fast quadratisch; hier wird die Zeile
+     schnell doppelt so hoch wie breit, und ein Rahmen um die ganze Hoehe
+     saehe aus wie ein leerer Kasten mit einer Zahl obendrin. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="0dp"
     android:layout_height="match_parent"
     android:layout_weight="1"
-    android:minHeight="25dp"
+    android:minHeight="26dp"
+    android:gravity="top|center_horizontal"
     android:orientation="vertical"
-    android:gravity="center">
+    android:paddingTop="2dp">
 
     <FrameLayout
         android:layout_width="18dp"
@@ -17,7 +27,7 @@
             android:id="@+id/joe_cell_today"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:src="@drawable/joe_widget_dot"
+            android:src="@drawable/joe_widget_today"
             android:visibility="gone"
             android:importantForAccessibility="no" />
 
@@ -31,9 +41,12 @@
             android:textSize="11sp" />
     </FrameLayout>
 
+    <!-- Punkt und Notizzeichen, beide nur da, wenn es sie gibt (gone, nicht
+         invisible): sonst sitzt der Punkt an einem Tag ohne Notiz neben der
+         Mitte statt unter der Zahl. -->
     <LinearLayout
-        android:layout_width="14dp"
-        android:layout_height="7dp"
+        android:layout_width="wrap_content"
+        android:layout_height="5dp"
         android:layout_marginTop="1dp"
         android:gravity="center"
         android:orientation="horizontal">
@@ -43,19 +56,16 @@
             android:layout_width="4dp"
             android:layout_height="4dp"
             android:src="@drawable/joe_widget_dot"
-            android:visibility="invisible"
+            android:visibility="gone"
             android:importantForAccessibility="no" />
 
-        <TextView
+        <ImageView
             android:id="@+id/joe_cell_note"
-            android:layout_width="6dp"
-            android:layout_height="7dp"
-            android:layout_marginStart="2dp"
-            android:gravity="center"
-            android:includeFontPadding="false"
-            android:text="N"
-            android:textSize="6sp"
-            android:textStyle="bold"
-            android:visibility="invisible" />
+            android:layout_width="4dp"
+            android:layout_height="4dp"
+            android:layout_marginStart="3dp"
+            android:src="@drawable/joe_widget_note"
+            android:visibility="gone"
+            android:importantForAccessibility="no" />
     </LinearLayout>
 </LinearLayout>

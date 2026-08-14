@@ -11,4 +11,5 @@
     android:includeFontPadding="false"
     android:maxLines="1"
     android:paddingBottom="2dp"
-    android:textSize="11sp" />
+    android:textSize="11sp"
+    android:textStyle="bold" />

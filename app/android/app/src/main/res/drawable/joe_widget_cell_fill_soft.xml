@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Dieselbe Einfaerbung, nur halb so kraeftig: der Tag, an dem alles
+     erledigt ist. Die grossen Raster sagen das mit dem Ring statt dem
+     gefuellten Punkt – hier, wo die Flaeche der einzige Traeger ist, sagt es
+     die Deckkraft. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="#1AFFFFFF" />
+    <corners android:radius="3dp" />
+</shape>
