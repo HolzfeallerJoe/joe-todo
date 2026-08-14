@@ -179,13 +179,15 @@ List<Reminder> pendingReminders({
     if (lead == null) continue;
     final when = a.when.subtract(Duration(minutes: lead));
     if (!when.isAfter(from) || when.isAfter(horizon)) continue;
-    out.add(Reminder(
-      id: reminderNotificationId(a.id, 0),
-      title: a.title,
-      body: '${formatRelativeDay(a.when)} um ${formatTime(a.when)}',
-      when: when,
-      payload: reminderPayload(isTask: false, id: a.id, day: a.when),
-    ));
+    out.add(
+      Reminder(
+        id: reminderNotificationId(a.id, 0),
+        title: a.title,
+        body: '${formatRelativeDay(a.when)} um ${formatTime(a.when)}',
+        when: when,
+        payload: reminderPayload(isTask: false, id: a.id, day: a.when),
+      ),
+    );
   }
 
   for (final task in tasks) {
@@ -196,17 +198,19 @@ List<Reminder> pendingReminders({
     // Termin (seinen Starttag), der wiederkehrende viele.
     for (var day = dateOnly(from);
         slot < perTask && !day.isAfter(horizon);
-        day = day.add(const Duration(days: 1))) {
+        day = nextCalendarDay(day)) {
       if (!task.occursOn(day) || task.isCompletedOn(day)) continue;
-      final when = day.add(Duration(minutes: minute));
+      final when = timeOnCalendarDay(day, minute);
       if (!when.isAfter(from)) continue;
-      out.add(Reminder(
-        id: reminderNotificationId(task.id, slot),
-        title: task.title,
-        body: 'Aufgabe für heute',
-        when: when,
-        payload: reminderPayload(isTask: true, id: task.id, day: day),
-      ));
+      out.add(
+        Reminder(
+          id: reminderNotificationId(task.id, slot),
+          title: task.title,
+          body: 'Aufgabe für heute',
+          when: when,
+          payload: reminderPayload(isTask: true, id: task.id, day: day),
+        ),
+      );
       slot++;
     }
   }
@@ -216,6 +220,17 @@ List<Reminder> pendingReminders({
   // Eintragsreihenfolge ab, wessen Erinnerung wegfaellt.
   return out.length <= maxTotal ? out : out.sublist(0, maxTotal);
 }
+
+/// Der naechste lokale Kalendertag. Eine Dauer von 24 Stunden waere an der
+/// Sommerzeitgrenze nicht dasselbe und koennte bei einer taeglichen Reihe aus
+/// Mitternacht 01:00 machen.
+DateTime nextCalendarDay(DateTime day) =>
+    DateTime(day.year, day.month, day.day + 1);
+
+/// Eine lokale Uhrzeit auf einem Kalendertag. Auch hier ist Addition ab
+/// Mitternacht ungeeignet: der Tag der Zeitumstellung hat 23 bzw. 25 Stunden.
+DateTime timeOnCalendarDay(DateTime day, int minuteOfDay) =>
+    DateTime(day.year, day.month, day.day, minuteOfDay ~/ 60, minuteOfDay % 60);
 
 /// Der Draht zum System.
 class JoeReminders {
@@ -341,8 +356,10 @@ class JoeReminders {
         tz.setLocalLocation(tz.getLocation(local.identifier));
       } catch (e) {
         JoeLog.log('Erinnerungen: Zeitzone unbekannt, es gilt UTC: $e');
-        JoeToast.error('Zeitzone des Telefons unbekannt – Erinnerungen '
-            'können um Stunden danebenliegen.');
+        JoeToast.error(
+          'Zeitzone des Telefons unbekannt – Erinnerungen '
+          'können um Stunden danebenliegen.',
+        );
       }
 
       await _plugin.initialize(
@@ -375,14 +392,18 @@ class JoeReminders {
           _scheduled[pending.id] = '?';
         }
       } catch (e) {
-        JoeLog.log('Erinnerungen: Uebernahme vom letzten Mal nicht '
-            'moeglich: $e');
+        JoeLog.log(
+          'Erinnerungen: Uebernahme vom letzten Mal nicht '
+          'moeglich: $e',
+        );
       }
       // Erst jetzt: ein [sync], der zwischen Uebernahme und hier
       // dazwischenkaeme, saehe einen halb gefuellten Stand.
       _ready = true;
-      JoeLog.log('Erinnerungen: bereit (${tz.local.name}, '
-          'exakt: $_exactAllowed, ${_scheduled.length} vom letzten Mal)');
+      JoeLog.log(
+        'Erinnerungen: bereit (${tz.local.name}, '
+        'exakt: $_exactAllowed, ${_scheduled.length} vom letzten Mal)',
+      );
 
       // Die App kann ueber ein Antippen gestartet worden sein – dann steht
       // der Payload nicht im Callback, sondern in den Startdetails.
@@ -392,8 +413,10 @@ class JoeReminders {
       }
     } catch (e) {
       JoeLog.log('Erinnerungen: Einrichtung fehlgeschlagen: $e');
-      JoeToast.error('Erinnerungen konnten nicht eingerichtet werden – '
-          'es wird keine zugestellt.');
+      JoeToast.error(
+        'Erinnerungen konnten nicht eingerichtet werden – '
+        'es wird keine zugestellt.',
+      );
     }
   }
 
@@ -440,8 +463,10 @@ class JoeReminders {
     // tippt, bekam sonst eine Absage, obwohl nur der Start noch lief.
     await _initFuture;
     if (!_ready) {
-      JoeToast.error('Erinnerungen stehen auf diesem Gerät nicht zur '
-          'Verfügung.');
+      JoeToast.error(
+        'Erinnerungen stehen auf diesem Gerät nicht zur '
+        'Verfügung.',
+      );
       return false;
     }
     try {
@@ -461,8 +486,10 @@ class JoeReminders {
       return granted;
     } catch (e) {
       JoeLog.log('Erinnerungen: Berechtigungsanfrage fehlgeschlagen: $e');
-      JoeToast.error('Die Benachrichtigungs-Berechtigung ließ sich nicht '
-          'abfragen.');
+      JoeToast.error(
+        'Die Benachrichtigungs-Berechtigung ließ sich nicht '
+        'abfragen.',
+      );
       return false;
     }
   }
@@ -551,10 +578,14 @@ class JoeReminders {
     try {
       await _plugin.openAppNotificationSettings();
     } catch (e) {
-      JoeLog.log('Erinnerungen: Benachrichtigungs-Einstellungen '
-          'nicht erreichbar: $e');
-      JoeToast.error('Die System-Einstellungen ließen sich nicht öffnen. '
-          'Bitte dort von Hand: Apps → Joe → Benachrichtigungen.');
+      JoeLog.log(
+        'Erinnerungen: Benachrichtigungs-Einstellungen '
+        'nicht erreichbar: $e',
+      );
+      JoeToast.error(
+        'Die System-Einstellungen ließen sich nicht öffnen. '
+        'Bitte dort von Hand: Apps → Joe → Benachrichtigungen.',
+      );
     }
   }
 
@@ -641,14 +672,18 @@ class JoeReminders {
       JoeLog.log('Erinnerungen: dieses System plant nicht im Voraus: $e');
       if (!_warnedNoScheduling) {
         _warnedNoScheduling = true;
-        JoeToast.error('Dieses System kann keine Erinnerungen im Voraus '
-            'zustellen – Joe merkt sie sich, meldet sich aber nicht von '
-            'selbst.');
+        JoeToast.error(
+          'Dieses System kann keine Erinnerungen im Voraus '
+          'zustellen – Joe merkt sie sich, meldet sich aber nicht von '
+          'selbst.',
+        );
       }
     } catch (e) {
       JoeLog.log('Erinnerungen: Planen fehlgeschlagen: $e');
-      JoeToast.error('Erinnerungen konnten nicht gestellt werden – '
-          'möglicherweise kommt keine an.');
+      JoeToast.error(
+        'Erinnerungen konnten nicht gestellt werden – '
+        'möglicherweise kommt keine an.',
+      );
     }
   }
 
@@ -658,8 +693,10 @@ class JoeReminders {
       await _refreshExactAllowed();
     } catch (e) {
       JoeLog.log('Erinnerungen: Anfrage fuer exakte Alarme fehlgeschlagen: $e');
-      JoeToast.error('Die Freigabe für exakte Alarme ließ sich nicht '
-          'öffnen.');
+      JoeToast.error(
+        'Die Freigabe für exakte Alarme ließ sich nicht '
+        'öffnen.',
+      );
     }
   }
 }

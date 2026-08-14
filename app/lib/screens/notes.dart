@@ -1,8 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../models.dart';
 import '../util.dart';
 import '../widgets.dart';
+
+const noteAutosaveDelay = Duration(milliseconds: 700);
 
 class NotesScreen extends StatelessWidget {
   const NotesScreen({super.key});
@@ -59,8 +63,8 @@ class NotesScreen extends StatelessWidget {
                             const SizedBox(height: 6),
                             Text(
                               formatDateYear(note.date),
-                              style: TextStyle(
-                                  color: theme.inkSoft, fontSize: 12),
+                              style:
+                                  TextStyle(color: theme.inkSoft, fontSize: 12),
                             ),
                           ],
                         ),
@@ -100,10 +104,16 @@ class NoteEditScreen extends StatefulWidget {
   State<NoteEditScreen> createState() => _NoteEditScreenState();
 }
 
-class _NoteEditScreenState extends State<NoteEditScreen> {
+class _NoteEditScreenState extends State<NoteEditScreen>
+    with WidgetsBindingObserver {
   late final TextEditingController _title;
   late final TextEditingController _body;
   late DateTime _date;
+  late AppState _state;
+  late Note? _savedNote;
+  Timer? _autosave;
+  bool _dirty = false;
+  bool _unpublished = false;
 
   @override
   void initState() {
@@ -111,42 +121,88 @@ class _NoteEditScreenState extends State<NoteEditScreen> {
     _title = TextEditingController(text: widget.note?.title ?? '');
     _body = TextEditingController(text: widget.note?.body ?? '');
     _date = dateOnly(widget.note?.date ?? widget.initialDate ?? DateTime.now());
+    _savedNote = widget.note;
+    _title.addListener(_markDirty);
+    _body.addListener(_markDirty);
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _state = AppScope.of(context);
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) return;
+    _saveNow();
+    _publishChanges();
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _autosave?.cancel();
+    _title.removeListener(_markDirty);
+    _body.removeListener(_markDirty);
     _title.dispose();
     _body.dispose();
     super.dispose();
   }
 
-  void _saveAndClose() {
-    final state = AppScope.of(context);
+  void _markDirty() {
+    _dirty = true;
+    _autosave?.cancel();
+    _autosave = Timer(noteAutosaveDelay, _saveNow);
+  }
+
+  void _saveNow() {
+    if (!_dirty) return;
+    _autosave?.cancel();
+    _autosave = null;
+    _dirty = false;
+
     final title = _title.text.trim();
     final body = _body.text.trim();
-    final existing = widget.note;
+    final existing = _savedNote;
     if (existing == null) {
-      if (title.isNotEmpty || body.isNotEmpty) {
-        state.addNote(Note(
-          id: state.nextId(),
-          title: title,
-          body: body,
-          date: _date,
-          updatedAt: DateTime.now(),
-        ));
-      }
-    } else {
-      existing.title = title;
-      existing.body = body;
-      existing.date = _date;
-      state.updateNote(existing);
+      if (title.isEmpty && body.isEmpty) return;
+      final note = Note(
+        id: _state.nextId(),
+        title: title,
+        body: body,
+        date: _date,
+        updatedAt: DateTime.now(),
+      );
+      _savedNote = note;
+      _state.autosaveNote(note, isNew: true);
+      _unpublished = true;
+      return;
     }
+
+    existing.title = title;
+    existing.body = body;
+    existing.date = _date;
+    _state.autosaveNote(existing, isNew: false);
+    _unpublished = true;
+  }
+
+  void _publishChanges() {
+    if (!_unpublished) return;
+    _unpublished = false;
+    final note = _savedNote;
+    if (note != null) _state.updateNote(note);
+  }
+
+  void _saveAndClose() {
+    _saveNow();
+    _publishChanges();
     Navigator.of(context).pop();
   }
 
   @override
   Widget build(BuildContext context) {
-    final state = AppScope.of(context);
     final theme = joeThemeOf(context);
     return PopScope(
       canPop: false,
@@ -168,7 +224,7 @@ class _NoteEditScreenState extends State<NoteEditScreen> {
                   subject: note.title.isEmpty ? 'Ohne Titel' : note.title,
                 );
                 if (!confirmed || !mounted) return;
-                state.deleteNote(note);
+                _state.deleteNote(note);
                 if (context.mounted) Navigator.of(context).pop();
               },
             ),
@@ -217,6 +273,7 @@ class _NoteEditScreenState extends State<NoteEditScreen> {
                         );
                         if (picked != null) {
                           setState(() => _date = dateOnly(picked));
+                          _markDirty();
                         }
                       },
                     ),

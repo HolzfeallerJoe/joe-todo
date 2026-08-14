@@ -15,5 +15,13 @@ name: Dashboard zeigt Heute-Karte, Ausklappmenue und Termine
 - takeScreenshot: shots/01_dashboard
 # Reiterreihenfolge: Aufgaben, Termine, Kalender, dann der Rest weiter unten.
 - assertVisible: "Aufgaben"
+- scrollUntilVisible:
+    element:
+      text: "Termine"
+    direction: DOWN
 - assertVisible: "Termine"
+- scrollUntilVisible:
+    element:
+      text: "Kalender"
+    direction: DOWN
 - assertVisible: "Kalender"

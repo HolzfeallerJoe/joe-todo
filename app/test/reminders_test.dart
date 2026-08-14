@@ -21,8 +21,12 @@ void main() {
     required DateTime when,
     int? lead,
   }) =>
-      Appointment(id: id, title: 'Zahnarzt', when: when,
-          reminderLeadMinutes: lead);
+      Appointment(
+        id: id,
+        title: 'Zahnarzt',
+        when: when,
+        reminderLeadMinutes: lead,
+      );
 
   Task task({
     String id = 't1',
@@ -49,11 +53,18 @@ void main() {
 
   group('Benachrichtigungs-Nummern', () {
     test('sind stabil, unterscheidbar und passen in einen 32-Bit-Int', () {
-      expect(reminderNotificationId('abc', 0), reminderNotificationId('abc', 0));
-      expect(reminderNotificationId('abc', 0),
-          isNot(reminderNotificationId('abc', 1)));
-      expect(reminderNotificationId('abc', 0),
-          isNot(reminderNotificationId('abd', 0)));
+      expect(
+        reminderNotificationId('abc', 0),
+        reminderNotificationId('abc', 0),
+      );
+      expect(
+        reminderNotificationId('abc', 0),
+        isNot(reminderNotificationId('abc', 1)),
+      );
+      expect(
+        reminderNotificationId('abc', 0),
+        isNot(reminderNotificationId('abd', 0)),
+      );
       for (final id in ['1723561234567_0', 'kurz', '', 'ü-mläut']) {
         for (final slot in [0, 7, 255]) {
           final value = reminderNotificationId(id, slot);
@@ -66,20 +77,27 @@ void main() {
 
   group('Termine', () {
     test('Vorlauf zaehlt rueckwaerts von der Terminzeit', () {
-      final reminders = plan(appointments: [
-        appointment(when: heute.add(const Duration(hours: 15)), lead: 30),
-      ]);
+      final reminders = plan(
+        appointments: [
+          appointment(when: heute.add(const Duration(hours: 15)), lead: 30),
+        ],
+      );
       expect(reminders, hasLength(1));
-      expect(reminders.single.when, heute.add(const Duration(hours: 14, minutes: 30)));
+      expect(
+        reminders.single.when,
+        heute.add(const Duration(hours: 14, minutes: 30)),
+      );
       expect(reminders.single.title, 'Zahnarzt');
       expect(reminders.single.body, 'Heute um 15:00 Uhr');
     });
 
     test('ohne Vorlauf keine Erinnerung', () {
       expect(
-        plan(appointments: [
-          appointment(when: heute.add(const Duration(hours: 15))),
-        ]),
+        plan(
+          appointments: [
+            appointment(when: heute.add(const Duration(hours: 15))),
+          ],
+        ),
         isEmpty,
       );
     });
@@ -94,77 +112,128 @@ void main() {
       // Termin heute um 10:15, Vorlauf 30 Minuten: der Moment (09:45) liegt
       // vor "jetzt" (10:00).
       expect(
-        plan(appointments: [
-          appointment(
+        plan(
+          appointments: [
+            appointment(
               when: heute.add(const Duration(hours: 10, minutes: 15)),
-              lead: 30),
-        ]),
+              lead: 30,
+            ),
+          ],
+        ),
         isEmpty,
       );
     });
 
     test('jenseits des Horizonts wird noch nicht gestellt', () {
       expect(
-        plan(appointments: [
-          appointment(when: now.add(const Duration(days: 90)), lead: 30),
-        ]),
+        plan(
+          appointments: [
+            appointment(when: now.add(const Duration(days: 90)), lead: 30),
+          ],
+        ),
         isEmpty,
       );
     });
   });
 
   group('Aufgaben', () {
+    test('Kalendertage und Uhrzeit bleiben an Zeitumstellungen stabil', () {
+      final sonntag = DateTime(2026, 3, 29);
+      final montag = nextCalendarDay(sonntag);
+      final neunUhr = timeOnCalendarDay(montag, 9 * 60);
+
+      expect(montag, DateTime(2026, 3, 30));
+      expect(
+        [
+          neunUhr.year,
+          neunUhr.month,
+          neunUhr.day,
+          neunUhr.hour,
+          neunUhr.minute,
+        ],
+        [2026, 3, 30, 9, 0],
+      );
+
+      final reminders = pendingReminders(
+        tasks: [
+          task(
+            start: DateTime(2026, 3, 28),
+            recurrence: RecurrenceType.daily,
+            reminder: 9 * 60,
+          ),
+        ],
+        appointments: const [],
+        from: DateTime(2026, 3, 28, 10),
+      );
+      expect(reminders.first.when, DateTime(2026, 3, 29, 9));
+      expect(reminders[1].when, DateTime(2026, 3, 30, 9));
+    });
+
     test('einmalige Aufgabe erinnert an ihrem Tag zur gewaehlten Zeit', () {
-      final reminders = plan(tasks: [
-        task(start: heute.add(const Duration(days: 1)), reminder: 9 * 60),
-      ]);
+      final reminders = plan(
+        tasks: [
+          task(start: heute.add(const Duration(days: 1)), reminder: 9 * 60),
+        ],
+      );
       expect(reminders, hasLength(1));
-      expect(reminders.single.when,
-          heute.add(const Duration(days: 1, hours: 9)));
+      expect(
+        reminders.single.when,
+        heute.add(const Duration(days: 1, hours: 9)),
+      );
       expect(reminders.single.body, 'Aufgabe für heute');
     });
 
     test('ohne Uhrzeit keine Erinnerung', () {
-      expect(plan(tasks: [task(start: heute.add(const Duration(days: 1)))]),
-          isEmpty);
+      expect(
+        plan(tasks: [task(start: heute.add(const Duration(days: 1)))]),
+        isEmpty,
+      );
     });
 
     test('erledigte Aufgaben erinnern nicht mehr', () {
       final morgen = heute.add(const Duration(days: 1));
       expect(
-        plan(tasks: [
-          task(start: morgen, reminder: 9 * 60, done: {dateKey(morgen)}),
-        ]),
+        plan(
+          tasks: [
+            task(start: morgen, reminder: 9 * 60, done: {dateKey(morgen)}),
+          ],
+        ),
         isEmpty,
       );
     });
 
     test('wiederkehrend: mehrere Termine, aber gedeckelt', () {
-      final reminders = plan(tasks: [
-        task(
-          start: heute,
-          recurrence: RecurrenceType.daily,
-          reminder: 18 * 60,
-        ),
-      ]);
+      final reminders = plan(
+        tasks: [
+          task(
+            start: heute,
+            recurrence: RecurrenceType.daily,
+            reminder: 18 * 60,
+          ),
+        ],
+      );
       expect(reminders, hasLength(remindersPerTask));
       // Taeglich ab heute 18:00, jeder Tag einer – und jede Nummer nur
       // einmal, sonst ueberschriebe eine Erinnerung die naechste.
       expect(reminders.first.when, heute.add(const Duration(hours: 18)));
-      expect(reminders.last.when,
-          heute.add(Duration(days: remindersPerTask - 1, hours: 18)));
+      expect(
+        reminders.last.when,
+        heute.add(Duration(days: remindersPerTask - 1, hours: 18)),
+      );
       expect(reminders.map((r) => r.id).toSet(), hasLength(remindersPerTask));
     });
 
     test('wiederkehrend: ein erledigter Tag faellt aus der Reihe', () {
-      final reminders = plan(tasks: [
-        task(
-          start: heute,
-          recurrence: RecurrenceType.daily,
-          reminder: 18 * 60,
-          done: {dateKey(heute.add(const Duration(days: 1)))},
-        ),
-      ]);
+      final reminders = plan(
+        tasks: [
+          task(
+            start: heute,
+            recurrence: RecurrenceType.daily,
+            reminder: 18 * 60,
+            done: {dateKey(heute.add(const Duration(days: 1)))},
+          ),
+        ],
+      );
       final tage = reminders.map((r) => dateOnly(r.when)).toList();
       expect(tage, isNot(contains(heute.add(const Duration(days: 1)))));
       expect(tage, contains(heute));
@@ -173,11 +242,19 @@ void main() {
 
     test('heute schon vorbei: erst der naechste Tag zaehlt', () {
       // Taegliche Aufgabe mit Erinnerung um 08:00; "jetzt" ist 10:00.
-      final reminders = plan(tasks: [
-        task(start: heute, recurrence: RecurrenceType.daily, reminder: 8 * 60),
-      ]);
-      expect(reminders.first.when,
-          heute.add(const Duration(days: 1, hours: 8)));
+      final reminders = plan(
+        tasks: [
+          task(
+            start: heute,
+            recurrence: RecurrenceType.daily,
+            reminder: 8 * 60,
+          ),
+        ],
+      );
+      expect(
+        reminders.first.when,
+        heute.add(const Duration(days: 1, hours: 8)),
+      );
     });
   });
 
@@ -185,11 +262,17 @@ void main() {
     final reminders = plan(
       appointments: [
         appointment(
-            id: 'a1', when: heute.add(const Duration(days: 2)), lead: 0),
+          id: 'a1',
+          when: heute.add(const Duration(days: 2)),
+          lead: 0,
+        ),
       ],
       tasks: [
-        task(id: 't1', start: heute.add(const Duration(days: 1)),
-            reminder: 9 * 60),
+        task(
+          id: 't1',
+          start: heute.add(const Duration(days: 1)),
+          reminder: 9 * 60,
+        ),
       ],
     );
     expect(reminders, hasLength(2));
@@ -224,7 +307,11 @@ void main() {
       expect(Appointment.fromJson(a.toJson()).reminderLeadMinutes, 30);
 
       final t = Task(
-          id: 't1', title: 'Gießen', startDate: heute, reminderMinuteOfDay: 540);
+        id: 't1',
+        title: 'Gießen',
+        startDate: heute,
+        reminderMinuteOfDay: 540,
+      );
       expect(Task.fromJson(t.toJson()).reminderMinuteOfDay, 540);
     });
 
@@ -247,9 +334,15 @@ void main() {
 
   group('Deckel', () {
     test('eine taegliche Aufgabe reicht einen Monat weit', () {
-      final geplant = plan(tasks: [
-        task(start: heute, recurrence: RecurrenceType.daily, reminder: 9 * 60),
-      ]);
+      final geplant = plan(
+        tasks: [
+          task(
+            start: heute,
+            recurrence: RecurrenceType.daily,
+            reminder: 9 * 60,
+          ),
+        ],
+      );
       // Der eigentliche Zweck: wer die App eine Woche nicht oeffnet, soll
       // trotzdem noch erinnert werden.
       expect(geplant.length, remindersPerTask);
@@ -260,15 +353,17 @@ void main() {
       // Androids Grenze liegt bei 500 offenen Alarmen pro App. 30 Slots mal
       // 40 taegliche Aufgaben waeren 1200 – ohne globalen Deckel wuerde das
       // System werfen.
-      final geplant = plan(tasks: [
-        for (var i = 0; i < 40; i++)
-          task(
-            id: 't$i',
-            start: heute,
-            recurrence: RecurrenceType.daily,
-            reminder: 9 * 60,
-          ),
-      ]);
+      final geplant = plan(
+        tasks: [
+          for (var i = 0; i < 40; i++)
+            task(
+              id: 't$i',
+              start: heute,
+              recurrence: RecurrenceType.daily,
+              reminder: 9 * 60,
+            ),
+        ],
+      );
       expect(geplant.length, maxScheduledReminders);
       expect(maxScheduledReminders, lessThan(500));
     });
@@ -303,7 +398,10 @@ void main() {
 
       final termin = parseReminderPayload(
         reminderPayload(
-            isTask: false, id: 'a3', day: DateTime(2026, 12, 24, 18, 30)),
+          isTask: false,
+          id: 'a3',
+          day: DateTime(2026, 12, 24, 18, 30),
+        ),
       );
       // Die Uhrzeit faellt weg, der Kalender oeffnet auf den Tag.
       expect(termin!.isTask, isFalse);

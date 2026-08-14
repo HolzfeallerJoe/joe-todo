@@ -52,7 +52,14 @@ class _CalendarScreenState extends State<CalendarScreen> {
 
   void _shiftMonth(int delta) {
     setState(() {
-      _month = DateTime(_month.year, _month.month + delta);
+      final target = DateTime(_month.year, _month.month + delta);
+      final lastDay = DateTime(target.year, target.month + 1, 0).day;
+      _month = target;
+      _selected = DateTime(
+        target.year,
+        target.month,
+        math.min(_selected.day, lastDay),
+      );
     });
   }
 
@@ -155,7 +162,10 @@ class _CalendarScreenState extends State<CalendarScreen> {
                         return const SizedBox.shrink();
                       }
                       final day = DateTime(
-                          _month.year, _month.month, index - leadingBlanks + 1);
+                        _month.year,
+                        _month.month,
+                        index - leadingBlanks + 1,
+                      );
                       return _DayCell(
                         day: day,
                         isToday: day == t,
@@ -202,8 +212,10 @@ class _CalendarScreenState extends State<CalendarScreen> {
                       ),
                       // Ein Plus fuer den Tag: fragt, ob Aufgabe oder Termin.
                       IconButton(
-                        icon: Icon(Icons.add_circle_outline,
-                            color: theme.accent),
+                        icon: Icon(
+                          Icons.add_circle_outline,
+                          color: theme.accent,
+                        ),
                         tooltip: 'Eintrag hinzufügen',
                         onPressed: () =>
                             showAddChooser(context, initialDate: _selected),
@@ -237,14 +249,20 @@ class _CalendarScreenState extends State<CalendarScreen> {
                     [
                       for (final name in dayHolidays)
                         _AlmanacRow(
-                          icon: Icon(Icons.star_rounded,
-                              size: 20, color: theme.accent),
+                          icon: Icon(
+                            Icons.star_rounded,
+                            size: 20,
+                            color: theme.accent,
+                          ),
                           label: name,
                         ),
                       if (dayMoon != null)
                         _AlmanacRow(
                           icon: MoonIcon(
-                              kind: dayMoon, size: 18, color: theme.accent),
+                            kind: dayMoon,
+                            size: 18,
+                            color: theme.accent,
+                          ),
                           label: dayMoon.label,
                         ),
                     ],
@@ -266,12 +284,19 @@ class _CalendarScreenState extends State<CalendarScreen> {
                   Align(
                     alignment: Alignment.centerLeft,
                     child: TextButton.icon(
-                      icon: Icon(Icons.edit_note, size: 20, color: theme.accent),
-                      label: Text('Notiz hinzufügen',
-                          style: TextStyle(color: theme.accent)),
+                      icon: Icon(
+                        Icons.edit_note,
+                        size: 20,
+                        color: theme.accent,
+                      ),
+                      label: Text(
+                        'Notiz hinzufügen',
+                        style: TextStyle(color: theme.accent),
+                      ),
                       onPressed: () => Navigator.of(context).push(
                         MaterialPageRoute<void>(
-                          builder: (_) => NoteEditScreen(initialDate: _selected),
+                          builder: (_) =>
+                              NoteEditScreen(initialDate: _selected),
                         ),
                       ),
                     ),
@@ -399,6 +424,9 @@ class _DayCell extends StatelessWidget {
     final holidays = state.showHolidays
         ? holidaysOn(day, state.holidayRegion)
         : const <String>[];
+    final deviceEvents = state.showDeviceCalendar
+        ? DeviceCalendarFeed.instance.eventsForDay(day)
+        : const <Event>[];
     // Nur, was schon gerechnet ist: 42 Zellen, die alle selbst rechnen,
     // waeren ein spuerbarer Ruckler beim Monatswechsel. [MoonWarmup] fuellt
     // nach und meldet sich, dann steht der Mond da.
@@ -413,70 +441,86 @@ class _DayCell extends StatelessWidget {
     }
     // Geraete-Termine als letzte Punkte, in der Farbe ihres Kalenders –
     // die eigenen Eintraege behalten den Vortritt im Sechs-Punkte-Budget.
-    if (state.showDeviceCalendar) {
-      for (final e in DeviceCalendarFeed.instance.eventsForDay(day)) {
-        markers.add(_marker(e.color ?? theme.accent, done: false));
-      }
+    for (final e in deviceEvents) {
+      markers.add(_marker(e.color ?? theme.accent, done: false));
     }
 
-    return InkWell(
-      borderRadius: BorderRadius.circular(10),
+    String countLabel(int count, String singular, String plural) =>
+        '$count ${count == 1 ? singular : plural}';
+    final semanticParts = <String>[
+      '${formatDateFull(day)} ${day.year}',
+      if (isToday) 'Heute',
+      if (tasks.isNotEmpty) countLabel(tasks.length, 'Aufgabe', 'Aufgaben'),
+      if (appointments.isNotEmpty)
+        countLabel(appointments.length, 'Termin', 'Termine'),
+      if (deviceEvents.isNotEmpty)
+        countLabel(deviceEvents.length, 'Gerätetermin', 'Gerätetermine'),
+      if (hasNotes) 'Notiz vorhanden',
+      ...holidays,
+      if (moon != null) moon.label,
+    ];
+
+    return Semantics(
+      container: true,
+      button: true,
+      selected: isSelected,
+      label: semanticParts.join(', '),
       onTap: onTap,
-      child: Container(
-        margin: const EdgeInsets.all(1.5),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(10),
-          color: isSelected
-              ? theme.accent.withValues(alpha: 0.16)
-              : Colors.transparent,
-          border: isToday
-              ? Border.all(color: theme.accent, width: 1.6)
-              : null,
-        ),
-        padding: const EdgeInsets.only(top: 4),
-        child: Column(
-          children: [
-            Text(
-              '${day.day}',
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: isToday ? FontWeight.w800 : FontWeight.w500,
-                color: isToday ? theme.accent : theme.ink,
-              ),
-            ),
-            const SizedBox(height: 2),
-            Expanded(
-              child: Wrap(
-                alignment: WrapAlignment.center,
-                spacing: 2,
-                runSpacing: 2,
-                children: markers.take(6).toList(),
-              ),
-            ),
-            // Die untere Badge-Zeile: Stern (Feiertag) links, "N" (Notiz) in
-            // der Mitte, Mond (Hauptphase) rechts. Keins davon bekommt einen
-            // Farbpunkt – sie haben keine eigene Farbe und sollen die
-            // Punktreihe der Aufgaben nicht verwaessern.
-            if (holidays.isNotEmpty || hasNotes || moon != null)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 2),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  spacing: 2,
-                  children: [
-                    if (holidays.isNotEmpty)
-                      Semantics(
-                        label: holidays.join(', '),
-                        child: Icon(Icons.star_rounded,
-                            size: 14, color: theme.accent),
-                      ),
-                    if (hasNotes) _NoteBadge(theme: theme, size: 12),
-                    if (moon != null)
-                      MoonIcon(kind: moon, size: 11, color: theme.accent),
-                  ],
+      excludeSemantics: true,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(10),
+        onTap: onTap,
+        child: Container(
+          margin: const EdgeInsets.all(1.5),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(10),
+            color: isSelected
+                ? theme.accent.withValues(alpha: 0.16)
+                : Colors.transparent,
+            border:
+                isToday ? Border.all(color: theme.accent, width: 1.6) : null,
+          ),
+          padding: const EdgeInsets.only(top: 4),
+          child: Column(
+            children: [
+              Text(
+                '${day.day}',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: isToday ? FontWeight.w800 : FontWeight.w500,
+                  color: isToday ? theme.accent : theme.ink,
                 ),
               ),
-          ],
+              const SizedBox(height: 2),
+              Expanded(
+                child: Wrap(
+                  alignment: WrapAlignment.center,
+                  spacing: 2,
+                  runSpacing: 2,
+                  children: markers.take(6).toList(),
+                ),
+              ),
+              // Die untere Badge-Zeile: Stern (Feiertag) links, "N" (Notiz) in
+              // der Mitte, Mond (Hauptphase) rechts. Keins davon bekommt einen
+              // Farbpunkt – sie haben keine eigene Farbe und sollen die
+              // Punktreihe der Aufgaben nicht verwaessern.
+              if (holidays.isNotEmpty || hasNotes || moon != null)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 2),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    spacing: 2,
+                    children: [
+                      if (holidays.isNotEmpty)
+                        Icon(Icons.star_rounded, size: 14, color: theme.accent),
+                      if (hasNotes) _NoteBadge(theme: theme, size: 12),
+                      if (moon != null)
+                        MoonIcon(kind: moon, size: 11, color: theme.accent),
+                    ],
+                  ),
+                ),
+            ],
+          ),
         ),
       ),
     );
@@ -570,12 +614,10 @@ class _DeviceCalendarNotice extends StatelessWidget {
               minimumSize: const Size(0, 36),
               tapTargetSize: MaterialTapTargetSize.shrinkWrap,
             ),
-            onPressed:
-                permissionMissing ? feed.openSystemSettings : feed.retry,
+            onPressed: permissionMissing ? feed.openSystemSettings : feed.retry,
             child: Text(
               permissionMissing ? 'Einstellungen' : 'Erneut',
-              style: const TextStyle(
-                  fontSize: 13, fontWeight: FontWeight.w700),
+              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
             ),
           ),
         ],

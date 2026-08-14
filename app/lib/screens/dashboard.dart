@@ -85,24 +85,32 @@ class DashboardScreen extends StatelessWidget {
                         const SizedBox(height: 10),
                         Container(
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 12, vertical: 8),
+                            horizontal: 12,
+                            vertical: 8,
+                          ),
                           decoration: BoxDecoration(
-                            color: nextAppointments.first.color
-                                .withValues(alpha: 0.14),
+                            color: nextAppointments.first.color.withValues(
+                              alpha: 0.14,
+                            ),
                             borderRadius: BorderRadius.circular(10),
                           ),
                           child: Row(
                             children: [
-                              Icon(Icons.notifications_none,
-                                  size: 18, color: nextAppointments.first.color),
+                              Icon(
+                                Icons.notifications_none,
+                                size: 18,
+                                color: nextAppointments.first.color,
+                              ),
                               const SizedBox(width: 8),
                               Expanded(
                                 child: Text(
                                   '${formatRelativeDay(nextAppointments.first.when)}, '
                                   '${formatTime(nextAppointments.first.when)} – '
                                   '${nextAppointments.first.title}',
-                                  style:
-                                      TextStyle(color: theme.ink, fontSize: 14),
+                                  style: TextStyle(
+                                    color: theme.ink,
+                                    fontSize: 14,
+                                  ),
                                   overflow: TextOverflow.ellipsis,
                                 ),
                               ),
@@ -192,14 +200,18 @@ class DashboardScreen extends StatelessWidget {
                                   child: Text(
                                     a.title,
                                     style: TextStyle(
-                                        color: theme.ink, fontSize: 15),
+                                      color: theme.ink,
+                                      fontSize: 15,
+                                    ),
                                     overflow: TextOverflow.ellipsis,
                                   ),
                                 ),
                                 Text(
                                   formatTime(a.when),
                                   style: TextStyle(
-                                      color: theme.inkSoft, fontSize: 13),
+                                    color: theme.inkSoft,
+                                    fontSize: 13,
+                                  ),
                                 ),
                               ],
                             ),
@@ -261,8 +273,7 @@ class DashboardScreen extends StatelessWidget {
   }
 
   void _push(BuildContext context, Widget screen) {
-    Navigator.of(context)
-        .push(MaterialPageRoute<void>(builder: (_) => screen));
+    Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => screen));
   }
 }
 
@@ -290,33 +301,42 @@ class _TodayFold extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        InkWell(
-          borderRadius: BorderRadius.circular(10),
+        Semantics(
+          container: true,
+          button: true,
+          expanded: open,
+          label:
+              'Heute abhaken, ${dueTasks.length + lowTasks.length} ${dueTasks.length + lowTasks.length == 1 ? 'Aufgabe' : 'Aufgaben'}',
           onTap: () => state.setTodayExpanded(!open),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 10),
-            child: Row(
-              children: [
-                Text(
-                  'Heute abhaken',
-                  style: TextStyle(
-                    color: theme.ink,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
+          excludeSemantics: true,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(10),
+            onTap: () => state.setTodayExpanded(!open),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 10),
+              child: Row(
+                children: [
+                  Text(
+                    'Heute abhaken',
+                    style: TextStyle(
+                      color: theme.ink,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  '${dueTasks.length + lowTasks.length}',
-                  style: TextStyle(color: theme.inkSoft, fontSize: 13),
-                ),
-                const Spacer(),
-                AnimatedRotation(
-                  turns: open ? 0.5 : 0,
-                  duration: const Duration(milliseconds: 200),
-                  child: Icon(Icons.expand_more, color: theme.ink),
-                ),
-              ],
+                  const SizedBox(width: 8),
+                  Text(
+                    '${dueTasks.length + lowTasks.length}',
+                    style: TextStyle(color: theme.inkSoft, fontSize: 13),
+                  ),
+                  const Spacer(),
+                  AnimatedRotation(
+                    turns: open ? 0.5 : 0,
+                    duration: const Duration(milliseconds: 200),
+                    child: Icon(Icons.expand_more, color: theme.ink),
+                  ),
+                ],
+              ),
             ),
           ),
         ),

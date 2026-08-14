@@ -719,6 +719,20 @@ class AppState extends ChangeNotifier {
     _changed();
   }
 
+  /// Speichert den laufenden Stand eines Notiz-Editors, ohne den gesamten
+  /// App-Baum neu zu bauen. Ein solcher Neuaufbau mitten in der Texteingabe
+  /// kann Fokus und Eingabemethode unterbrechen. Beim Verlassen des Editors
+  /// folgt [updateNote], damit Listen und Widgets den neuen Stand sehen.
+  void autosaveNote(Note n, {required bool isNew}) {
+    if (isNew) {
+      JoeLog.log('Notiz angelegt (${n.id})');
+      notes.insert(0, n);
+    }
+    n.updatedAt = DateTime.now();
+    notes.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+    _save();
+  }
+
   void deleteNote(Note n) {
     JoeLog.log('Notiz geloescht (${n.id})');
     notes.removeWhere((x) => x.id == n.id);

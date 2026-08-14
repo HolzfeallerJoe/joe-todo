@@ -11,6 +11,11 @@ name: Notiz anlegen und wiederfinden
 - assertVisible: "(?s)Willkommen bei Joe.*"
 - tapOn: "Neue Notiz"
 - tapOn: "Titel"
+- runFlow:
+    when:
+      visible: "Try out your stylus"
+    commands:
+      - tapOn: "Cancel"
 - inputText: "Einkaufsliste"
 - tapOn: "Schreib etwas auf …"
 - inputText: "Brot, Butter, Honig"

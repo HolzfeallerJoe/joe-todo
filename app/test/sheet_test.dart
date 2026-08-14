@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:joe_todo/main.dart';
 import 'package:joe_todo/models.dart';
+import 'package:joe_todo/toast.dart';
 
 /// Die Eingabeblaetter duerfen weder unter die Tastatur noch unter die
 /// Statusleiste rutschen – beides war beim Anlegen einer Aufgabe der Fall,
@@ -13,7 +14,14 @@ void main() {
   const navBar = 48.0;
   const keyboard = 380.0;
 
-  Future<void> openTaskSheet(WidgetTester tester, {double bottomInset = 0}) async {
+  setUp(JoeToast.instance.reset);
+  tearDown(JoeToast.instance.reset);
+
+  Future<void> openSheet(
+    WidgetTester tester, {
+    String entry = 'Neue Aufgabe',
+    double bottomInset = 0,
+  }) async {
     tester.view.devicePixelRatio = 1;
     tester.view.physicalSize = const Size(560, screenHeight);
     tester.view.padding = const FakeViewPadding(top: statusBar, bottom: navBar);
@@ -30,12 +38,12 @@ void main() {
 
     await tester.tap(find.byTooltip('Hinzufügen'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Neue Aufgabe'));
+    await tester.tap(find.text(entry));
     await tester.pumpAndSettle();
   }
 
   testWidgets('Speichern bleibt bei offener Tastatur sichtbar', (tester) async {
-    await openTaskSheet(tester, bottomInset: keyboard);
+    await openSheet(tester, bottomInset: keyboard);
 
     final button = tester.getRect(find.text('Speichern'));
     expect(
@@ -47,7 +55,7 @@ void main() {
   });
 
   testWidgets('Blatt bleibt unter der Statusleiste', (tester) async {
-    await openTaskSheet(tester, bottomInset: keyboard);
+    await openSheet(tester, bottomInset: keyboard);
 
     // Der Titel ist das oberste Element des Blattes.
     expect(
@@ -57,9 +65,10 @@ void main() {
     );
   });
 
-  testWidgets('ohne Tastatur bleibt Speichern über der Tastenleiste',
-      (tester) async {
-    await openTaskSheet(tester);
+  testWidgets('ohne Tastatur bleibt Speichern über der Tastenleiste', (
+    tester,
+  ) async {
+    await openSheet(tester);
 
     expect(
       tester.getRect(find.text('Speichern')).bottom,
@@ -67,4 +76,17 @@ void main() {
       reason: 'Speichern liegt unter den Telefontasten',
     );
   });
+
+  for (final entry in ['Neue Aufgabe', 'Neuer Termin']) {
+    testWidgets('$entry zeigt bei leerem Titel einen Fehler', (tester) async {
+      await openSheet(tester, entry: entry);
+
+      await tester.tap(find.text('Speichern'));
+      await tester.pump();
+
+      expect(find.text('Bitte gib einen Titel ein.'), findsOneWidget);
+      expect(find.text(entry), findsOneWidget);
+      await tester.pump(JoeToast.showDuration);
+    });
+  }
 }

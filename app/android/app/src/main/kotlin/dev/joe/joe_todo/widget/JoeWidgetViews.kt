@@ -450,9 +450,9 @@ object JoeWidgetViews {
         perWeekDp >= CELL_XL_DP ->
             CellStyle(R.layout.joe_widget_cal_cell_xl, true, 12f, CELL_XL_DP)
         perWeekDp >= CELL_BIG_DP ->
-            CellStyle(R.layout.joe_widget_cal_cell_big, true, 10f, CELL_BIG_DP)
+            CellStyle(R.layout.joe_widget_cal_cell_big, true, 11f, CELL_BIG_DP)
         else ->
-            CellStyle(R.layout.joe_widget_cal_cell, false, 9f, CELL_DP)
+            CellStyle(R.layout.joe_widget_cal_cell, false, 11f, CELL_DP)
     }
 
     /**
@@ -611,7 +611,7 @@ object JoeWidgetViews {
 
     private fun rowStyle(listAreaDp: Int): RowStyle =
         if (listAreaDp >= 200) RowStyle(26, 14f, 13f, 12f)
-        else RowStyle(ROW_DP, 12f, 11f, 10f)
+        else RowStyle(ROW_DP, 12f, 11f, 11f)
 
     /** "15:00" aus der Minute seit Mitternacht. */
     private fun time(minute: Int): String? {

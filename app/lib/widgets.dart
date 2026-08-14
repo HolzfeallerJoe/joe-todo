@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'models.dart';
 import 'reminders.dart';
 import 'theme.dart';
+import 'toast.dart';
 import 'util.dart';
 
 /// Scaffold wrapper that paints the themed notebook background behind
@@ -266,86 +267,104 @@ class TaskTile extends StatelessWidget {
     final state = AppScope.of(context);
     final theme = joeThemeOf(context);
     final done = task.isCompletedOn(day);
-    final overdue =
-        showOverdue &&
+    final overdue = showOverdue &&
         !task.isRecurring &&
         !done &&
         (task.priority == Priority.niedrig ||
             dateOnly(task.startDate).isBefore(today()));
-    return InkWell(
-      borderRadius: BorderRadius.circular(10),
+    final semanticParts = <String>[
+      task.title,
+      if (task.isRecurring) task.recurrenceLabel,
+      if (overdue) 'Offen seit ${formatDate(task.startDate)}',
+      if (task.priority != Priority.mittel) 'Priorität ${task.priority.label}',
+    ];
+    return Semantics(
+      container: true,
+      button: true,
+      checked: done,
+      label: semanticParts.join(', '),
       onTap: () => state.toggleTask(task, day),
       onLongPress: () => showTaskOptions(context, task),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
-        child: Row(
-          children: [
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 150),
-              width: 26,
-              height: 26,
-              decoration: BoxDecoration(
-                color: done ? task.color : Colors.transparent,
-                border: Border.all(color: task.color, width: 2.2),
-                borderRadius: BorderRadius.circular(8),
+      excludeSemantics: true,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(10),
+        onTap: () => state.toggleTask(task, day),
+        onLongPress: () => showTaskOptions(context, task),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+          child: Row(
+            children: [
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 150),
+                width: 26,
+                height: 26,
+                decoration: BoxDecoration(
+                  color: done ? task.color : Colors.transparent,
+                  border: Border.all(color: task.color, width: 2.2),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: done
+                    ? Icon(
+                        Icons.check,
+                        size: 18,
+                        color: theme.bestOn(task.color),
+                      )
+                    : null,
               ),
-              child: done
-                  ? Icon(Icons.check, size: 18, color: theme.bestOn(task.color))
-                  : null,
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    task.title,
-                    style: TextStyle(
-                      fontSize: 16,
-                      color: done ? theme.inkSoft : theme.ink,
-                      decoration: done ? TextDecoration.lineThrough : null,
-                      decorationColor: theme.inkSoft,
-                    ),
-                  ),
-                  if (task.isRecurring || overdue)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 2),
-                      child: Row(
-                        children: [
-                          if (task.isRecurring)
-                            Text(
-                              '🔁 ${task.recurrenceLabel}',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: theme.inkSoft,
-                              ),
-                            ),
-                          if (overdue)
-                            Text(
-                              'offen seit ${formatDate(task.startDate)}',
-                              style: TextStyle(
-                                fontSize: 12,
-                                // A level-3 leftover is not an alarm; only
-                                // the important ones get the accent.
-                                color: task.priority == Priority.niedrig
-                                    ? theme.inkSoft
-                                    : theme.accent,
-                              ),
-                            ),
-                        ],
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      task.title,
+                      style: TextStyle(
+                        fontSize: 16,
+                        color: done ? theme.inkSoft : theme.ink,
+                        decoration: done ? TextDecoration.lineThrough : null,
+                        decorationColor: theme.inkSoft,
                       ),
                     ),
-                ],
+                    if (task.isRecurring || overdue)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 2),
+                        child: Row(
+                          children: [
+                            if (task.isRecurring)
+                              Text(
+                                '🔁 ${task.recurrenceLabel}',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: theme.inkSoft,
+                                ),
+                              ),
+                            if (overdue)
+                              Text(
+                                'offen seit ${formatDate(task.startDate)}',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  // A level-3 leftover is not an alarm; only
+                                  // the important ones get the accent.
+                                  color: task.priority == Priority.niedrig
+                                      ? theme.inkSoft
+                                      : theme.accent,
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                  ],
+                ),
               ),
-            ),
-            if (!done)
-              PriorityMark(
-                priority: task.priority,
-                color: task.priority == Priority.hoch
-                    ? theme.accent
-                    : theme.inkSoft,
-              ),
-          ],
+              if (!done)
+                PriorityMark(
+                  priority: task.priority,
+                  color: task.priority == Priority.hoch
+                      ? theme.accent
+                      : theme.inkSoft,
+                ),
+            ],
+          ),
         ),
       ),
     );
@@ -611,9 +630,8 @@ class PriorityPicker extends StatelessWidget {
                         style: TextStyle(
                           color: theme.ink,
                           fontSize: 14,
-                          fontWeight: p == selected
-                              ? FontWeight.w700
-                              : FontWeight.w500,
+                          fontWeight:
+                              p == selected ? FontWeight.w700 : FontWeight.w500,
                         ),
                       ),
                     ],
@@ -818,7 +836,10 @@ Future<void> showTaskSheet(
 
   void save(BuildContext sheetContext) {
     final title = titleController.text.trim();
-    if (title.isEmpty) return;
+    if (title.isEmpty) {
+      JoeToast.error('Bitte gib einen Titel ein.');
+      return;
+    }
     if (task == null) {
       state.addTask(
         Task(
@@ -889,9 +910,8 @@ Future<void> showTaskSheet(
                   IconButton(
                     icon: Icon(Icons.remove_circle_outline, color: theme.ink),
                     onPressed: () => setSheetState(
-                      () => intervalDays = intervalDays > 2
-                          ? intervalDays - 1
-                          : 2,
+                      () => intervalDays =
+                          intervalDays > 2 ? intervalDays - 1 : 2,
                     ),
                   ),
                   Text(
@@ -950,7 +970,8 @@ Future<void> showTaskSheet(
                         ? Icons.notifications_off_outlined
                         : Icons.notifications_active_outlined,
                     size: 18,
-                    color: reminderMinute == null ? theme.inkSoft : theme.accent,
+                    color:
+                        reminderMinute == null ? theme.inkSoft : theme.accent,
                   ),
                   label: Text(
                     reminderTimeLabel(reminderMinute),
@@ -998,7 +1019,7 @@ Future<void> showTaskSheet(
         ],
       ),
     ),
-  );
+  ).whenComplete(titleController.dispose);
 }
 
 /// Bottom sheet for creating or editing an appointment.
@@ -1026,7 +1047,10 @@ Future<void> showAppointmentSheet(
 
   void save(BuildContext sheetContext) {
     final title = titleController.text.trim();
-    if (title.isEmpty) return;
+    if (title.isEmpty) {
+      JoeToast.error('Bitte gib einen Titel ein.');
+      return;
+    }
     final when = DateTime(
       date.year,
       date.month,
@@ -1132,7 +1156,7 @@ Future<void> showAppointmentSheet(
         ],
       ),
     ),
-  );
+  ).whenComplete(titleController.dispose);
 }
 
 /// Ask whether the new entry is a task or an appointment, then open the

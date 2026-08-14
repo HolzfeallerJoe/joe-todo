@@ -9,5 +9,5 @@
     android:paddingTop="3dp"
     android:maxLines="1"
     android:ellipsize="end"
-    android:textSize="10sp"
+    android:textSize="11sp"
     android:textStyle="bold" />

@@ -102,12 +102,10 @@ Map<String, dynamic> buildWidgetSnapshot(AppState state, {DateTime? now}) {
     final tasks = widgetTasksForDay(state, d);
     final appointments = state.appointmentsForDay(d);
     final hasNote = state.notesForDay(d).isNotEmpty;
-    final holidays =
-        state.showHolidays ? holidaysOn(d, state.holidayRegion) : const <String>[];
-    if (tasks.isEmpty &&
-        appointments.isEmpty &&
-        !hasNote &&
-        holidays.isEmpty) {
+    final holidays = state.showHolidays
+        ? holidaysOn(d, state.holidayRegion)
+        : const <String>[];
+    if (tasks.isEmpty && appointments.isEmpty && !hasNote && holidays.isEmpty) {
       continue;
     }
 
@@ -166,8 +164,6 @@ Map<String, dynamic> buildWidgetSnapshot(AppState state, {DateTime? now}) {
     'version': widgetSnapshotVersion,
     'from': dateKey(from),
     'to': dateKey(to),
-    // Nur fuers Log und zum Nachsehen im Fehlerfall.
-    'pushedAt': DateTime.now().toIso8601String(),
     'theme': {
       'name': theme.name,
       'paper': _hex(theme.paper.toARGB32()),
