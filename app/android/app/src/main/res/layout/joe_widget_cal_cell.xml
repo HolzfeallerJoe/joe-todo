@@ -29,4 +29,16 @@
         android:includeFontPadding="false"
         android:maxLines="1"
         android:textSize="11sp" />
+
+    <TextView
+        android:id="@+id/joe_cell_note"
+        android:layout_width="7dp"
+        android:layout_height="7dp"
+        android:layout_gravity="top|end"
+        android:gravity="center"
+        android:includeFontPadding="false"
+        android:text="N"
+        android:textSize="6sp"
+        android:textStyle="bold"
+        android:visibility="invisible" />
 </FrameLayout>

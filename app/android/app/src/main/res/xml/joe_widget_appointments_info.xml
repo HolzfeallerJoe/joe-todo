@@ -2,7 +2,7 @@
 <!-- 2x2, siehe joe_widget_tasks_info.xml. -->
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
     android:initialLayout="@layout/joe_widget_appointments"
-    android:previewLayout="@layout/joe_widget_appointments"
+    android:previewLayout="@layout/joe_widget_appointments_preview"
     android:previewImage="@mipmap/ic_launcher"
     android:description="@string/joe_widget_appointments_description"
     android:minWidth="110dp"

@@ -3,7 +3,7 @@
      die grossen Zellen mit Punkt unter der Zahl (JoeWidgetViews.kt). -->
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
     android:initialLayout="@layout/joe_widget_calendar"
-    android:previewLayout="@layout/joe_widget_calendar"
+    android:previewLayout="@layout/joe_widget_calendar_preview"
     android:previewImage="@mipmap/ic_launcher"
     android:description="@string/joe_widget_calendar_description"
     android:minWidth="110dp"

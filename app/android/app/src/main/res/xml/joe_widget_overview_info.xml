@@ -3,7 +3,7 @@
      Haelfte – darunter passt das Monatsraster nicht mehr neben die Listen. -->
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
     android:initialLayout="@layout/joe_widget_overview"
-    android:previewLayout="@layout/joe_widget_overview"
+    android:previewLayout="@layout/joe_widget_overview_preview"
     android:previewImage="@mipmap/ic_launcher"
     android:description="@string/joe_widget_overview_description"
     android:minWidth="250dp"

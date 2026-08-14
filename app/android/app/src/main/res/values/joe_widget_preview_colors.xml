@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="joe_widget_preview_paper">#FAF3E3</color>
+    <color name="joe_widget_preview_ink">#4A3527</color>
+    <color name="joe_widget_preview_soft">#7E6A59</color>
+    <color name="joe_widget_preview_accent">#B35037</color>
+</resources>

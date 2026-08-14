@@ -125,6 +125,15 @@ object JoeWidgetViews {
             R.id.joe_title,
             "${MONTHS[today.get(Calendar.MONTH)]} ${today.get(Calendar.YEAR)}",
         )
+        if (snapshot == null || !snapshot.covers(JoeWidgetData.dayKey(today))) {
+            views.setViewVisibility(R.id.joe_grid, View.GONE)
+            views.setViewVisibility(R.id.joe_empty, View.VISIBLE)
+            views.setTextViewText(R.id.joe_empty, "Joe öffnen, dann stehen hier die Markierungen.")
+            views.setTextColor(R.id.joe_empty, theme.inkSoft)
+            return views
+        }
+        views.setViewVisibility(R.id.joe_grid, View.VISIBLE)
+        views.setViewVisibility(R.id.joe_empty, View.GONE)
         // Was nach Titel, Wochentagszeile und Rand uebrig bleibt, teilen sich
         // die Wochen. Groesser gezogen wachsen die Zellen mit und bekommen
         // den Punkt unter der Zahl; im 2x2 traegt die Zahl die Farbe selbst,
@@ -165,6 +174,7 @@ object JoeWidgetViews {
 
         val day = snapshot?.day(JoeWidgetData.dayKey(today))
         if (snapshot == null || day == null) {
+            views.setTextViewText(R.id.joe_count, "")
             grid(context, views, R.id.joe_grid, theme, null, today,
                 cellStyle(0), stretch = false)
             note(context, views, R.id.joe_list, theme, rowStyle(0), "Joe öffnen")
@@ -315,12 +325,31 @@ object JoeWidgetViews {
             val key = JoeWidgetData.dayKey(cursor)
             if (!snapshot.covers(key)) break
             val day = snapshot.marked(key)
-            if (day != null && day.appointments.isNotEmpty()) {
+            if (day != null && day.appointments.isNotEmpty() &&
+                JoeWidgetLayoutLogic.canStartGroup(used, max)) {
                 views.addView(
                     container, head(context, theme, style, relativeDay(cursor, today)))
                 used++
-                for (entry in day.appointments) {
-                    if (used >= max) break
+                val available = max - used
+                val total = maxOf(day.appointmentCount, day.appointments.size)
+                val plan = JoeWidgetLayoutLogic.appointments(
+                    total = total,
+                    loaded = day.appointments.size,
+                    available = available,
+                )
+                if (plan.summaryOnly) {
+                    views.addView(
+                        container,
+                        muted(context, theme, style,
+                            if (total == 1) "1 Termin" else "$total Termine"),
+                    )
+                    used++
+                    shown++
+                    break
+                }
+
+                val entries = day.appointments.take(plan.entries)
+                for (entry in entries) {
                     views.addView(
                         container,
                         row(context, theme, style, entry.title, time(entry.minute),
@@ -328,6 +357,22 @@ object JoeWidgetViews {
                     )
                     used++
                     shown++
+                }
+                val remaining = plan.hidden
+                if (remaining > 0 && used < max) {
+                    views.addView(
+                        container,
+                        muted(
+                            context,
+                            theme,
+                            style,
+                            if (remaining == 1) "+1 weiterer Termin"
+                            else "+$remaining weitere Termine",
+                        ),
+                    )
+                    used++
+                    shown++
+                    break
                 }
             }
             cursor.add(Calendar.DAY_OF_MONTH, 1)
@@ -501,6 +546,7 @@ object JoeWidgetViews {
                 val number = slot - offset + 1
                 if (number < 1 || number > length) {
                     cell.setTextViewText(R.id.joe_cell_day, "")
+                    cell.setViewVisibility(R.id.joe_cell_note, View.INVISIBLE)
                     if (style.dots) cell.setViewVisibility(R.id.joe_cell_dot, View.INVISIBLE)
                 } else {
                     cursor.set(Calendar.DAY_OF_MONTH, number)
@@ -524,6 +570,11 @@ object JoeWidgetViews {
     ) {
         val big = style.dots
         cell.setTextViewText(R.id.joe_cell_day, number.toString())
+        cell.setViewVisibility(
+            R.id.joe_cell_note,
+            if (day?.note == true) View.VISIBLE else View.INVISIBLE,
+        )
+        cell.setTextColor(R.id.joe_cell_note, theme.accent)
         val marker = day?.markerColor
         if (isToday) {
             cell.setViewVisibility(R.id.joe_cell_today, View.VISIBLE)

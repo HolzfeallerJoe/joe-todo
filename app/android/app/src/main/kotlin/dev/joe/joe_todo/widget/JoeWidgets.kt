@@ -113,9 +113,19 @@ abstract class JoeWidget : AppWidgetProvider() {
             append(snapshot?.stamp ?: 0)
         }
         if (lastShown[id] == signature) return
-        lastShown[id] = signature
         Log.d(TAG, "zeichne $id ($signature)")
-        manager.updateAppWidget(id, build(context, options, snapshot))
+        val built = build(context, options, snapshot)
+        try {
+            manager.updateAppWidget(id, built.views)
+            // Nur ein wirklich fertig gezeichnetes Widget darf kuenftige
+            // Aktualisierungen mit derselben Signatur ausbremsen. Die leere
+            // Ersatzkarte wird dagegen beim naechsten System-Tick erneut
+            // versucht.
+            if (built.complete) lastShown[id] = signature else lastShown.remove(id)
+        } catch (e: Exception) {
+            lastShown.remove(id)
+            Log.w(TAG, "Widget-Aktualisierung fehlgeschlagen", e)
+        }
     }
 
     /**
@@ -124,12 +134,14 @@ abstract class JoeWidget : AppWidgetProvider() {
      * anzeigen, und da kommt der Nutzer ohne Neuanlegen nicht wieder raus.
      * Dann lieber die leere Karte.
      */
-    private fun build(context: Context, options: Bundle, snapshot: WidgetSnapshot?): RemoteViews =
+    private class BuiltWidget(val views: RemoteViews, val complete: Boolean)
+
+    private fun build(context: Context, options: Bundle, snapshot: WidgetSnapshot?): BuiltWidget =
         try {
-            render(context, options, snapshot)
+            BuiltWidget(render(context, options, snapshot), true)
         } catch (e: Exception) {
             Log.w(TAG, "Zeichnen fehlgeschlagen", e)
-            RemoteViews(context.packageName, layout)
+            BuiltWidget(RemoteViews(context.packageName, layout), false)
         }
 
     companion object {
