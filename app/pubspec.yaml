@@ -16,7 +16,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 1.0.0+1
+version: 1.0.1+2
 
 environment:
   sdk: ^3.10.3
@@ -74,6 +74,9 @@ flutter:
   #   - images/a_dot_ham.jpeg
   # Only the compressed copies are bundled. The full-size originals live in
   # assets/themes/ as the source of truth and are deliberately not shipped.
+  # env/ steht hier bewusst NICHT: die Schalter kommen ueber
+  # --dart-define-from-file in den Build (siehe lib/env.dart), die Dateien
+  # selbst bleiben draussen.
   assets:
     - assets/themes/compressed/
     # Begleiter. Erzeugt mit compress-pet-assets.ps1; die PNG-Originale

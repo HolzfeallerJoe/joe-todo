@@ -84,6 +84,21 @@ try {
     $flutter = Resolve-FlutterExe
     $startedAt = Get-Date
 
+    # Die Schalter aus env\.env kommen als --dart-define-from-file in den
+    # Build (siehe app\lib\env.dart); die Datei selbst wandert nicht ins APK.
+    # Sie ist nicht im Repo (sie darf Geheimnisse enthalten), fehlt auf einem
+    # frischen Klon also – dann baut das hier ohne das Flag, und es gelten die
+    # Standardwerte aus env.dart. Das sind die ausgelieferten, ein fehlendes
+    # Flag kann also nur eine Abweichung verschlucken, nichts kaputtmachen.
+    $envArgs = @()
+    if (Test-Path (Join-Path $appDir 'env\.env')) {
+        $envArgs = @('--dart-define-from-file=env/.env')
+    }
+    else {
+        Write-Host 'Hinweis: env\.env fehlt, es gelten die Standardwerte aus lib\env.dart.' -ForegroundColor DarkGray
+        Write-Host '         Vorlage: Copy-Item app\env\.env.example app\env\.env' -ForegroundColor DarkGray
+    }
+
     if (-not $SkipPubGet) {
         Invoke-Step 'flutter pub get' $flutter @('pub', 'get')
     }
@@ -91,6 +106,9 @@ try {
     if ($Gradle) {
         # Exakt der Weg von Android Studio: Gradle-Task assembleDebug.
         # Das Flutter-Gradle-Plugin haengt sich ein und baut die Dart-Assets mit.
+        # Hier gibt es kein --dart-define-from-file: Gradle nimmt die Schalter
+        # nicht entgegen, es gelten die Standardwerte aus lib\env.dart. Genau
+        # wie beim "Run" aus Android Studio – und genau wie beim Nutzer.
         $gradlew = Join-Path $appDir 'android\gradlew.bat'
         Push-Location (Join-Path $appDir 'android')
         try {
@@ -104,7 +122,7 @@ try {
         $apk = Join-Path $appDir 'build\app\outputs\apk\debug\app-debug.apk'
     }
     else {
-        Invoke-Step 'flutter build apk --debug' $flutter @('build', 'apk', '--debug')
+        Invoke-Step 'flutter build apk --debug' $flutter (@('build', 'apk', '--debug') + $envArgs)
         $apk = Join-Path $appDir 'build\app\outputs\flutter-apk\app-debug.apk'
     }
 

@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:joe_todo/almanac.dart';
+import 'package:joe_todo/env.dart';
 import 'package:joe_todo/models.dart';
 import 'package:joe_todo/pets.dart';
 import 'package:joe_todo/util.dart';
@@ -153,13 +154,51 @@ void main() {
     expect(prefs.getString(AppState.rescueKey), isNull);
   });
 
-  test('erster Start saet Beispieldaten', () async {
-    SharedPreferences.setMockInitialValues({});
-    final state = AppState();
-    await state.load();
+  // Beispieldaten haengen am Schalter JOE_MOCK_DATA (siehe lib/env.dart).
+  // Er kommt beim Bauen aus env/.env bzw. env/.env.production und ist damit
+  // eine Konstante – ein Test stellt ihn ueber JoeEnv.debugMockData um.
+  // Beide Faelle stehen hier: der Schalter ist ueberall aus, aber
+  // angeschaltet muss er weiter tun.
+  group('erster Start', () {
+    tearDown(() => JoeEnv.debugMockData = null);
 
-    expect(state.tasks, isNotEmpty);
-    final prefs = await SharedPreferences.getInstance();
-    expect(prefs.getString('joe_data_v1'), isNotNull);
+    test('ohne Schalter: leer, aber gespeichert', () async {
+      SharedPreferences.setMockInitialValues({});
+      JoeEnv.debugMockData = false;
+      final state = AppState();
+      await state.load();
+
+      expect(state.tasks, isEmpty);
+      expect(state.appointments, isEmpty);
+      expect(state.notes, isEmpty);
+      // Ohne den geschriebenen Bestand waere der naechste Start wieder der
+      // erste – und ein leerer Bestand nicht von "noch nie gestartet" zu
+      // unterscheiden.
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getString('joe_data_v1'), isNotNull);
+    });
+
+    // Ohne das Flag beim Bauen (IDE-Run, 'flutter test') gilt der Standard
+    // aus lib/env.dart – und der ist der ausgelieferte.
+    test('ohne Angabe: der Standard gilt, also leer', () async {
+      SharedPreferences.setMockInitialValues({});
+      final state = AppState();
+      await state.load();
+
+      expect(JoeEnv.mockData, isFalse);
+      expect(state.tasks, isEmpty);
+    });
+
+    test('mit Schalter: Beispieldaten', () async {
+      SharedPreferences.setMockInitialValues({});
+      JoeEnv.debugMockData = true;
+      final state = AppState();
+      await state.load();
+
+      expect(state.tasks, isNotEmpty);
+      expect(state.appointments, isNotEmpty);
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getString('joe_data_v1'), isNotNull);
+    });
   });
 }

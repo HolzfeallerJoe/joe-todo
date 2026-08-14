@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'almanac.dart';
+import 'env.dart';
 import 'log.dart';
 import 'pets.dart';
 import 'util.dart';
@@ -327,8 +328,15 @@ class AppState extends ChangeNotifier {
     final prefs = await SharedPreferences.getInstance();
     final raw = prefs.getString(_storageKey);
     if (raw == null) {
-      JoeLog.log('Erster Start: Beispieldaten angelegt');
-      _seed();
+      // Beispieldaten haengen am Schalter JOE_MOCK_DATA (siehe env.dart) und
+      // sind ueberall aus: Joe faengt leer an. Gespeichert wird trotzdem,
+      // sonst gilt jeder Start als der erste.
+      if (JoeEnv.mockData) {
+        JoeLog.log('Erster Start: Beispieldaten angelegt');
+        _seed();
+      } else {
+        JoeLog.log('Erster Start: leer (Beispieldaten sind aus)');
+      }
       await _save();
       return;
     }

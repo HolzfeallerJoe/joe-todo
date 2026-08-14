@@ -97,7 +97,8 @@ app/                  Flutter-Projekt (Android)
   android/.../widget/       Die Widgets selbst: Daten lesen, zeichnen, wecken
   android/app/src/main/res/layout/joe_widget_*.xml   ihre Layouts
   android/app/src/main/res/xml/joe_widget_*_info.xml ihre Groessen
-  lib/env.dart        Schalter aus .env / .env.production (siehe unten)
+  lib/env.dart        Schalter aus env/ (siehe unten), nur ueber JoeEnv
+  env/.env.example    Vorlage; die echten env-Dateien sind nicht im Repo
   lib/toast.dart      Meldungen am oberen Rand – der eine Weg zum Nutzer
   lib/theme.dart      Themes + Textur-Painter
   lib/pets.dart       Begleiter-Katalog (Name, Gruppe, Asset-Pfad)
@@ -125,35 +126,88 @@ flutter test                      # Unit-Tests
 
 cd ..\maestro
 maestro test .                    # alle UI-Flows auf dem Emulator
-                                  # (braucht JOE_MOCK_DATA=true, siehe unten)
+                                  # (braucht JOE_MOCK_DATA=true, siehe "Schalter")
 ```
 
 ## Schalter (env)
 
-Was ein Build anders macht als der naechste, steht in zwei Dateien neben dem
-`pubspec.yaml`: `app/.env` gilt in der Entwicklung, `app/.env.production` im
-Release. Welche gelesen wird, entscheidet `kReleaseMode`, also erst der Start.
-Gelesen werden sie ueber `lib/env.dart` (`JoeEnv`), Zugriff nur ueber dessen
-Getter – nirgends sonst im Code steht ein Schluesselname.
+Was ein Build anders macht als der naechste, steht in `app/env/`:
 
-Beide Dateien sind Assets und liegen im APK: **hier gehoert nichts hinein, was
-geheim bleiben muss**, nur Schalter.
+```
+app/env/.env.example     Vorlage, im Repo – welche Schluessel es gibt
+app/env/.env             Entwicklung (Debug/Profile), nicht im Repo
+app/env/.env.production  Release, nicht im Repo
+```
+
+Die beiden echten Dateien sind ignoriert und duerfen Geheimnisse enthalten.
+Nach dem Klonen einmal:
+
+```powershell
+Copy-Item app\env\.env.example app\env\.env
+```
 
 | Schluessel | Standard | Bedeutung |
 | --- | --- | --- |
 | `JOE_MOCK_DATA` | `false` | Beispieldaten beim allerersten Start (`AppState._seed`): Aufgaben, Termine, Willkommensnotiz. Aus heisst: Joe startet leer. |
 
-Kein Schalter darf den Start verhindern. Fehlt die Datei oder ist ein Wert
-kein Ja/Nein (`true`/`false`/`1`/`0`), notiert `JoeEnv` das im Log und nimmt
-den Standardwert – und der ist der, mit dem die App beim Nutzer laeuft.
-Zum Ausprobieren `JOE_MOCK_DATA=true` in `app/.env` setzen; ein neuer Start
-saet aber nur, solange noch kein Bestand gespeichert ist (App-Daten loeschen).
+Sie werden **nicht zur Laufzeit gelesen und sind kein Asset** – sie gehen beim
+Bauen mit:
 
-**Die Maestro-Flows brauchen das.** Sie starten mit `clearState: true` und
-suchen danach die Beispieldaten ("Blumen gießen", "Willkommen bei Joe", ...).
-Also vor `maestro test .` in `app/.env` `JOE_MOCK_DATA=true` setzen, neu bauen
-und installieren – mit dem ausgelieferten `false` laufen sie ins Leere. Die
-`flutter test`-Suite ist davon unberuehrt: sie setzt den Schalter selbst.
+```powershell
+flutter build apk --debug   --dart-define-from-file=env/.env
+flutter build apk --release --dart-define-from-file=env/.env.production
+flutter run                 --dart-define-from-file=env/.env
+```
+
+Daraus macht der Uebersetzer Konstanten (`bool.fromEnvironment` in
+`lib/env.dart`). Ins APK wandern also die Werte, nicht die Dateien: im
+fertigen Paket ist keine env-Datei zu finden. Im Code steht ein
+Schluesselname nur in `JoeEnv`, alles andere fragt dessen Getter.
+
+`build-debug-apk.ps1` haengt das Flag von selbst an, die CI ebenso.
+
+### Ohne das Flag gilt der Standard
+
+Fehlt die env-Datei (frischer Klon) oder wird ohne Flag gebaut – „Run" aus der
+IDE, `build-debug-apk.ps1 -Gradle`, weil Gradle die Schalter nicht
+entgegennimmt –, gelten die Standardwerte aus `lib/env.dart`. Das ist
+Absicht: der Standard ist der ausgelieferte Wert, ein vergessenes Flag kann
+also nichts kaputtmachen, sondern nur eine Abweichung verschlucken. Wer die
+Schalter in der IDE braucht, traegt `--dart-define-from-file=env/.env` einmal
+in die zusaetzlichen Run-Argumente der Konfiguration ein.
+
+### Was davon im APK landet
+
+Nicht die Dateien – die sind kein Asset. Von den Werten kommt nur an, was der
+Kode auch liest, und zwar so:
+
+| in der env-Datei | im APK |
+| --- | --- |
+| Schluessel, den kein `fromEnvironment` liest | gar nichts |
+| `bool.fromEnvironment` | nichts – der Uebersetzer setzt ihn ein und wirft den toten Zweig weg |
+| `String.fromEnvironment` | der Text, mit `strings` zu finden |
+
+Nachgemessen am Release-Build: ein `JOE_PROBE_SECRET`, das kein Kode liest,
+taucht weder in `libapp.so` noch in irgendeiner Zwischendatei auf; mit
+`JOE_MOCK_DATA=false` sind auch alle Beispieldaten-Texte ("Zahnarzt",
+"Kaffee mit Anna", ...) restlos verschwunden.
+
+Fuer die letzte Zeile der Tabelle gilt trotzdem, was fuer jeden Weg gilt –
+Asset, `--dart-define`, Konstante im Quelltext: was die App *benutzt*, kennt
+auch der Nutzer. Ein Geheimnis, das wirklich eines bleiben muss
+(API-Schluessel mit Kosten oder Schreibrecht), gehoert hinter einen eigenen
+Server, den die App fragt.
+
+### Maestro braucht `JOE_MOCK_DATA=true`
+
+Die UI-Flows starten mit `clearState: true` und suchen danach die
+Beispieldaten ("Blumen gießen", "Willkommen bei Joe", ...). Also vor
+`maestro test .` in `app/env/.env` `JOE_MOCK_DATA=true` setzen, neu bauen und
+installieren – mit dem Standard `false` laufen sie ins Leere. Ein neuer Start
+saet ausserdem nur, solange noch kein Bestand gespeichert ist; `clearState`
+sorgt dafuer. Die `flutter test`-Suite ist unberuehrt: Konstanten lassen sich
+im Test nicht ueber eine Datei umstellen, die Tests setzen deshalb
+`JoeEnv.debugMockData`.
 
 ## Reiterfarben aus der Vorlage
 
@@ -502,13 +556,29 @@ eingetragen (aktuell 3.38.4) und sollte mit der lokalen uebereinstimmen.
 
 Bei einem Push auf `main` landet das APK zusaetzlich als GitHub-Release unter
 dem Tag `joe-todo-v<version>` (Version aus `app/pubspec.yaml`, aktuell
-`1.0.0+1` → `joe-todo-v1.0.0+1`). Das Repo enthaelt mehrere Projekte mit einer
+`1.0.1+2` → `joe-todo-v1.0.1+2`). Das Repo enthaelt mehrere Projekte mit einer
 gemeinsamen Release-Liste, darum steht der Projektname im Tag. Solange die
 Version in `pubspec.yaml` unveraendert bleibt, wird dasselbe Release
 ueberschrieben und der Tag auf den neuen Commit gesetzt; fuer einen dauerhaft
 abgelegten Stand vorher die Version anheben. Die Releases sind als
 Pre-Release markiert, weil es Debug-Builds mit dem Standard-Debug-Keystore
 sind. Aus Pull Requests entsteht kein Release, dort bleibt es beim Artefakt.
+
+Die env-Dateien liegen nicht im Repo (siehe „Schalter"). Der Build-Schritt
+schreibt `app/env/.env` aus dem Repository-Secret `JOE_TODO_ENV` und haengt
+`--dart-define-from-file=env/.env` an; der Inhalt des Secrets ist die ganze
+Datei, Zeile fuer Zeile wie lokal:
+
+```
+JOE_MOCK_DATA=false
+```
+
+Ist das Secret nicht gesetzt, baut derselbe Schritt ohne das Flag, also mit
+den Standardwerten aus `lib/env.dart`. Damit laeuft der Workflow auch in einem
+PR aus einem Fork (die bekommen keine Secrets) und ohne dass ueberhaupt eines
+angelegt sein muss. Gebaut wird ein Debug-APK, das nimmt `env/.env`; sobald
+hier einmal ein Release-Build steht, gehoert dort ein zweites Secret fuer
+`env/.env.production` hin.
 
 Den Gradle-Cache macht `gradle/actions/setup-gradle`, nicht `setup-java`.
 Grund: `setup-java` mit `cache: gradle` schluesselt ueber den Hash der

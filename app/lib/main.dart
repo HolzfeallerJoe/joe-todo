@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'device_calendar.dart';
+import 'env.dart';
 import 'home_widget.dart';
 import 'log.dart';
 import 'models.dart';
@@ -32,6 +33,7 @@ Future<void> main() async {
     return false;
   };
   JoeLog.log('App-Start');
+  JoeLog.log(JoeEnv.summary);
   // Ab Android 15 laeuft die App ohnehin randlos: der Hintergrund liegt schon
   // hinter Status- und Navigationsleiste. Ohne diesen Aufruf legt das System
   // unten aber einen schwarzen Kontrastbalken darueber, waehrend oben die
