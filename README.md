@@ -471,6 +471,16 @@ an den anderen Projekten im Repo ihn nicht ausloesen; die Konventionen dafuer
 stehen in `.github/workflows/README.md`. Die Flutter-Version ist dort fest
 eingetragen (aktuell 3.38.4) und sollte mit der lokalen uebereinstimmen.
 
+Bei einem Push auf `main` landet das APK zusaetzlich als GitHub-Release unter
+dem Tag `joe-todo-v<version>` (Version aus `app/pubspec.yaml`, aktuell
+`1.0.0+1` → `joe-todo-v1.0.0+1`). Das Repo enthaelt mehrere Projekte mit einer
+gemeinsamen Release-Liste, darum steht der Projektname im Tag. Solange die
+Version in `pubspec.yaml` unveraendert bleibt, wird dasselbe Release
+ueberschrieben und der Tag auf den neuen Commit gesetzt; fuer einen dauerhaft
+abgelegten Stand vorher die Version anheben. Die Releases sind als
+Pre-Release markiert, weil es Debug-Builds mit dem Standard-Debug-Keystore
+sind. Aus Pull Requests entsteht kein Release, dort bleibt es beim Artefakt.
+
 Hinweis zu Maestro: Flutter fasst Karten zu einem Accessibility-Knoten
 zusammen, daher matchen die Flows mit `(?s)…​.*`-Regex; `inputText` kann nur
 ASCII (keine Umlaute in Testeingaben). Datumsabhängige Prüfungen rechnen den
