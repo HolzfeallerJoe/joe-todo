@@ -556,7 +556,7 @@ eingetragen (aktuell 3.38.4) und sollte mit der lokalen uebereinstimmen.
 
 Bei einem Push auf `main` landet das APK zusaetzlich als GitHub-Release unter
 dem Tag `joe-todo-v<version>` (Version aus `app/pubspec.yaml`, aktuell
-`1.0.2+3` → `joe-todo-v1.0.2+3`). Das Repo enthaelt mehrere Projekte mit einer
+`1.0.3+4` → `joe-todo-v1.0.3+4`). Das Repo enthaelt mehrere Projekte mit einer
 gemeinsamen Release-Liste, darum steht der Projektname im Tag. Solange die
 Version in `pubspec.yaml` unveraendert bleibt, wird dasselbe Release
 ueberschrieben und der Tag auf den neuen Commit gesetzt; fuer einen dauerhaft
@@ -570,10 +570,10 @@ traegt dann eine andere Signatur, und Android verweigert jedes Update ueber
 eine Signaturgrenze hinweg – auch von einem CI-Build auf den naechsten. Die
 App liesse sich nur durch Deinstallation ersetzen, und damit waeren To-dos,
 Termine und Notizen weg (alles liegt in den SharedPreferences, siehe
-`lib/models.dart`). Der Schritt „Debug-Keystore einspielen" schreibt deshalb
+`lib/models.dart`). Der Schritt „Debug-Keystore einspielen" entpackt deshalb
 das Repository-Secret `JOE_TODO_DEBUG_KEYSTORE` – die base64-kodierte
-`~/.android/debug.keystore` – an genau die Stelle, an der Gradle sie sucht,
-und protokolliert den Fingerabdruck. Angelegt wird das Secret einmalig aus dem
+`~/.android/debug.keystore` – nach `$RUNNER_TEMP` und reicht den Pfad als
+`JOE_DEBUG_KEYSTORE` weiter. Angelegt wird das Secret einmalig aus dem
 lokalen Keystore:
 
 ```powershell
@@ -585,6 +585,22 @@ gh secret set JOE_TODO_DEBUG_KEYSTORE --body $b64
 
 (Kein `< datei` – PowerShell hat keine Eingabeumleitung, `<` ist dort ein
 reserviertes Zeichen.)
+
+Die Variable liest `android/app/build.gradle.kts` im `signingConfigs`-Block.
+Den Standardpfad zu ueberschreiben reicht naemlich nicht: AGP sucht den
+Debug-Keystore ueber `ANDROID_USER_HOME`, `ANDROID_PREFS_ROOT` und
+`ANDROID_SDK_HOME` und erst zuletzt in `user.home` – auf dem Runner greift
+eine der vorderen Variablen, eine Datei in `$HOME/.android` blieb schlicht
+liegen und AGP legte sich still einen eigenen Schluessel an. Ist
+`JOE_DEBUG_KEYSTORE` nicht gesetzt, bleibt es beim Standardverhalten, lokale
+Builds merken davon nichts.
+
+Der Schritt „Signatur der APK pruefen" vergleicht danach den Fingerabdruck der
+gebauten APK (`apksigner verify --print-certs`) mit dem des Keystores und
+laesst den Lauf scheitern, wenn er abweicht. Das ist der eigentliche Nachweis:
+dass der Keystore eingespielt wurde, steht im Log, aber ob der Build ihn auch
+genommen hat, sieht man nur an der fertigen Datei – sonst faellt es erst auf
+dem Telefon auf.
 
 Ist es nicht gesetzt, laeuft der Build weiter (Warnung im Log) und nutzt den
 Schluessel des Runners – noetig fuer PRs aus einem Fork, die keine Secrets

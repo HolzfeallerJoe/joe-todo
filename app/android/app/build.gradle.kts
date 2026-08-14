@@ -33,6 +33,27 @@ android {
         versionName = flutter.versionName
     }
 
+    // Wo der Debug-Keystore liegt, sucht AGP sich sonst selbst zusammen:
+    // ANDROID_USER_HOME, ANDROID_PREFS_ROOT, ANDROID_SDK_HOME und erst zuletzt
+    // user.home. Auf dem CI-Runner greift eine der vorderen Variablen, der
+    // eingespielte Keystore unter $HOME/.android blieb dadurch unbenutzt und
+    // AGP legte sich still einen neuen an -- jede APK also mit eigener
+    // Signatur, kein Update ohne Deinstallation. JOE_DEBUG_KEYSTORE macht die
+    // Wahl eindeutig; ohne die Variable bleibt es beim bisherigen Verhalten.
+    signingConfigs {
+        getByName("debug") {
+            val fromEnv = System.getenv("JOE_DEBUG_KEYSTORE")
+            if (!fromEnv.isNullOrBlank()) {
+                val ks = File(fromEnv)
+                require(ks.isFile) { "JOE_DEBUG_KEYSTORE zeigt auf keine Datei: $fromEnv" }
+                storeFile = ks
+                storePassword = "android"
+                keyAlias = "androiddebugkey"
+                keyPassword = "android"
+            }
+        }
+    }
+
     buildTypes {
         release {
             // TODO: Add your own signing config for the release build.
