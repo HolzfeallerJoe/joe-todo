@@ -561,8 +561,37 @@ gemeinsamen Release-Liste, darum steht der Projektname im Tag. Solange die
 Version in `pubspec.yaml` unveraendert bleibt, wird dasselbe Release
 ueberschrieben und der Tag auf den neuen Commit gesetzt; fuer einen dauerhaft
 abgelegten Stand vorher die Version anheben. Die Releases sind als
-Pre-Release markiert, weil es Debug-Builds mit dem Standard-Debug-Keystore
-sind. Aus Pull Requests entsteht kein Release, dort bleibt es beim Artefakt.
+Pre-Release markiert, weil es Debug-Builds sind. Aus Pull Requests entsteht
+kein Release, dort bleibt es beim Artefakt.
+
+Signiert wird mit demselben Debug-Keystore wie lokal. Das ist kein Detail:
+ohne ihn erzeugt jeder Runner beim ersten Gradle-Lauf einen eigenen, jede APK
+traegt dann eine andere Signatur, und Android verweigert jedes Update ueber
+eine Signaturgrenze hinweg – auch von einem CI-Build auf den naechsten. Die
+App liesse sich nur durch Deinstallation ersetzen, und damit waeren To-dos,
+Termine und Notizen weg (alles liegt in den SharedPreferences, siehe
+`lib/models.dart`). Der Schritt „Debug-Keystore einspielen" schreibt deshalb
+das Repository-Secret `JOE_TODO_DEBUG_KEYSTORE` – die base64-kodierte
+`~/.android/debug.keystore` – an genau die Stelle, an der Gradle sie sucht,
+und protokolliert den Fingerabdruck. Angelegt wird das Secret einmalig aus dem
+lokalen Keystore:
+
+```powershell
+$b64 = [Convert]::ToBase64String(
+  [IO.File]::ReadAllBytes("$env:USERPROFILE\.android\debug.keystore"))
+gh secret set JOE_TODO_DEBUG_KEYSTORE --body $b64
+# Oder zum Einfuegen im Browser: Set-Clipboard -Value $b64
+```
+
+(Kein `< datei` – PowerShell hat keine Eingabeumleitung, `<` ist dort ein
+reserviertes Zeichen.)
+
+Ist es nicht gesetzt, laeuft der Build weiter (Warnung im Log) und nutzt den
+Schluessel des Runners – noetig fuer PRs aus einem Fork, die keine Secrets
+bekommen. Passwort und Alias sind die Debug-Standards (`android` /
+`androiddebugkey`), das Secret schuetzt also nichts Geheimes, es haelt nur die
+Signatur fest. Fuer eine App, die wirklich verteilt wird, gehoert an diese
+Stelle ein eigener Release-Keystore.
 
 Die env-Dateien liegen nicht im Repo (siehe „Schalter"). Der Build-Schritt
 schreibt `app/env/.env` aus dem Repository-Secret `JOE_TODO_ENV` und haengt
