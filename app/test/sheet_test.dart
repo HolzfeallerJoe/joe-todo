@@ -17,6 +17,8 @@ void main() {
   setUp(JoeToast.instance.reset);
   tearDown(JoeToast.instance.reset);
 
+  late AppState openedState;
+
   Future<void> openSheet(
     WidgetTester tester, {
     String entry = 'Neue Aufgabe',
@@ -33,6 +35,7 @@ void main() {
       ..appointments = []
       ..notes = []
       ..showPet = false;
+    openedState = state;
     await tester.pumpWidget(JoeApp(state: state));
     await tester.pumpAndSettle();
 
@@ -87,6 +90,28 @@ void main() {
       expect(find.text('Bitte gib einen Titel ein.'), findsOneWidget);
       expect(find.text(entry), findsOneWidget);
       await tester.pump(JoeToast.showDuration);
+    });
+  }
+
+  // Der Titel-Controller haing frueher am Future der Route und wurde damit
+  // schon bei Navigator.pop weggeraeumt – das Blatt animierte danach aber noch
+  // heraus, das Textfeld griff auf den toten Controller zu und die App landete
+  // auf dem roten Bildschirm. Darum wird hier bis zum Ende der Animation
+  // gepumpt und nicht nur ein Frame.
+  for (final entry in ['Neue Aufgabe', 'Neuer Termin']) {
+    testWidgets('$entry laesst sich ohne Fehler speichern', (tester) async {
+      await openSheet(tester, entry: entry);
+
+      await tester.enterText(find.byType(TextField).first, 'Mit Joe reden');
+      await tester.tap(find.text('Speichern'));
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+      expect(find.text(entry), findsNothing, reason: 'Blatt blieb offen');
+      final saved = entry == 'Neue Aufgabe'
+          ? openedState.tasks.map((t) => t.title)
+          : openedState.appointments.map((a) => a.title);
+      expect(saved, contains('Mit Joe reden'));
     });
   }
 }

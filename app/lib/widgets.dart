@@ -731,6 +731,51 @@ class SheetFrame extends StatelessWidget {
   }
 }
 
+/// Traegt Zustand *und* Titel-Controller eines Eingabeblatts, solange das
+/// Blatt im Baum steht.
+///
+/// Warum nicht `StatefulBuilder` plus `whenComplete(controller.dispose)`:
+/// `Navigator.pop` schliesst den Future der Route sofort, das Blatt animiert
+/// danach aber noch heraus. Der Controller waere dann schon weg, waehrend das
+/// `TextField` ihn noch liest – "A TextEditingController was used after being
+/// disposed", und im Anschluss faellt der Abbau des Elementbaums mit
+/// '_dependents.isEmpty' auf den roten Bildschirm. Ein eigener State raeumt
+/// erst auf, wenn das Blatt wirklich aus dem Baum ist.
+class SheetHost extends StatefulWidget {
+  final String initialText;
+  final Widget Function(
+    BuildContext context,
+    TextEditingController controller,
+    StateSetter setSheetState,
+  )
+  builder;
+
+  const SheetHost({
+    super.key,
+    required this.initialText,
+    required this.builder,
+  });
+
+  @override
+  State<SheetHost> createState() => _SheetHostState();
+}
+
+class _SheetHostState extends State<SheetHost> {
+  late final TextEditingController _controller = TextEditingController(
+    text: widget.initialText,
+  );
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) =>
+      widget.builder(context, _controller, setState);
+}
+
 /// Small caption above a block inside an input sheet.
 class SheetLabel extends StatelessWidget {
   final String text;
@@ -825,7 +870,6 @@ Future<void> showTaskSheet(
 }) {
   final state = AppScope.of(context);
   final theme = joeThemeOf(context);
-  final titleController = TextEditingController(text: task?.title ?? '');
   var recurrence = task?.recurrence ?? RecurrenceType.none;
   var intervalDays = task?.intervalDays ?? 2;
   var colorIndex = task?.colorIndex ?? 0;
@@ -834,7 +878,7 @@ Future<void> showTaskSheet(
   // Aufgaben haben keine Uhrzeit, die Erinnerung bringt ihre eigene mit.
   var reminderMinute = task?.reminderMinuteOfDay;
 
-  void save(BuildContext sheetContext) {
+  void save(BuildContext sheetContext, TextEditingController titleController) {
     final title = titleController.text.trim();
     if (title.isEmpty) {
       JoeToast.error('Bitte gib einen Titel ein.');
@@ -869,10 +913,13 @@ Future<void> showTaskSheet(
   return showJoeSheet(
     context,
     expand: true,
-    builder: (sheetContext) => StatefulBuilder(
-      builder: (sheetContext, setSheetState) => SheetFrame(
+    builder: (sheetContext) => SheetHost(
+      initialText: task?.title ?? '',
+      builder: (sheetContext, titleController, setSheetState) => SheetFrame(
         title: task == null ? 'Neue Aufgabe' : 'Aufgabe bearbeiten',
-        footer: SheetSaveButton(onPressed: () => save(sheetContext)),
+        footer: SheetSaveButton(
+          onPressed: () => save(sheetContext, titleController),
+        ),
         children: [
           SheetTextField(
             controller: titleController,
@@ -1019,7 +1066,7 @@ Future<void> showTaskSheet(
         ],
       ),
     ),
-  ).whenComplete(titleController.dispose);
+  );
 }
 
 /// Bottom sheet for creating or editing an appointment.
@@ -1030,7 +1077,6 @@ Future<void> showAppointmentSheet(
 }) {
   final state = AppScope.of(context);
   final theme = joeThemeOf(context);
-  final titleController = TextEditingController(text: appointment?.title ?? '');
   var date = appointment != null
       ? dateOnly(appointment.when)
       : (initialDate ?? today());
@@ -1045,7 +1091,7 @@ Future<void> showAppointmentSheet(
       ? appointment.reminderLeadMinutes
       : state.defaultAppointmentLead;
 
-  void save(BuildContext sheetContext) {
+  void save(BuildContext sheetContext, TextEditingController titleController) {
     final title = titleController.text.trim();
     if (title.isEmpty) {
       JoeToast.error('Bitte gib einen Titel ein.');
@@ -1083,10 +1129,13 @@ Future<void> showAppointmentSheet(
   return showJoeSheet(
     context,
     expand: true,
-    builder: (sheetContext) => StatefulBuilder(
-      builder: (sheetContext, setSheetState) => SheetFrame(
+    builder: (sheetContext) => SheetHost(
+      initialText: appointment?.title ?? '',
+      builder: (sheetContext, titleController, setSheetState) => SheetFrame(
         title: appointment == null ? 'Neuer Termin' : 'Termin bearbeiten',
-        footer: SheetSaveButton(onPressed: () => save(sheetContext)),
+        footer: SheetSaveButton(
+          onPressed: () => save(sheetContext, titleController),
+        ),
         children: [
           SheetTextField(
             controller: titleController,
@@ -1156,7 +1205,7 @@ Future<void> showAppointmentSheet(
         ],
       ),
     ),
-  ).whenComplete(titleController.dispose);
+  );
 }
 
 /// Ask whether the new entry is a task or an appointment, then open the
