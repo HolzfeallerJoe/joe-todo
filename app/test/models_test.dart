@@ -110,7 +110,7 @@ void main() {
       expect(appointment.priority, Priority.mittel);
     });
 
-    test('Stufe 3 zählt nicht in "offene Aufgaben heute"', () {
+    test('Stufe 3 zählt in "offene Aufgaben heute" mit', () {
       final t = today();
       final state = stateWith(tasks: [
         Task(id: '1', title: 'Wichtig', startDate: t, priority: Priority.hoch),
@@ -121,9 +121,24 @@ void main() {
             startDate: t,
             priority: Priority.niedrig),
       ]);
-      expect(state.openTodayCount(), 2);
+      // Die Zahl nennt alles, was heute faellig und offen ist; die Trennung
+      // in zwei Bloecke ist nur eine der Anzeige.
+      expect(state.openTodayCount(), 3);
       expect(state.tasksDueToday().map((x) => x.id), ['1', '2']);
       expect(state.openLowTasks().map((x) => x.id), ['3']);
+    });
+
+    test('Stufe 3 faellt aus der Zahl, sobald sie abgehakt ist', () {
+      final t = today();
+      final low = Task(
+          id: '3', title: 'Unwichtig', startDate: t, priority: Priority.niedrig);
+      final state = stateWith(tasks: [
+        Task(id: '2', title: 'Normal', startDate: t),
+        low,
+      ]);
+      expect(state.openTodayCount(), 2);
+      low.completedDates.add(dateKey(t));
+      expect(state.openTodayCount(), 1);
     });
 
     test('offene Stufe-3-Aufgaben kommen neuste zuerst', () {

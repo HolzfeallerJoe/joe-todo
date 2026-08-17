@@ -616,9 +616,8 @@ class AppState extends ChangeNotifier {
       ..sort(_ordered([_openFirstOn(t), _importantFirst]));
   }
 
-  /// Open level-3 tasks, newest first. They are deliberately kept out of
-  /// [openTodayCount] – an unimportant leftover should not nag from the
-  /// headline – and are listed on their own inside the fold-out.
+  /// Open level-3 tasks, newest first. Sie stehen im Aufklapper auf einem
+  /// eigenen Block, zaehlen in [openTodayCount] aber ganz normal mit.
   List<Task> openLowTasks() {
     final t = today();
     return _dueToday()
@@ -628,9 +627,11 @@ class AppState extends ChangeNotifier {
       ..sort(_ordered([_newestFirst]));
   }
 
+  /// Was heute noch offen auf dem Teller liegt. Stufe 3 zaehlt mit: sie ist
+  /// heute genauso faellig wie der Rest, nur weiter unten einsortiert.
   int openTodayCount() {
     final t = today();
-    return tasksDueToday().where((task) => !task.isCompletedOn(t)).length;
+    return _dueToday().where((task) => !task.isCompletedOn(t)).length;
   }
 
   // ---- Sections of the tasks screen ----

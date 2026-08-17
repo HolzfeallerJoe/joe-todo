@@ -113,7 +113,7 @@ void main() {
       expect(tasks.first['color'], matches(r'^#[0-9a-f]{8}$'));
     });
 
-    test('zaehlt offene Aufgaben wie das Dashboard, ohne Stufe 3', () {
+    test('zaehlt offene Aufgaben wie das Dashboard, Stufe 3 eingeschlossen', () {
       final state = stateWith(
         tasks: [
           Task(
@@ -131,9 +131,9 @@ void main() {
         ],
       );
       final day = dayOf(snapshotOf(state), heute)!;
-      expect(day['open'], 1);
+      expect(day['open'], 2);
       expect(day['taskCount'], 2);
-      // Sichtbar bleibt die leise Aufgabe trotzdem – nur eben ganz unten.
+      // Die leise Aufgabe zaehlt mit, steht in der Liste aber ganz unten.
       expect((day['tasks'] as List).last['title'], 'Leise');
       expect(day['open'], state.openTodayCount());
     });

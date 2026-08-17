@@ -141,11 +141,9 @@ Map<String, dynamic> buildWidgetSnapshot(AppState state, {DateTime? now}) {
           },
       ],
       'taskCount': tasks.length,
-      // Die Kopfzeile zaehlt wie das Dashboard: Stufe 3 ist die leise, sie
-      // nagt nicht aus der Ueberschrift.
-      'open': tasks
-          .where((t) => t.priority != Priority.niedrig && !t.isCompletedOn(d))
-          .length,
+      // Die Kopfzeile zaehlt wie das Dashboard: alles, was an dem Tag offen
+      // ist – Stufe 3 eingeschlossen.
+      'open': tasks.where((t) => !t.isCompletedOn(d)).length,
       'appointments': [
         for (final a in appointments.take(widgetEntriesPerDay))
           {

@@ -47,7 +47,7 @@ bool takesTaps(WidgetTester tester, String label) => !tester
     .any((widget) => widget.ignoring);
 
 void main() {
-  testWidgets('Heute-Karte zaehlt nur Stufe 1 und 2', (tester) async {
+  testWidgets('Heute-Karte zaehlt auch Stufe 3 mit', (tester) async {
     final t = today();
     await pumpDashboard(
       tester,
@@ -63,8 +63,20 @@ void main() {
       ],
     );
 
-    expect(find.text('2'), findsOneWidget);
-    expect(find.text('offene Aufgaben heute'), findsOneWidget);
+    // Die leise Aufgabe steht weiter unten unter "Kann warten", ist heute
+    // aber genauso faellig – also zaehlt sie in der Kopfzahl mit.
+    // Die Zahl steht auch in der Kopfzeile des Ausklappmenues, darum wird
+    // hier gezielt die Zeile der grossen Zahl geprueft.
+    expect(
+      find.descendant(
+        of: find.ancestor(
+          of: find.text('offene Aufgaben heute'),
+          matching: find.byType(Row),
+        ),
+        matching: find.text('3'),
+      ),
+      findsOneWidget,
+    );
   });
 
   testWidgets('Ausklappmenue zeigt und verbirgt die Aufgaben', (tester) async {
