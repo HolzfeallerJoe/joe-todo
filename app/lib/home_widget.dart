@@ -142,8 +142,12 @@ Map<String, dynamic> buildWidgetSnapshot(AppState state, {DateTime? now}) {
       ],
       'taskCount': tasks.length,
       // Die Kopfzeile zaehlt wie das Dashboard: alles, was an dem Tag offen
-      // ist – Stufe 3 eingeschlossen.
-      'open': tasks.where((t) => !t.isCompletedOn(d)).length,
+      // ist – Stufe 3 nur an ihrem Faelligkeitstag, danach nicht mehr
+      // (siehe isLowLeftover). Sonst stuende im Widget eine andere Zahl als
+      // in der App.
+      'open': tasks
+          .where((t) => !t.isCompletedOn(d) && !isLowLeftover(t, d))
+          .length,
       'appointments': [
         for (final a in appointments.take(widgetEntriesPerDay))
           {

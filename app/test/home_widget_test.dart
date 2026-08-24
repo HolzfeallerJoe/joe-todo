@@ -113,7 +113,7 @@ void main() {
       expect(tasks.first['color'], matches(r'^#[0-9a-f]{8}$'));
     });
 
-    test('zaehlt offene Aufgaben wie das Dashboard, Stufe 3 eingeschlossen', () {
+    test('zaehlt wie das Dashboard: Stufe 3 nur am Faelligkeitstag', () {
       final state = stateWith(
         tasks: [
           Task(
@@ -130,12 +130,23 @@ void main() {
           ),
         ],
       );
-      final day = dayOf(snapshotOf(state), heute)!;
+      final snapshot = snapshotOf(state);
+
+      final day = dayOf(snapshot, heute)!;
       expect(day['open'], 2);
       expect(day['taskCount'], 2);
-      // Die leise Aufgabe zaehlt mit, steht in der Liste aber ganz unten.
+      // Die leise Aufgabe zaehlt an ihrem Tag mit, steht in der Liste aber
+      // ganz unten.
       expect((day['tasks'] as List).last['title'], 'Leise');
-      expect(day['open'], state.openTodayCount());
+
+      // Am Tag darauf liegen beide noch da – aber die leise draengt nicht
+      // mehr und faellt aus der Zahl. Die Widgets muessen dieselbe Zahl
+      // zeigen wie die App, sonst widersprechen sie sich auf demselben
+      // Bildschirm.
+      final morgen = dayOf(snapshot, heute.add(const Duration(days: 1)))!;
+      expect(morgen['taskCount'], 2);
+      expect(morgen['open'], 1);
+      expect((morgen['tasks'] as List).map((t) => t['low']), [false, true]);
     });
 
     test('nimmt Termine mit Uhrzeit als Minute im Tag', () {

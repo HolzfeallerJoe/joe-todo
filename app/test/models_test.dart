@@ -110,7 +110,7 @@ void main() {
       expect(appointment.priority, Priority.mittel);
     });
 
-    test('Stufe 3 zählt in "offene Aufgaben heute" mit', () {
+    test('Stufe 3 zählt an ihrem Faelligkeitstag mit', () {
       final t = today();
       final state = stateWith(tasks: [
         Task(id: '1', title: 'Wichtig', startDate: t, priority: Priority.hoch),
@@ -121,11 +121,59 @@ void main() {
             startDate: t,
             priority: Priority.niedrig),
       ]);
-      // Die Zahl nennt alles, was heute faellig und offen ist; die Trennung
-      // in zwei Bloecke ist nur eine der Anzeige.
+      // Heute ist sie faellig wie jede andere: sie zaehlt mit und steht in
+      // derselben Liste, nur hinter den wichtigeren.
       expect(state.openTodayCount(), 3);
-      expect(state.tasksDueToday().map((x) => x.id), ['1', '2']);
-      expect(state.openLowTasks().map((x) => x.id), ['3']);
+      expect(state.tasksDueToday().map((x) => x.id), ['1', '2', '3']);
+      expect(state.lowLeftoverTasks(), isEmpty);
+    });
+
+    test('danach faellt sie aus der Zahl und wandert in "Hat Zeit"', () {
+      final t = today();
+      final state = stateWith(tasks: [
+        Task(id: '2', title: 'Normal', startDate: t),
+        Task(
+          id: '3',
+          title: 'Unwichtig',
+          startDate: t.subtract(const Duration(days: 1)),
+          priority: Priority.niedrig,
+        ),
+      ]);
+      // Gestern hat sie noch gezaehlt, heute nicht mehr – sonst waechst die
+      // Zahl von etwas weiter, das ausdruecklich Zeit hat.
+      expect(state.openTodayCount(), 1);
+      expect(state.tasksDueToday().map((x) => x.id), ['2']);
+      expect(state.lowLeftoverTasks().map((x) => x.id), ['3']);
+    });
+
+    test('eine ueberfaellige Aufgabe anderer Stufen zaehlt weiter mit', () {
+      final t = today();
+      final state = stateWith(tasks: [
+        Task(
+          id: 'gestern',
+          title: 'Liegengeblieben',
+          startDate: t.subtract(const Duration(days: 1)),
+        ),
+      ]);
+      expect(state.openTodayCount(), 1);
+      expect(state.tasksDueToday().map((x) => x.id), ['gestern']);
+    });
+
+    test('eine wiederkehrende Stufe 3 zaehlt an jedem ihrer Tage', () {
+      final t = today();
+      final state = stateWith(tasks: [
+        Task(
+          id: 'taeglich',
+          title: 'Leise, aber taeglich',
+          recurrence: RecurrenceType.daily,
+          startDate: t.subtract(const Duration(days: 10)),
+          priority: Priority.niedrig,
+        ),
+      ]);
+      // Eine wiederkehrende Aufgabe bleibt nie liegen: heute ist sie faellig
+      // oder gar nicht dabei.
+      expect(state.openTodayCount(), 1);
+      expect(state.lowLeftoverTasks(), isEmpty);
     });
 
     test('Stufe 3 faellt aus der Zahl, sobald sie abgehakt ist', () {
@@ -141,7 +189,7 @@ void main() {
       expect(state.openTodayCount(), 1);
     });
 
-    test('offene Stufe-3-Aufgaben kommen neuste zuerst', () {
+    test('liegengebliebene Stufe-3-Aufgaben kommen neuste zuerst', () {
       final t = today();
       final state = stateWith(tasks: [
         Task(
@@ -163,10 +211,13 @@ void main() {
           priority: Priority.niedrig,
         ),
       ]);
-      expect(state.openLowTasks().map((x) => x.id), ['neu', 'mittig', 'alt']);
+      expect(
+        state.lowLeftoverTasks().map((x) => x.id),
+        ['neu', 'mittig', 'alt'],
+      );
     });
 
-    test('Aufgaben-Reiter haelt Stufe 3 aus "Heute" heraus', () {
+    test('nur das Liegengebliebene trennt sich von "Heute"', () {
       final t = today();
       final done = Task(
         id: 'erledigt',
@@ -192,24 +243,27 @@ void main() {
         ),
         done,
       ]);
-      expect(state.tasksDueToday().map((x) => x.id), ['normal']);
-      // Offen zuerst und darin neuste zuerst, Abgehaktes bleibt am Ende
-      // stehen – nur hier laesst sich ein Haken zurueckziehen.
+      // Heute faellig – die leise von heute und die abgehakte wiederkehrende
+      // stehen mit unter "Heute", die abgehakte am Ende: nur dort laesst
+      // sich ein Haken zurueckziehen.
       expect(
-        state.lowTasksToday().map((x) => x.id),
-        ['neu', 'alt', 'erledigt'],
+        state.tasksDueToday().map((x) => x.id),
+        ['normal', 'neu', 'erledigt'],
       );
+      expect(state.lowLeftoverTasks().map((x) => x.id), ['alt']);
     });
 
-    test('abgehakte Stufe-3-Aufgaben verschwinden aus der Liste', () {
+    test('abgehakte Stufe-3-Aufgaben fallen aus der Zahl', () {
       final t = today();
       final task = Task(
           id: '1', title: 'Unwichtig', startDate: t, priority: Priority.niedrig);
       final state = stateWith(tasks: [task]);
-      expect(state.openLowTasks(), hasLength(1));
+      expect(state.openTodayCount(), 1);
       task.completedDates.add(dateKey(t));
-      expect(state.openLowTasks(), isEmpty);
       expect(state.openTodayCount(), 0);
+      // Abgehakt bleibt sie stehen, damit der Haken zurueckgenommen werden
+      // kann – sie zaehlt nur nicht mehr.
+      expect(state.tasksDueToday(), hasLength(1));
     });
   });
 

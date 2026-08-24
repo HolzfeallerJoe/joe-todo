@@ -47,8 +47,9 @@ const taskPaletteNames = [
 enum RecurrenceType { none, daily, weekly, monthly, everyXDays }
 
 /// Three priority levels for tasks and appointments. Level 3 ("Niedrig") is
-/// the quiet one: those tasks stay out of the open-count on the dashboard and
-/// only show up inside the fold-out list.
+/// the quiet one: an ihrem Faelligkeitstag zaehlt sie mit wie jede andere,
+/// danach faellt sie aus "x offene Aufgaben heute" heraus und steht nur noch
+/// unter "Hat Zeit" (siehe [isLowLeftover]).
 enum Priority {
   hoch(1, 'Hoch'),
   mittel(2, 'Mittel'),
@@ -203,6 +204,25 @@ class Appointment {
         reminderLeadMinutes: leadMinutesFromJson(json['reminderLeadMinutes']),
       );
 }
+
+/// Ob [task] an [day] nur noch liegen *bleibt*: Stufe 3, deren
+/// Faelligkeitstag vorbei ist.
+///
+/// Das ist die Grenze, an der sich Stufe 3 vom Rest trennt. An ihrem
+/// Faelligkeitstag ist eine leise Aufgabe eine Aufgabe wie jede andere: sie
+/// steht unter "Heute abhaken" und zaehlt in "x offene Aufgaben heute". Erst
+/// danach faellt sie aus der Zahl heraus und wandert in den Block "Hat Zeit"
+/// – sie sollte an ihrem Tag erledigt sein, muss aber nicht, und eine Zahl,
+/// die von so etwas jeden Tag weiterwaechst, sagt bald nichts mehr.
+///
+/// Nur einmalige Aufgaben koennen liegenbleiben: eine wiederkehrende ist an
+/// einem Tag entweder faellig oder gar nicht dabei.
+///
+/// Steht hier und nicht im [AppState], weil die Startbildschirm-Widgets
+/// dieselbe Grenze fuer *jeden* Tag ihres Schnappschusses brauchen, nicht
+/// nur fuer heute (siehe home_widget.dart).
+bool isLowLeftover(Task task, DateTime day) =>
+    task.priority == Priority.niedrig && !task.occursOn(day);
 
 /// Eine Erinnerungs-Uhrzeit aus dem Bestand: alles, was keine gueltige
 /// Minute im Tag ist (fehlt, falscher Typ, ausserhalb 0–1439), heisst
@@ -450,8 +470,8 @@ class AppState extends ChangeNotifier {
         colorIndex: 0,
         priority: Priority.hoch,
       ),
-      // Stufe 3: zaehlt nicht in "offene Aufgaben heute" mit und steht nur
-      // im Ausklappmenue unter "Kann warten".
+      // Stufe 3, und ihr Faelligkeitstag ist vorbei: sie zaehlt nicht mehr
+      // in "offene Aufgaben heute" mit und steht unter "Hat Zeit".
       Task(
         id: nextId(),
         title: 'Bücherregal sortieren',
@@ -605,47 +625,34 @@ class AppState extends ChangeNotifier {
   static int _soonestFirst(Task a, Task b) =>
       a.startDate.compareTo(b.startDate);
 
-  /// Tasks for the dashboard "Heute abhaken" list, without the unimportant
-  /// ones – those get their own section further down, see [openLowTasks].
-  /// Open items first, then the ones already ticked off.
+  /// Tasks for the dashboard "Heute abhaken" list, without the level-3
+  /// leftovers – those get their own block underneath, see
+  /// [lowLeftoverTasks]. Open items first, then the ones already ticked off.
   List<Task> tasksDueToday() {
     final t = today();
-    return _dueToday()
-        .where((task) => task.priority != Priority.niedrig)
-        .toList()
+    return _dueToday().where((task) => !isLowLeftover(task, t)).toList()
       ..sort(_ordered([_openFirstOn(t), _importantFirst]));
   }
 
-  /// Open level-3 tasks, newest first. Sie stehen im Aufklapper auf einem
-  /// eigenen Block, zaehlen in [openTodayCount] aber ganz normal mit.
-  List<Task> openLowTasks() {
+  /// Die liegengebliebenen Stufe-3-Aufgaben, neuste zuerst – der Block
+  /// "Hat Zeit" unter "Heute abhaken" und auf dem Aufgaben-Reiter.
+  ///
+  /// Sie sind immer offen: liegenbleiben kann nur eine einmalige Aufgabe,
+  /// die noch niemand abgehakt hat.
+  List<Task> lowLeftoverTasks() {
     final t = today();
-    return _dueToday()
-        .where((task) =>
-            task.priority == Priority.niedrig && !task.isCompletedOn(t))
-        .toList()
+    return _dueToday().where((task) => isLowLeftover(task, t)).toList()
       ..sort(_ordered([_newestFirst]));
   }
 
-  /// Was heute noch offen auf dem Teller liegt. Stufe 3 zaehlt mit: sie ist
-  /// heute genauso faellig wie der Rest, nur weiter unten einsortiert.
+  /// Was heute noch offen auf dem Teller liegt. Stufe 3 zaehlt an ihrem
+  /// Faelligkeitstag mit – da ist sie so faellig wie alles andere –, danach
+  /// nicht mehr (siehe [isLowLeftover]).
   int openTodayCount() {
     final t = today();
-    return _dueToday().where((task) => !task.isCompletedOn(t)).length;
-  }
-
-  // ---- Sections of the tasks screen ----
-
-  /// Level-3 tasks due today for the "Kann warten" block on the tasks screen.
-  /// Open first and inside that newest first, like in the dashboard fold-out.
-  /// Unlike the dashboard this keeps the ticked ones: the tasks screen is the
-  /// one place where a recurring level-3 tick can be taken back again.
-  List<Task> lowTasksToday() {
-    final t = today();
     return _dueToday()
-        .where((task) => task.priority == Priority.niedrig)
-        .toList()
-      ..sort(_ordered([_openFirstOn(t), _newestFirst]));
+        .where((task) => !task.isCompletedOn(t) && !isLowLeftover(task, t))
+        .length;
   }
 
   /// One-off tasks dated after today, soonest first.

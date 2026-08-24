@@ -15,16 +15,22 @@ class TasksScreen extends StatelessWidget {
     final theme = joeThemeOf(context);
     final t = today();
     final todayTasks = state.tasksDueToday();
-    final lowToday = state.lowTasksToday();
+    final lowLeftovers = state.lowLeftoverTasks();
     final upcoming = state.upcomingTasks();
     final recurring = state.recurringTasks();
     final done = state.doneTasks();
 
+    const page = PetPage.tasks;
     return JoeScaffold(
+      page: page,
       title: 'Aufgaben',
       body: SafeArea(
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 4, 16, 96),
+          padding: petPadding(
+            context,
+            page,
+            const EdgeInsets.fromLTRB(16, 4, 16, 96),
+          ),
           children: [
             if (state.tasks.isEmpty)
               PaperCard(
@@ -42,14 +48,15 @@ class TasksScreen extends StatelessWidget {
                 ],
               ),
             ],
-            // Stufe 3 steht auch hier fuer sich: sie zaehlt nirgends in
-            // "heute faellig" mit, sonst waere der Reiter wieder die Liste,
-            // vor der die Prioritaeten schuetzen sollen.
-            if (lowToday.isNotEmpty) ...[
-              const SectionTitle('Kann warten'),
+            // Liegengebliebene Stufe 3 steht hier fuer sich – an ihrem
+            // Faelligkeitstag stand sie noch oben unter "Heute" und zaehlte
+            // ganz normal mit. Erst danach zieht sie hierher um, wo sie
+            // niemanden mehr draengt.
+            if (lowLeftovers.isNotEmpty) ...[
+              const SectionTitle('Hat Zeit'),
               _TaskCard(
                 children: [
-                  for (final task in lowToday)
+                  for (final task in lowLeftovers)
                     TaskTile(task: task, day: t, showOverdue: true),
                 ],
               ),
