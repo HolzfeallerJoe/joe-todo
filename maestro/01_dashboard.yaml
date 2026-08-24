@@ -1,17 +1,23 @@
 appId: dev.joe.joe_todo
-name: Dashboard zeigt Heute-Karte, Ausklappmenue und Termine
+name: Dashboard zeigt die Heute-Karte mit beiden Ausklappmenues
 ---
 - launchApp:
     clearState: true
-- assertVisible: "(?s).*offene Aufgaben heute.*"
-# "Heute abhaken" steht jetzt in der Heute-Karte, aufgeklappt.
+# Eine Kopfzeile fuer beide Zahlen des Tages.
+- assertVisible: "(?s).*offene Aufgaben und.*Termine heute.*"
+# Erstes Ausklappmenue: die Aufgaben, aufgeklappt.
 - assertVisible: "(?s).*Heute abhaken.*"
 - assertVisible: "(?s)Blumen gießen.*"
-# Stufe 3 zaehlt nicht in den Zaehler, steht aber unter "Kann warten".
-- assertVisible: "(?s).*Kann warten.*"
+# Liegengebliebene Stufe 3 zaehlt nicht mehr mit, steht aber unter "Hat Zeit".
+- assertVisible: "(?s).*Hat Zeit.*"
 - assertVisible: "(?s).*Bücherregal sortieren.*"
-- assertVisible: "Nächste Termine"
-- assertVisible: "(?s).*Kaffee mit Anna.*"
+# Zweites Ausklappmenue auf derselben Karte: die Termine von heute. Die
+# Beispieldaten legen ihre Termine auf morgen und uebermorgen, hier steht
+# also der leere Fall.
+# Die Kopfzeile des Ausklappmenues traegt ihre Anzahl im selben Element,
+# darum mit Platzhaltern.
+- assertVisible: "(?s).*Heutige Termine.*"
+- assertVisible: "(?s).*Heute keine Termine.*"
 - takeScreenshot: shots/01_dashboard
 # Reiterreihenfolge: Aufgaben, Termine, Kalender, dann der Rest weiter unten.
 - assertVisible: "Aufgaben"

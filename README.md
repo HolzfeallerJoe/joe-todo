@@ -5,23 +5,52 @@ Dashboard, Kalender, wiederkehrenden Aufgaben, Notizen und Historie.
 
 ## Features
 
-- **Dashboard** – Heute-Karte (offene Aufgaben, nächster Termin) mit „Heute
-  abhaken" als Ausklappmenü direkt darunter, nächste Termine, Ordner-Reiter zu
-  allen Bereichen (Layout nach der Referenz aus `requirements/`). Die Reiter
-  stehen in der Reihenfolge Aufgaben, Termine, Kalender, Notizen, Historie,
-  Einstellungen.
-- **Prioritäten** – drei Stufen für Aufgaben und Termine. Stufe 3 („Niedrig")
-  ist die leise: solche Aufgaben zählen nicht in „x offene Aufgaben heute" und
-  stehen nur im Ausklappmenü unter „Kann warten", neuste zuerst und mit
-  „offen seit …".
-- **Aufgaben** – eigener Reiter mit allen Aufgaben nach Heute, Kann warten,
-  Demnächst, Wiederkehrend und Erledigt. Stufe 3 steht auch dort für sich und
-  nicht unter „Heute"; abgehakt bleibt sie im Block stehen, damit sich ein
-  wiederkehrender Haken zurücknehmen lässt.
-- **Kalender** – Monatsansicht mit farbigen Markern; erledigte Aufgaben bleiben
-  am jeweiligen Tag sichtbar (Ring statt Punkt), Tage mit Notizen tragen unten
-  mittig ein „N". Tagesdetail darunter, mit einem Plus, das nach Aufgabe oder Termin
-  fragt, und einem Knopf für eine Notiz an diesem Tag.
+- **Dashboard** – **eine** Heute-Karte für alles von heute. Oben das Datum,
+  darunter beide Zahlen des Tages in einem Satz („3 offene Aufgaben und 2
+  Termine heute"), dann zwei Ausklappmenüs: „Heute abhaken" zum Abhaken und
+  „Heutige Termine" zum Nachsehen. Aufgaben und Termine beantworten dieselbe
+  Frage – was ist heute? –, also teilen sie sich eine Karte und eine
+  Kopfzeile; zwei Karten liessen den Tag in zwei Hälften zerfallen und sagten
+  zweimal „heute". Beide Menüs klappen für sich und merken sich ihren Stand
+  (`todayExpanded`, `appointmentsExpanded`). Darunter die Ordner-Reiter zu
+  allen Bereichen (Layout nach der Referenz aus `requirements/`), in der
+  Reihenfolge Aufgaben, Termine, Kalender, Notizen, Historie, Einstellungen.
+  Die Terminliste zeigt beide Quellen in einer Reihe – die eigenen Termine
+  und die aus den Kalendern des Geräts (siehe unten); gerechnet wird das in
+  `lib/agenda.dart`, plugin-frei und damit prüfbar. Sie zeigt **heute**, das
+  schon Vergangene eingeschlossen: die Zahl darüber und die Liste darunter
+  sollen dasselbe meinen. Was später kommt, steht im Reiter „Termine" und im
+  Kalender.
+- **Prioritäten** – drei Stufen für Aufgaben und Termine. Stufe 3
+  („Niedrig") ist die leise, und die Grenze ist ihr **Fälligkeitstag**: an
+  ihm ist sie eine Aufgabe wie jede andere — sie steht unter „Heute abhaken"
+  und zählt in „x offene Aufgaben heute". Erst danach fällt sie aus der Zahl
+  heraus und wandert in den Block „Hat Zeit", neuste zuerst und mit
+  „offen seit …". Sie sollte an ihrem Tag erledigt sein, muss aber nicht —
+  und eine Zahl, die von so etwas jeden Tag weiterwächst, sagt bald nichts
+  mehr. Für alle anderen Stufen gilt das nicht: eine überfällige Aufgabe der
+  Stufen 1 und 2 zählt weiter mit. Die Grenze steht als eine Funktion in
+  `lib/models.dart` (`isLowLeftover`) — Dashboard, Aufgaben-Reiter und die
+  Startbildschirm-Widgets rechnen daraus dieselbe Zahl; zwei Zahlen auf
+  einem Bildschirm, die sich widersprechen, wären das Schlimmste hier.
+  Liegenbleiben kann übrigens nur eine einmalige Aufgabe: eine
+  wiederkehrende ist an einem Tag entweder fällig oder gar nicht dabei.
+- **Aufgaben** – eigener Reiter mit allen Aufgaben nach Heute, Hat Zeit,
+  Demnächst, Wiederkehrend und Erledigt; abgehakt bleibt eine Aufgabe in
+  ihrem Block stehen, damit sich ein wiederkehrender Haken zurücknehmen
+  lässt.
+- **Kalender** – Monatsansicht; jeder Tag trägt drei Reihen untereinander:
+
+  1. die **Punkte** der Aufgaben, in ihrer Farbe (erledigte bleiben sichtbar,
+     Ring statt Punkt),
+  2. die **Uhren** der Termine, jede in der Farbe ihres Termins — eigene und
+     die aus dem Geräte-Kalender,
+  3. die **Zeichenzeile**: Stern (Feiertag), „N" (Notiz), Mond (Hauptphase).
+
+  Termine hatten vorher dieselben Punkte wie Aufgaben und waren nicht von
+  ihnen zu unterscheiden — ob an einem Tag ein Termin liegt, ist aber das
+  Erste, was man wissen will. Tagesdetail darunter, mit einem Plus, das nach
+  Aufgabe oder Termin fragt, und einem Knopf für eine Notiz an diesem Tag.
 - **Feiertage & Mondphasen** – beides rechnet die App selbst aus
   (`lib/almanac.dart`: Gauß-Osterformel bzw. Meeus-Mondalgorithmus), kein
   Netz, keine Berechtigung. Feiertage tragen einen Stern links des „N",
@@ -36,9 +65,14 @@ Dashboard, Kalender, wiederkehrenden Aufgaben, Notizen und Historie.
   rückwärts. Das Raster liest nur den Cache (`cachedMoonPhaseOnDay`) und
   füllt sich sichtbar auf; das Tagesdetail rechnet seinen einen Tag sofort.
 - **Geräte-Kalender** – zeigt auf Wunsch die Termine aus den Kalendern des
-  Telefons (Android Calendar Provider) im Monatsraster (Farbpunkte in der
-  Kalenderfarbe, nach den eigenen Einträgen) und im Tagesdetail (nach den
-  eigenen Terminen, mit Uhrzeit bzw. „ganztägig"). Damit landet alles, was
+  Telefons (Android Calendar Provider) im Monatsraster (in der Uhrenreihe,
+  in der Kalenderfarbe und nach den eigenen Terminen), im Tagesdetail (nach
+  den eigenen Terminen, mit Uhrzeit bzw. „ganztägig") und auf dem Dashboard
+  unter „Heutige Termine", dort mit dem Kalender-Zeichen statt des
+  Farbpunkts: sie sind reine Anzeige, gepflegt werden sie in der App, aus
+  der sie kommen. Ein
+  mehrtägiger Termin fängt an seinen Folgetagen nicht neu an – er steht dort
+  als „ganztägig", nicht mit der Uhrzeit von vorgestern. Damit landet alles, was
   die Google-Kalender-App synchronisiert – Gmail-Termine, abonnierte
   Kalender –, ohne dass Joe selbst ins Netz spricht. Standard: aus; der
   Schalter in den Einstellungen fragt die Kalender-Berechtigung an, ein

@@ -311,6 +311,230 @@ class PaperCard extends StatelessWidget {
   }
 }
 
+/// Die Kopfzeile der Heute-Karte: beide Zahlen des Tages in einem Satz.
+///
+/// "3 offene Aufgaben und 2 Termine heute" – Aufgaben und Termine
+/// beantworten dieselbe Frage, also stehen sie auch in einem Satz. Zwei
+/// getrennte Kopfzeilen sagten zweimal "heute" und liessen den Tag in zwei
+/// Haelften zerfallen.
+///
+/// Bewusst ein fließender Text und keine Spalten: er bricht bei grosser
+/// Systemschrift von selbst um, statt ueber den Kartenrand zu laufen.
+class TodayHeadline extends StatelessWidget {
+  final int tasks;
+  final int appointments;
+
+  const TodayHeadline({
+    super.key,
+    required this.tasks,
+    required this.appointments,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = joeThemeOf(context);
+    final number = TextStyle(
+      color: theme.accent,
+      fontSize: 30,
+      height: 1.1,
+      fontWeight: FontWeight.w800,
+    );
+    final word = TextStyle(
+      color: theme.ink,
+      fontSize: 17,
+      height: 1.4,
+      fontWeight: FontWeight.w600,
+    );
+
+    return Semantics(
+      container: true,
+      label: '$tasks ${tasks == 1 ? 'offene Aufgabe' : 'offene Aufgaben'} '
+          'und $appointments ${appointments == 1 ? 'Termin' : 'Termine'} heute',
+      excludeSemantics: true,
+      child: Text.rich(
+        TextSpan(
+          children: [
+            TextSpan(text: '$tasks', style: number),
+            TextSpan(
+              text: tasks == 1 ? ' offene Aufgabe' : ' offene Aufgaben',
+              style: word,
+            ),
+            TextSpan(text: ' und ', style: word),
+            TextSpan(text: '$appointments', style: number),
+            TextSpan(
+              text: appointments == 1 ? ' Termin' : ' Termine',
+              style: word,
+            ),
+            TextSpan(text: ' heute', style: word),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Der Strich zwischen der Zahl und dem Ausklappmenue darunter.
+class FoldDivider extends StatelessWidget {
+  const FoldDivider({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = joeThemeOf(context);
+    return Padding(
+      padding: const EdgeInsets.only(top: 12, bottom: 2),
+      child: Divider(
+        height: 1,
+        color: theme.inkSoft.withValues(alpha: 0.25),
+      ),
+    );
+  }
+}
+
+/// Das Ausklappmenue unter einer [CountHeadline]: eine antippbare Zeile mit
+/// Titel, Anzahl und Pfeil, darunter der Inhalt.
+///
+/// Zugeklappt bleibt der Inhalt im Baum, wird aber nicht angezeigt und nimmt
+/// keine Tipps mehr an (das erledigt [AnimatedCrossFade]) – so bleibt die
+/// Hoehenanimation weich, ohne dass man versehentlich etwas Unsichtbares
+/// abhakt. Ob es offen steht, merkt sich der [AppState]: das Dashboard soll
+/// so wiederkommen, wie man es verlassen hat.
+class FoldSection extends StatelessWidget {
+  final String title;
+  final int count;
+  final String unitSingular;
+  final String unitPlural;
+  final bool open;
+  final ValueChanged<bool> onToggle;
+  final List<Widget> children;
+
+  const FoldSection({
+    super.key,
+    required this.title,
+    required this.count,
+    required this.unitSingular,
+    required this.unitPlural,
+    required this.open,
+    required this.onToggle,
+    required this.children,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = joeThemeOf(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Semantics(
+          container: true,
+          button: true,
+          expanded: open,
+          label: '$title, $count ${count == 1 ? unitSingular : unitPlural}',
+          onTap: () => onToggle(!open),
+          excludeSemantics: true,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(10),
+            onTap: () => onToggle(!open),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 10),
+              child: Row(
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      color: theme.ink,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    '$count',
+                    style: TextStyle(color: theme.inkSoft, fontSize: 13),
+                  ),
+                  const Spacer(),
+                  AnimatedRotation(
+                    turns: open ? 0.5 : 0,
+                    duration: const Duration(milliseconds: 200),
+                    child: Icon(Icons.expand_more, color: theme.ink),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        AnimatedCrossFade(
+          duration: const Duration(milliseconds: 200),
+          sizeCurve: Curves.easeOut,
+          crossFadeState:
+              open ? CrossFadeState.showSecond : CrossFadeState.showFirst,
+          firstChild: const SizedBox(width: double.infinity, height: 0),
+          secondChild: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: children,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Die Hinweiszeile, wenn die Geraete-Kalender-Ebene nicht laden konnte.
+/// Sie steht so lange, wie das Problem besteht – und bietet den einen
+/// Handgriff an, der weiterhilft: den Weg in die System-Einstellungen, wenn
+/// die Berechtigung fehlt, sonst einen zweiten Versuch.
+///
+/// Sie steht an beiden Stellen, an denen Geraete-Termine auftauchen: im
+/// Kalender als eigene Karte ([card]) und im Termin-Block des Dashboards als
+/// blosse Zeile, weil sie dort schon in einer Karte sitzt.
+class DeviceCalendarNotice extends StatelessWidget {
+  final String message;
+  final bool permissionMissing;
+  final bool card;
+
+  const DeviceCalendarNotice({
+    super.key,
+    required this.message,
+    required this.permissionMissing,
+    this.card = true,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = joeThemeOf(context);
+    final feed = DeviceCalendarFeed.instance;
+    final row = Row(
+      children: [
+        Icon(Icons.event_busy_outlined, size: 20, color: theme.inkSoft),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Text(
+            message,
+            style: TextStyle(color: theme.ink, fontSize: 13, height: 1.3),
+          ),
+        ),
+        TextButton(
+          style: TextButton.styleFrom(
+            foregroundColor: theme.accent,
+            padding: const EdgeInsets.symmetric(horizontal: 10),
+            minimumSize: const Size(0, 36),
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
+          onPressed: permissionMissing ? feed.openSystemSettings : feed.retry,
+          child: Text(
+            permissionMissing ? 'Einstellungen' : 'Erneut',
+            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+          ),
+        ),
+      ],
+    );
+    if (!card) return row;
+    return PaperCard(
+      padding: const EdgeInsets.fromLTRB(14, 10, 6, 10),
+      child: row,
+    );
+  }
+}
+
 class SectionTitle extends StatelessWidget {
   final String text;
   const SectionTitle(this.text, {super.key});

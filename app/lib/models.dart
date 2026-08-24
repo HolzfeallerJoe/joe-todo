@@ -307,6 +307,9 @@ class AppState extends ChangeNotifier {
   /// storage so the dashboard comes back the way it was left.
   bool todayExpanded = true;
 
+  /// Dasselbe fuer "Naechste Termine" im Termin-Block darunter.
+  bool appointmentsExpanded = true;
+
   /// Berechnete Kalender-Ebenen (siehe almanac.dart): Feiertage und
   /// Mondphasen sind von Haus aus an, das Bundesland waehlt der Nutzer.
   bool showHolidays = true;
@@ -390,6 +393,9 @@ class AppState extends ChangeNotifier {
     petId = storedPet is String ? storedPet : defaultPetId;
     final storedExpanded = data['todayExpanded'];
     todayExpanded = storedExpanded is bool ? storedExpanded : true;
+    final storedAppointments = data['appointmentsExpanded'];
+    appointmentsExpanded =
+        storedAppointments is bool ? storedAppointments : true;
     final storedHolidays = data['showHolidays'];
     showHolidays = storedHolidays is bool ? storedHolidays : true;
     final storedMoon = data['showMoon'];
@@ -789,6 +795,11 @@ class AppState extends ChangeNotifier {
 
   void setTodayExpanded(bool value) {
     todayExpanded = value;
+    _changed();
+  }
+
+  void setAppointmentsExpanded(bool value) {
+    appointmentsExpanded = value;
     _changed();
   }
 

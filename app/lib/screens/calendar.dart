@@ -192,7 +192,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                 DeviceCalendarFeed.instance.hasProblem)
               Padding(
                 padding: const EdgeInsets.only(top: 14),
-                child: _DeviceCalendarNotice(
+                child: DeviceCalendarNotice(
                   message: DeviceCalendarFeed.instance.lastError!,
                   permissionMissing:
                       DeviceCalendarFeed.instance.permissionMissing,
@@ -576,54 +576,6 @@ class _DeviceEventRow extends StatelessWidget {
               event.title,
               style: TextStyle(color: theme.ink, fontSize: 15),
               overflow: TextOverflow.ellipsis,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// Die Hinweiszeile, wenn die Geraete-Kalender-Ebene nicht laden konnte.
-/// Sie steht so lange, wie das Problem besteht – und bietet den einen
-/// Handgriff an, der weiterhilft: den Weg in die System-Einstellungen, wenn
-/// die Berechtigung fehlt, sonst einen zweiten Versuch.
-class _DeviceCalendarNotice extends StatelessWidget {
-  final String message;
-  final bool permissionMissing;
-
-  const _DeviceCalendarNotice({
-    required this.message,
-    required this.permissionMissing,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = joeThemeOf(context);
-    final feed = DeviceCalendarFeed.instance;
-    return PaperCard(
-      padding: const EdgeInsets.fromLTRB(14, 10, 6, 10),
-      child: Row(
-        children: [
-          Icon(Icons.event_busy_outlined, size: 20, color: theme.inkSoft),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              message,
-              style: TextStyle(color: theme.ink, fontSize: 13, height: 1.3),
-            ),
-          ),
-          TextButton(
-            style: TextButton.styleFrom(
-              foregroundColor: theme.accent,
-              padding: const EdgeInsets.symmetric(horizontal: 10),
-              minimumSize: const Size(0, 36),
-              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            ),
-            onPressed: permissionMissing ? feed.openSystemSettings : feed.retry,
-            child: Text(
-              permissionMissing ? 'Einstellungen' : 'Erneut',
-              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
             ),
           ),
         ],
