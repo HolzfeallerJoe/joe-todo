@@ -505,26 +505,40 @@ class _DayCell extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 2),
-              // Oben die Aufgaben als Punkte …
+              // Aufgaben und Termine stehen zusammen in der Mitte des
+              // Kaestchens: oben die Punkte, darunter die Uhren. Vorher
+              // drueckte der Expanded die Uhrenreihe an den unteren Rand,
+              // dicht an die Zeichenzeile.
               Expanded(
-                child: Wrap(
-                  alignment: WrapAlignment.center,
-                  spacing: 2,
-                  runSpacing: 2,
-                  children: markers.take(6).toList(),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Flexible(
+                      child: Wrap(
+                        alignment: WrapAlignment.center,
+                        spacing: 2,
+                        runSpacing: 2,
+                        children: markers.take(6).toList(),
+                      ),
+                    ),
+                    // Die Termine in der Farbe des jeweiligen Termins. Die
+                    // FittedBox laesst sie auf schmalen Telefonen kleiner
+                    // werden, statt die Zelle ueberlaufen zu lassen.
+                    if (clocks.isNotEmpty)
+                      Padding(
+                        padding: EdgeInsets.only(top: markers.isEmpty ? 0 : 3),
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            spacing: 2,
+                            children: clocks.take(3).toList(),
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
               ),
-              // … darunter die Termine als eigene Reihe von Uhren, in der
-              // Farbe des jeweiligen Termins.
-              if (clocks.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 1),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    spacing: 1,
-                    children: clocks.take(4).toList(),
-                  ),
-                ),
               // Ganz unten die Zeichenzeile: Stern (Feiertag), "N" (Notiz),
               // Mond (Hauptphase). Keins davon bekommt einen Farbpunkt – sie
               // haben keine eigene Farbe und sollen die Punktreihe der
@@ -566,7 +580,7 @@ class _DayCell extends StatelessWidget {
 
   /// Ein Termin in der Uhrenreihe – in seiner Farbe, damit sich die Termine
   /// eines Tages auch dort auseinanderhalten lassen.
-  Widget _clock(Color color) => Icon(Icons.schedule, size: 11, color: color);
+  Widget _clock(Color color) => Icon(Icons.schedule, size: 14, color: color);
 }
 
 /// Ein Termin aus einem Geraete-Kalender in der Tageskarte: nur Anzeige,
