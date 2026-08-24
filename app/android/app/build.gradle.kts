@@ -1,6 +1,11 @@
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+
 plugins {
     id("com.android.application")
-    id("kotlin-android")
+    // Kein `kotlin-android` mehr: seit AGP 9 wendet das Flutter-Plugin das
+    // Kotlin-Plugin selbst an. Angewandt man es hier zusaetzlich, streiten
+    // sich beide um die Erweiterung – so haelt es auch die Projektvorlage
+    // von Flutter 3.47.
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
 }
@@ -16,10 +21,6 @@ android {
         // flutter_local_notifications braucht java.time auch auf aelteren
         // Android-Versionen; ohne das bricht schon der Build ab.
         isCoreLibraryDesugaringEnabled = true
-    }
-
-    kotlinOptions {
-        jvmTarget = JavaVersion.VERSION_17.toString()
     }
 
     defaultConfig {
@@ -60,6 +61,17 @@ android {
             // Signing with the debug keys for now, so `flutter run --release` works.
             signingConfig = signingConfigs.getByName("debug")
         }
+    }
+}
+
+// Seit AGP 9 / Kotlin 2.3 ist `kotlinOptions { jvmTarget = ... }` innerhalb
+// von `android { }` abgekuendigt; die Einstellung gehoert dem
+// Kotlin-Plugin. Gleicher Wert wie compileOptions oben – Java und Kotlin
+// muessen auf dieselbe Bytecode-Fassung uebersetzen, sonst beschwert sich
+// der Compiler zu Recht.
+kotlin {
+    compilerOptions {
+        jvmTarget.set(JvmTarget.JVM_17)
     }
 }
 

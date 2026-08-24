@@ -552,7 +552,7 @@ das Debug-APK und haengt das APK als Artefakt an den Lauf. Der Workflow ist
 per `paths`-Filter auf `software/joe-todo/**` beschraenkt, damit Aenderungen
 an den anderen Projekten im Repo ihn nicht ausloesen; die Konventionen dafuer
 stehen in `.github/workflows/README.md`. Die Flutter-Version ist dort fest
-eingetragen (aktuell 3.38.4) und sollte mit der lokalen uebereinstimmen.
+eingetragen (aktuell 3.47.1) und sollte mit der lokalen uebereinstimmen.
 
 Bei einem Push auf `main` landet das APK zusaetzlich als GitHub-Release unter
 dem Tag `joe-todo-v<version>` (Version aus `app/pubspec.yaml`, aktuell

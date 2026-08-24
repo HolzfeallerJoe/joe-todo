@@ -32,6 +32,8 @@ migrate_working_dir/
 .pub/
 /build/
 /coverage/
+# Seit AGP 9 legt Gradle hier zusaetzlich Berichte ab (android/build/reports).
+/android/build/
 
 # Symbolication related
 app.*.symbols
