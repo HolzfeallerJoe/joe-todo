@@ -14,23 +14,56 @@ class NotesScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    const page = PetPage.notes;
+    final theme = joeThemeOf(context);
+
+    return JoeScaffold(
+      page: page,
+      title: 'Notizen',
+      body: SafeArea(child: _notesList(context, page)),
+      floatingActionButton: FloatingActionButton(
+        backgroundColor: theme.accent,
+        foregroundColor: Colors.white,
+        tooltip: 'Neue Notiz',
+        onPressed: () => _openNote(context, null),
+        child: const Icon(Icons.edit_outlined),
+      ),
+    );
+  }
+
+  Widget _notesList(BuildContext context, PetPage page) {
     final state = AppScope.of(context);
     final theme = joeThemeOf(context);
     final notes = state.notes;
 
-    return JoeScaffold(
-      title: 'Notizen',
-      body: SafeArea(
-        child: notes.isEmpty
-            ? Center(
-                child: Text(
-                  'Noch keine Notizen.\nTippe auf den Stift, um loszulegen.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: theme.inkSoft, fontSize: 15),
+    return notes.isEmpty
+            // Auf einer Karte, nicht blank auf dem Hintergrund: die
+            // Papierfarbe des Designs traegt den Text auf jedem Untergrund,
+            // auch auf einem Foto. Frei stehender Text in der Papierfarbe
+            // war auf dem Ozean-Design praktisch unsichtbar. So halten es
+            // auch Aufgaben und Termine.
+            ? ListView(
+                padding: petPadding(
+                  context,
+                  page,
+                  const EdgeInsets.fromLTRB(16, 4, 16, 96),
                 ),
+                children: [
+                  PaperCard(
+                    child: Text(
+                      'Noch keine Notizen. Tippe auf den Stift, um '
+                      'loszulegen.',
+                      style: TextStyle(color: theme.inkSoft, fontSize: 15),
+                    ),
+                  ),
+                ],
               )
             : ListView.builder(
-                padding: const EdgeInsets.fromLTRB(16, 4, 16, 96),
+                padding: petPadding(
+                  context,
+                  page,
+                  const EdgeInsets.fromLTRB(16, 4, 16, 96),
+                ),
                 itemCount: notes.length,
                 itemBuilder: (context, index) {
                   final note = notes[index];
@@ -108,16 +141,7 @@ class NotesScreen extends StatelessWidget {
                     ),
                   );
                 },
-              ),
-      ),
-      floatingActionButton: FloatingActionButton(
-        backgroundColor: theme.accent,
-        foregroundColor: Colors.white,
-        tooltip: 'Neue Notiz',
-        onPressed: () => _openNote(context, null),
-        child: const Icon(Icons.edit_outlined),
-      ),
-    );
+              );
   }
 
   void _openNote(BuildContext context, Note? note) {

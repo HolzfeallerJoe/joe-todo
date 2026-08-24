@@ -162,14 +162,67 @@ Dashboard, Kalender, wiederkehrenden Aufgaben, Notizen und Historie.
   nach oben wischen räumt sie weg. Bewusst ein Singleton statt einer
   Snackbar: die meisten dieser Meldungen entstehen ohne Bildschirm – ein
   fehlgeschlagener Erinnerungsplan im Hintergrund hat keinen `BuildContext`.
+- **Lesbarkeit** – Joe malt seinen Hintergrund selbst, vier gemalte Texturen
+  und elf Fotos. Damit gibt es genau zwei Sorten Text: auf einer `PaperCard`
+  (dort gilt die Tintenfarbe des Designs) oder frei auf dem Hintergrund
+  (dort gilt `theme.onBg` samt Halo, siehe `SectionTitle`). Wer die
+  Tintenfarbe frei auf den Hintergrund setzt, bekommt auf einem Foto Text,
+  der praktisch verschwindet – die Leer-Hinweise von Notizen und Historie
+  taten das auf dem Ozean-Design. Beide stehen jetzt auf einer Karte, wie
+  die von Aufgaben und Terminen; `legibility_test.dart` prüft das für jeden
+  leeren Zustand und misst nebenbei den Kontrast von Tinte auf Papier für
+  alle 15 Designs.
 - **Design** – vier Notizbuch-Themen mit gemalten Texturen (Holz, Papier,
   Stoff, Aquarell) plus elf Foto-Hintergründe, wählbar über eine Klappliste in
   den Einstellungen; 20 warme frei wählbare Farben pro Aufgabe/Termin. Die
   Reiterfarben der Foto-Designs stehen in der Vorlage (siehe unten). Der
   Hintergrund läuft randlos hinter Status- und Navigationsleiste durch; die
   Systemsymbole richten sich nach dem Design (siehe unten).
-- **Begleiter** – 53 gemalte Tierchen, die oben rechts über der Heute-Karte
-  sitzen. Die Auswahl öffnet sich als Blatt von unten: pro Gruppe (Aquarell,
+- **Begleiter** – 53 gemalte Tierchen, die auf **jeder** Seite mitsitzen,
+  auf jeder an einer anderen Stelle. Gewürfelt wird einmal beim App-Start,
+  und zwar nur **eine Zahl**: der Startwert (`PetPlacement.roll()` in
+  `main()`, er steht im Log, damit sich ein Stand nachstellen lässt). Aus
+  ihm fällt für jede Seite ein Platz – auf dem Dashboard ein anderer als in
+  den Notizen, auf einer Seite aber immer derselbe, solange die App läuft.
+  So entdeckt man das Tierchen beim Blättern überall neu, ohne dass es beim
+  Hin- und Herwechseln zwischen zwei Seiten herumspringt.
+
+  Die Plätze sind nicht irgendwo, sondern **an der UI**: die drei oberen
+  setzen es auf die Oberkante des Inhalts (also auf die erste Karte),
+  `besideFab` neben den Plus-Knopf, die beiden unteren auf die Kante über
+  der Navigationsleiste. Welche davon eine Seite anbietet, steht in
+  `PetPage` – eine Seite ohne Plus bietet den Platz daneben nicht an, eine
+  kurze Seite keinen unteren (dort wäre nur Hintergrund), und die Mitte oben
+  nur dort, wo keine Zahl und keine Überschrift verdeckt würde.
+
+  Es hängt an dem, worauf es sitzt: die Plätze auf der Inhaltskante scrollen
+  **mit der Seite weg** und werden dabei an deren Oberkante abgeschnitten –
+  ein Tierchen, das beim Scrollen an derselben Stelle klebt, wäre kein
+  Aufsitzer mehr, sondern ein Aufkleber auf dem Bildschirm. Die unteren
+  Plätze bleiben stehen, denn Navigationsleiste und Plus-Knopf scrollen auch
+  nicht.
+
+  Den Platz dafür hält **die Seite** frei, innerhalb ihrer Liste
+  (`petPadding(context, page, base)` als deren `padding`) – nicht das
+  Scaffold um die Liste herum. Das ist kein Schönheitsfehler, sondern die
+  Bedingung fürs Mitscrollen: läge der Platz außerhalb, endete der Inhalt an
+  einer Kante weiter unten als das Tierchen, und beim Scrollen liefen zwei
+  Kästen sichtbar aneinander vorbei. `petPadding` nimmt dabei das Größere
+  von normalem Rand und Platzbedarf, nicht die Summe — sonst rutschte die
+  erste Karte unter dem Begleiter weg, und der säße auf nichts mehr.
+
+  Wie tief es oben überlappen darf, sagt die Seite (`PetPage.topOverlap`),
+  gedeckelt auf 12 Punkt: genau der Innenabstand der Karten, also sitzt es
+  auf der Kante und lässt die erste Zeile frei — ein Titel halb hinter einem
+  Dino ist die Karte nicht wert. Im Befinden-Editor sitzt es noch höher,
+  weil dort gleich in der ersten Zeile Datum und Uhrzeit stehen. Es liegt
+  über der Seite, nimmt aber keine Tipps entgegen und trägt keine Semantik
+  (Deko darf keinen Knopf schlucken). Die Motive sind völlig
+  verschieden geschnitten (Lama 130×320 hochkant, Hai 320×196 quer), deshalb
+  steht in `lib/pets.dart` zu jedem sein Seitenverhältnis: `petBox` gibt allen
+  über das geometrische Mittel dieselbe gefühlte Größe, statt sie in eine
+  feste Box zu zwingen, in der der Hai halb so groß wirkte wie das Lama.
+  Die Auswahl öffnet sich als Blatt von unten: pro Gruppe (Aquarell,
   Axos, Dinos & Drachen, KalasStuff, Katzen, Obst, Weihnachten) ein
   aufklappbarer Abschnitt mit den Motiven als Bildraster, immer nur einer
   offen. Ganz abschaltbar; dann ist auch die Auswahl gesperrt.

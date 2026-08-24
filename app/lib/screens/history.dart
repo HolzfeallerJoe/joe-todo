@@ -19,19 +19,37 @@ class HistoryScreen extends StatelessWidget {
       groups.putIfAbsent(e.day, () => []).add(e);
     }
 
+    const page = PetPage.history;
     return JoeScaffold(
+      page: page,
       title: 'Historie',
       body: SafeArea(
         child: entries.isEmpty
-            ? Center(
-                child: Text(
-                  'Noch nichts erledigt.\nAbgehakte Aufgaben erscheinen hier.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: theme.inkSoft, fontSize: 15),
+            // Auf einer Karte, nicht blank auf dem Hintergrund – siehe den
+            // Kommentar in notes.dart: frei stehender Text in der
+            // Papierfarbe verschwindet auf den Foto-Designs.
+            ? ListView(
+                padding: petPadding(
+                  context,
+                  page,
+                  const EdgeInsets.fromLTRB(16, 4, 16, 24),
                 ),
+                children: [
+                  PaperCard(
+                    child: Text(
+                      'Noch nichts erledigt. Abgehakte Aufgaben erscheinen '
+                      'hier.',
+                      style: TextStyle(color: theme.inkSoft, fontSize: 15),
+                    ),
+                  ),
+                ],
               )
             : ListView(
-                padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
+                padding: petPadding(
+                  context,
+                  page,
+                  const EdgeInsets.fromLTRB(16, 4, 16, 24),
+                ),
                 children: [
                   for (final day in groups.keys) ...[
                     SectionTitle(dateOnly(day) == today()
