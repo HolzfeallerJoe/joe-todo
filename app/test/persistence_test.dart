@@ -38,6 +38,110 @@ void main() {
     expect(prefs.getString(AppState.rescueKey), isNull);
   });
 
+  test('Befinden und eigene Symptome kommen zurueck', () async {
+    final data = validData()
+      ..['wellbeing'] = [
+        WellbeingEntry(
+          id: 'w1',
+          noteId: 'n1',
+          at: DateTime(2026, 8, 20, 8, 30),
+          mood: Mood.naja,
+          symptoms: {'kopfschmerzen': 3, 'eigen_1': 5},
+          updatedAt: DateTime(2026, 8, 20, 21),
+        ).toJson(),
+        WellbeingEntry(
+          id: 'w2',
+          noteId: 'n1',
+          at: DateTime(2026, 8, 20, 20, 0),
+          mood: Mood.gut,
+          updatedAt: DateTime(2026, 8, 20, 21),
+        ).toJson(),
+      ]
+      ..['customSymptoms'] = [const Symptom('eigen_1', 'Migräne').toJson()];
+    SharedPreferences.setMockInitialValues({'joe_data_v1': jsonEncode(data)});
+
+    final state = AppState();
+    await state.load();
+
+    expect(state.symptomById('eigen_1')!.name, 'Migräne');
+    final entries = state.wellbeingOfNote('n1');
+    expect(entries, hasLength(2));
+    // Nach Uhrzeit, morgens zuerst.
+    expect(entries.first.mood, Mood.naja);
+    expect(entries.first.symptoms, {'kopfschmerzen': 3, 'eigen_1': 5});
+    expect(entries.last.dayPart, 'Abends');
+    final prefs = await SharedPreferences.getInstance();
+    expect(prefs.getString(AppState.rescueKey), isNull);
+  });
+
+  test('ein Eintrag aus der ersten Fassung findet seine Notiz', () async {
+    // Damals gab es einen Eintrag je Tag, ohne Uhrzeit ('date' statt 'at')
+    // und ohne Notiz. Beim Laden bekommt er die Notiz seines Tages.
+    final day = DateTime(2026, 8, 20);
+    final data = validData()
+      ..['notes'] = [
+        Note(
+          id: 'n-alt',
+          title: 'Der Tag',
+          body: '',
+          date: day,
+          updatedAt: day,
+        ).toJson(),
+      ]
+      ..['wellbeing'] = [
+        {
+          'id': 'alt',
+          'date': '2026-08-20',
+          'mood': 'gut',
+          'symptoms': {'koliken': 1},
+          'updatedAt': '2026-08-20T21:00:00.000',
+        },
+      ];
+    SharedPreferences.setMockInitialValues({'joe_data_v1': jsonEncode(data)});
+
+    final state = AppState();
+    await state.load();
+
+    final entry = state.wellbeingOfNote('n-alt').single;
+    expect(entry.mood, Mood.gut);
+    expect(entry.at, day);
+    final prefs = await SharedPreferences.getInstance();
+    expect(prefs.getString(AppState.rescueKey), isNull);
+  });
+
+  test('ein Eintrag ohne Notiz an seinem Tag bleibt trotzdem liegen',
+      () async {
+    // Wegwerfen waere schlimmer als unsichtbar: Aufzeichnungen ueber die
+    // eigene Gesundheit loescht die App nicht im Vorbeigehen.
+    final data = validData()
+      ..['wellbeing'] = [
+        {
+          'id': 'heimatlos',
+          'at': '2026-08-20T08:00:00.000',
+          'mood': 'gut',
+          'symptoms': <String, int>{},
+          'updatedAt': '2026-08-20T21:00:00.000',
+        },
+      ];
+    SharedPreferences.setMockInitialValues({'joe_data_v1': jsonEncode(data)});
+
+    final state = AppState();
+    await state.load();
+
+    expect(state.wellbeing, hasLength(1));
+    expect(state.wellbeing.single.noteId, isNull);
+  });
+
+  test('ohne Angabe bleibt das Befinden leer', () async {
+    SharedPreferences.setMockInitialValues(
+        {'joe_data_v1': jsonEncode(validData())});
+    final state = AppState();
+    await state.load();
+
+    expect(state.wellbeing, isEmpty);
+    expect(state.customSymptoms, isEmpty);
+  });
+
   test('unlesbares JSON: App startet, Original liegt unter rescue', () async {
     SharedPreferences.setMockInitialValues({'joe_data_v1': '{kaputt'});
     final state = AppState();

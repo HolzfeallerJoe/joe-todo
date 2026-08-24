@@ -81,10 +81,66 @@ Dashboard, Kalender, wiederkehrenden Aufgaben, Notizen und Historie.
 - **Wiederkehrende Aufgaben** – täglich, wöchentlich, monatlich, alle X Tage.
 - **Notizen** – einfache Liste + Editor, ohne Untermenüs; speichert beim
   Zurückgehen automatisch. Jede Notiz hängt an einem Tag (Standard: der Tag,
-  an dem sie entsteht), der im Editor umgestellt werden kann.
+  an dem sie entsteht), der im Editor umgestellt werden kann. Der Editor
+  scrollt als Ganzes und die Schreibfläche wächst mit dem Text
+  (`minLines`); vorher füllte die Karte fest den Bildschirm und die
+  Befinden-Kategorie darin scrollte für sich. Diese Liste in der Liste war
+  ein echter Fehler: ihre Kinder meldeten ihre Tippflächen an der alten
+  Stelle, sobald die Liste wuchs – ein Tipp auf „Weiterer Eintrag" landete
+  dann auf der Zeile darüber, und die Vorlesehilfe hätte danebengezielt.
+  Ein Test in `wellbeing_test.dart` hält fest, dass dort keine zweite
+  Scroll-Liste zurückkommt.
+- **Befinden** – wie es einem geht: eine Stimmung (Sehr gut, Gut, Okay,
+  Naja, Schlecht) und darunter Symptome, jedes mit einer Fünf-Punkte-Skala.
+  Zehn stehen fest (Kopfschmerzen, Rückenschmerzen, Gelenkschmerzen,
+  Koliken, Magenschmerzen, Bauchschmerzen, Unterleibsschmerzen, Krämpfe,
+  Durchfall, Übelkeit), eigene lassen sich ergänzen. Ein zweiter Tipp auf
+  denselben Punkt nimmt die Angabe zurück – eine Skala ohne Rückweg zwänge
+  dazu, den Tag schlimmer zu lassen, als er war. Was auf 0 steht, wird nicht
+  gespeichert, und ein Eintrag ohne jede Angabe wird nicht aufbewahrt: sonst
+  sähe ein Zeitpunkt, an dem man den Editor nur aufgemacht hat, aus wie ein
+  eingetragenes Befinden.
+
+  Eingetragen wird **als zweite Kategorie im Notiz-Editor**, unter dem Text:
+  ein Aufklapper „Befinden" mit den Einträgen dieser Notiz und einem Knopf
+  für einen weiteren. Jeder Eintrag trägt seine **Uhrzeit**, und es können
+  beliebig viele sein – morgens Kopfschmerzen und abends nicht mehr sind
+  zwei Angaben, kein Widerspruch. Die Liste zeigt zu jedem Eintrag die
+  Tageszeit („Morgens", „Mittags", „Nachmittags", „Abends", „Nachts") samt
+  Uhrzeit, so lässt sie sich überfliegen, ohne Zeiten zu vergleichen.
+
+  Ein Eintrag gehört **der Notiz**, in der er entstanden ist: zwei Notizen
+  desselben Tages führen getrennte Listen. Das hat zwei Folgen, die die App
+  offen ausspricht — mit der Notiz geht ihr Befinden, deshalb sagt die
+  Löschkarte einer Notiz dazu, wie viele Einträge mitgehen; und weil ein
+  Befinden eine Notiz braucht, an der es hängt, legt der erste Eintrag in
+  einer noch leeren Notiz diese gleich mit an. Damit man die Einträge
+  wiederfindet, trägt eine Notiz in der Liste ein kleines Herz mit ihrer
+  Zahl.
+
+  Einträge aus der Fassung, in der das Befinden noch am Tag hing, bekommen
+  beim Start die älteste Notiz ihres Tages (`adoptOrphanWellbeing`). Ein Tag
+  ohne Notiz behält seine heimatlosen Einträge — sie sind dann zwar nirgends
+  zu sehen, aber wegwerfen wäre schlimmer: Aufzeichnungen über die eigene
+  Gesundheit löscht die App nicht im Vorbeigehen.
+
+  Ein eigenes Symptom wird über langes Drücken gelöscht – mit derselben
+  Karte wie überall, die dazusagt, in wie vielen Einträgen Werte daran
+  hängen. Die gehen mit: sie gehörten zu einem Namen, den es nicht mehr
+  gibt, und wären nirgends mehr zu sehen.
 - **Historie** – alle erledigten Aufgaben, nach Tag gruppiert.
-- **Termine** – mit Datum, Uhrzeit, Priorität und Farbe; lange drücken zum
-  Löschen.
+- **Termine** – mit Datum, Uhrzeit, Priorität und Farbe.
+- **Bearbeiten & Löschen** – für Aufgaben, Termine, Notizen und Befinden derselbe
+  Griff: langes Drücken öffnet überall dasselbe Blatt („Bearbeiten",
+  „Löschen"), und zwar an jeder Stelle, an der der Eintrag steht – Liste,
+  Dashboard und Kalender-Tagesdetail. Löschen fragt vorher über eine Karte,
+  die von unten aufkommt und mindestens das untere Drittel füllt, mit dem
+  Namen des Eintrags und dem Hinweis, dass es kein Zurück gibt. Bewusst kein
+  Dialog mitten auf dem Bild: dort ist der Daumen nicht, und alles andere,
+  was Joe fragt, kommt ebenfalls von unten. Vorher hatte jede der drei
+  Arten ihren eigenen Weg (Aufgabe: Blatt, Termin: sofortige Rückfrage,
+  Notiz: nur der Papierkorb im Editor) – wer eine Notiz aus der Liste
+  löschen wollte, musste sie erst öffnen.
 - **Erinnerungen** – wie im Google-Kalender: ein Termin bekommt einen
   Vorlauf („Zur Terminzeit" bis „1 Tag vorher"), eine Aufgabe eine Uhrzeit
   am Fälligkeitstag – bei wiederkehrenden Aufgaben an jedem ihrer Tage.
@@ -126,6 +182,8 @@ app/                  Flutter-Projekt (Android)
   lib/models.dart     Datenmodell, Wiederholungslogik, Persistenz (AppState)
   lib/almanac.dart    Feiertage (Gauß) + Mondphasen (Meeus), rein berechnet
   lib/device_calendar.dart  Geraete-Kalender als lesende Ebene (Plugin-Kapsel)
+  lib/agenda.dart     Eigene + Geraete-Termine in einer Liste (rechnend)
+  lib/wellbeing.dart  Befinden: Stimmung, Symptom-Katalog, Eintrag mit Uhrzeit
   lib/reminders.dart  Erinnerungsplan (rechnend) + Zustellung (Plugin-Kapsel)
   lib/home_widget.dart      Schnappschuss fuer die Widgets (rechnend) + Kanal
   android/.../widget/       Die Widgets selbst: Daten lesen, zeichnen, wecken
@@ -463,6 +521,16 @@ Die App spricht nicht ins Netz: keine Netzwerk-Abhängigkeit,
 und die INTERNET-Permission steht nur in den Debug-/Profile-Manifesten fürs
 Flutter-Tooling, nicht im Release. Androids Auto-Backup bleibt auf dem
 Standard (an), damit der Bestand Gerätewechsel überlebt.
+
+Das **Befinden** ist von allem, was Joe speichert, das Empfindlichste –
+Gesundheitsangaben. Es liegt im selben lokalen Schlüssel und geht denselben
+Weg wie der Rest, also nirgendwohin. Zwei Stellen halten es zusätzlich
+heraus: das Log nennt beim Speichern nur den Tag, nie Stimmung oder
+Symptome (dieselbe Regel wie bei Titeln), und der Widget-Schnappschuss
+enthält es gar nicht. Was dagegen gilt: Androids Auto-Backup steht auf dem
+Standard (an) und sichert den ganzen Schlüssel in das Google-Konto des
+Geräts – das Befinden also mit. Wer das nicht will, schaltet das Backup für
+Joe in den Android-Einstellungen ab.
 
 Für die Erinnerungen kommen POST_NOTIFICATIONS (ab Android 13 zur Laufzeit
 bestätigt), RECEIVE_BOOT_COMPLETED (Plan nach einem Neustart neu stellen) und

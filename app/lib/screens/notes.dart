@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../models.dart';
 import '../util.dart';
 import '../widgets.dart';
+import 'wellbeing.dart';
 
 const noteAutosaveDelay = Duration(milliseconds: 700);
 
@@ -64,10 +65,42 @@ class NotesScreen extends StatelessWidget {
                               ),
                             ],
                             const SizedBox(height: 6),
-                            Text(
-                              formatDateYear(note.date),
-                              style:
-                                  TextStyle(color: theme.inkSoft, fontSize: 12),
+                            Row(
+                              children: [
+                                Text(
+                                  formatDateYear(note.date),
+                                  style: TextStyle(
+                                    color: theme.inkSoft,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                                // Wie viele Befinden-Eintraege an dieser
+                                // Notiz haengen. Ohne diesen Hinweis muesste
+                                // man jede Notiz oeffnen, um sie zu finden.
+                                if (state.wellbeingOfNote(note.id)
+                                    case final entries when entries.isNotEmpty)
+                                  Padding(
+                                    padding: const EdgeInsets.only(left: 10),
+                                    child: Row(
+                                      children: [
+                                        Icon(
+                                          Icons.favorite,
+                                          size: 12,
+                                          color: theme.accent,
+                                        ),
+                                        const SizedBox(width: 3),
+                                        Text(
+                                          '${entries.length}',
+                                          style: TextStyle(
+                                            color: theme.accent,
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                              ],
                             ),
                           ],
                         ),
@@ -222,6 +255,30 @@ class _NoteEditScreenState extends State<NoteEditScreen>
     _unpublished = true;
   }
 
+  /// Die Notiz, an der ein Befinden haengen kann – und wenn es sie noch
+  /// nicht gibt, entsteht sie hier.
+  ///
+  /// Ein Befinden gehoert genau einer Notiz. In einer nagelneuen, noch
+  /// leeren Notiz gibt es aber noch nichts, woran es haengen koennte:
+  /// [_saveNow] legt sie erst an, wenn Titel oder Text etwas enthalten. Ein
+  /// Befinden ist selbst Inhalt genug, also legt der erste Eintrag die Notiz
+  /// mit an – sonst haetten die Eintraege kein Zuhause.
+  Note _ensureNote() {
+    final existing = _savedNote;
+    if (existing != null) return existing;
+    final note = Note(
+      id: _state.nextId(),
+      title: _title.text.trim(),
+      body: _body.text.trim(),
+      date: _date,
+      updatedAt: DateTime.now(),
+    );
+    _savedNote = note;
+    _state.autosaveNote(note, isNew: true);
+    _unpublished = true;
+    return note;
+  }
+
   void _publishChanges() {
     if (!_unpublished) return;
     _unpublished = false;
@@ -266,8 +323,18 @@ class _NoteEditScreenState extends State<NoteEditScreen>
             ),
         ],
         body: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+          // Die Seite scrollt als Ganzes. Vorher fuellte die Karte fest den
+          // Bildschirm und die Befinden-Kategorie scrollte fuer sich – eine
+          // Liste in einer Liste. Das ging schief: die Tippflaechen darin
+          // wurden rund 50 Punkt zu tief gemeldet, sodass ein Tipp auf
+          // "Weiterer Eintrag" ins Leere ging (und die Vorlesehilfe
+          // danebengezielt haette). Eine Ebene weniger, und alles sitzt.
+          child: SingleChildScrollView(
+            padding: petPadding(
+              context,
+              page,
+              const EdgeInsets.fromLTRB(16, 4, 16, 16),
+            ),
             child: PaperCard(
               padding: const EdgeInsets.all(16),
               child: Column(
@@ -315,11 +382,16 @@ class _NoteEditScreenState extends State<NoteEditScreen>
                     ),
                   ),
                   Divider(color: theme.inkSoft.withValues(alpha: 0.4)),
-                  Expanded(
+                  // [minLines] haelt die Schreibflaeche gross, auch wenn erst
+                  // ein Wort darin steht; laenger wird sie mit dem Text. Kein
+                  // `expands` mehr – das braucht eine feste Hoehe, und die
+                  // gibt es in einer scrollenden Seite nicht.
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 4),
                     child: TextField(
                       controller: _body,
+                      minLines: 14,
                       maxLines: null,
-                      expands: true,
                       textAlignVertical: TextAlignVertical.top,
                       style: TextStyle(
                           color: theme.ink, fontSize: 16, height: 1.5),
@@ -329,6 +401,14 @@ class _NoteEditScreenState extends State<NoteEditScreen>
                         border: InputBorder.none,
                       ),
                     ),
+                  ),
+                  // Die zweite Kategorie der Notiz: das Befinden des Tages,
+                  // an dem sie haengt – beliebig viele Eintraege mit
+                  // Uhrzeit.
+                  NoteWellbeingSection(
+                    date: _date,
+                    noteId: _savedNote?.id,
+                    ensureNote: () => _ensureNote().id,
                   ),
                 ],
               ),

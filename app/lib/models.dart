@@ -8,6 +8,12 @@ import 'env.dart';
 import 'log.dart';
 import 'pets.dart';
 import 'util.dart';
+import 'wellbeing.dart';
+
+// Das Befinden gehoert zum Datenmodell; es steht nur in einer eigenen Datei,
+// weil es mit Katalog und Skala fuer sich schon einiges ist. Wer models
+// kennt, kennt es mit.
+export 'wellbeing.dart';
 
 /// Warm color palette for tasks and appointments.
 ///
@@ -299,6 +305,13 @@ class AppState extends ChangeNotifier {
   List<Task> tasks = [];
   List<Appointment> appointments = [];
   List<Note> notes = [];
+
+  /// Das Befinden – beliebig viele Eintraege je Tag, jeder mit seiner
+  /// Uhrzeit (siehe wellbeing.dart).
+  List<WellbeingEntry> wellbeing = [];
+
+  /// Selbst angelegte Symptome, zusaetzlich zu den zehn festen.
+  List<Symptom> customSymptoms = [];
   int themeIndex = 0;
   bool showPet = true;
   String petId = defaultPetId;
@@ -383,6 +396,10 @@ class AppState extends ChangeNotifier {
     appointments =
         _readList(data['appointments'], Appointment.fromJson, onLoss: loss);
     notes = _readList(data['notes'], Note.fromJson, onLoss: loss);
+    wellbeing = _readList(data['wellbeing'], WellbeingEntry.fromJson,
+        onLoss: loss);
+    customSymptoms =
+        _readList(data['customSymptoms'], Symptom.fromJson, onLoss: loss);
     // Falsch getypte Einstellungen sind kein Verlust, nur ihr Standardwert.
     // 'showCat' ist der alte Schluessel aus der Zeit vor den Begleiterbildern.
     final storedTheme = data['themeIndex'];
@@ -416,7 +433,10 @@ class AppState extends ChangeNotifier {
         : 30;
 
     JoeLog.log('Geladen: ${tasks.length} Aufgaben, '
-        '${appointments.length} Termine, ${notes.length} Notizen');
+        '${appointments.length} Termine, ${notes.length} Notizen, '
+        '${wellbeing.length} Befinden');
+    // Aus der Zeit, als das Befinden noch am Tag hing (siehe dort).
+    adoptOrphanWellbeing();
     if (losses > 0) {
       JoeLog.log('ACHTUNG: $losses Eintraege unlesbar, '
           'alter Bestand unter $rescueKey gesichert');
@@ -522,10 +542,13 @@ class AppState extends ChangeNotifier {
           'tasks': tasks.map((t) => t.toJson()).toList(),
           'appointments': appointments.map((a) => a.toJson()).toList(),
           'notes': notes.map((n) => n.toJson()).toList(),
+          'wellbeing': wellbeing.map((w) => w.toJson()).toList(),
+          'customSymptoms': customSymptoms.map((s) => s.toJson()).toList(),
           'themeIndex': themeIndex,
           'showPet': showPet,
           'petId': petId,
           'todayExpanded': todayExpanded,
+          'appointmentsExpanded': appointmentsExpanded,
           'showHolidays': showHolidays,
           'showMoon': showMoon,
           'holidayRegion': holidayRegion.name,
@@ -756,8 +779,12 @@ class AppState extends ChangeNotifier {
   }
 
   void deleteNote(Note n) {
-    JoeLog.log('Notiz geloescht (${n.id})');
+    // Das Befinden gehoert der Notiz, in der es eingetragen wurde – also
+    // geht es mit. Dass es mitgeht, sagt die Loeschkarte vorher an.
+    final entries = wellbeing.where((e) => e.noteId == n.id).length;
+    JoeLog.log('Notiz geloescht (${n.id}, $entries Befinden)');
     notes.removeWhere((x) => x.id == n.id);
+    wellbeing.removeWhere((e) => e.noteId == n.id);
     _changed();
   }
 
@@ -766,6 +793,132 @@ class AppState extends ChangeNotifier {
     final d = dateOnly(day);
     return notes.where((n) => dateOnly(n.date) == d).toList()
       ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+  }
+
+  // ---- Befinden ----
+
+  /// Die Eintraege der Notiz [noteId], nach Uhrzeit – morgens zuerst.
+  List<WellbeingEntry> wellbeingOfNote(String? noteId) {
+    if (noteId == null) return const [];
+    return wellbeing.where((e) => e.noteId == noteId).toList()
+      ..sort((a, b) => a.at.compareTo(b.at));
+  }
+
+  /// Ein neuer Eintrag zum Bearbeiten, standardmaessig auf jetzt. Er
+  /// entsteht hier nur als Entwurf und wird erst mit [saveWellbeing]
+  /// aufbewahrt – das blosse Oeffnen des Editors soll nichts anlegen.
+  ///
+  /// Faellt [day] auf einen anderen Tag als heute (die Notiz haengt an einem
+  /// vergangenen Tag), bekommt der Entwurf die aktuelle Uhrzeit an *diesem*
+  /// Tag: der Tag ist die Aussage, die Uhrzeit nur ihre Einordnung.
+  WellbeingEntry newWellbeingDraft(DateTime day, {required String noteId}) {
+    final now = DateTime.now();
+    final d = dateOnly(day);
+    return WellbeingEntry(
+      id: nextId(),
+      noteId: noteId,
+      at: DateTime(d.year, d.month, d.day, now.hour, now.minute),
+      updatedAt: now,
+    );
+  }
+
+  /// Eintraege aus der Fassung, in der das Befinden noch am Tag hing und
+  /// nicht an einer Notiz, bekommen beim Start eine Notiz zugewiesen: die
+  /// aelteste ihres Tages.
+  ///
+  /// Ein Tag ohne Notiz behaelt seine heimatlosen Eintraege – sie sind dann
+  /// zwar nirgends zu sehen, aber wegwerfen waere schlimmer: Aufzeichnungen
+  /// ueber die eigene Gesundheit loescht man nicht im Vorbeigehen.
+  void adoptOrphanWellbeing() {
+    var adopted = 0;
+    var homeless = 0;
+    for (final entry in wellbeing) {
+      if (entry.noteId != null) continue;
+      final sameDay = notes.where((n) => dateOnly(n.date) == entry.day).toList()
+        ..sort((a, b) => a.updatedAt.compareTo(b.updatedAt));
+      if (sameDay.isEmpty) {
+        homeless++;
+        continue;
+      }
+      entry.noteId = sameDay.first.id;
+      adopted++;
+    }
+    if (adopted > 0 || homeless > 0) {
+      JoeLog.log('Befinden: $adopted Eintraege einer Notiz zugeordnet, '
+          '$homeless ohne Notiz an ihrem Tag');
+      _save();
+    }
+  }
+
+  /// Nimmt einen bearbeiteten Eintrag auf – erkannt an seiner id, damit
+  /// mehrere Eintraege desselben Tages nebeneinander bestehen.
+  ///
+  /// Ein leerer Eintrag (keine Stimmung, kein Symptom) wird nicht
+  /// aufbewahrt, sondern entfernt: sonst saehe ein Zeitpunkt, an dem man den
+  /// Editor nur aufgemacht hat, aus wie ein eingetragenes Befinden.
+  void saveWellbeing(WellbeingEntry entry) {
+    wellbeing.removeWhere((e) => e.id == entry.id);
+    if (entry.isEmpty) {
+      JoeLog.log('Befinden geleert (${dateKey(entry.day)})');
+    } else {
+      entry.updatedAt = DateTime.now();
+      wellbeing.add(entry);
+      JoeLog.log('Befinden gespeichert (${dateKey(entry.day)})');
+    }
+    _changed();
+  }
+
+  void deleteWellbeing(WellbeingEntry entry) {
+    JoeLog.log('Befinden geloescht (${dateKey(entry.day)})');
+    wellbeing.removeWhere((e) => e.id == entry.id);
+    _changed();
+  }
+
+  /// Der ganze Symptom-Katalog: erst die zehn festen, dann die eigenen in
+  /// der Reihenfolge, in der sie angelegt wurden.
+  List<Symptom> get symptomCatalog => [...fixedSymptoms, ...customSymptoms];
+
+  /// Das Symptom zu [id]; null, wenn es den Schluessel nicht mehr gibt.
+  Symptom? symptomById(String id) {
+    for (final s in symptomCatalog) {
+      if (s.id == id) return s;
+    }
+    return null;
+  }
+
+  /// Legt ein eigenes Symptom an und gibt es zurueck. Ein Name, den es
+  /// schon gibt, legt nichts Neues an – sonst stuenden zwei gleich
+  /// heissende Zeilen untereinander.
+  Symptom addCustomSymptom(String name) {
+    final trimmed = name.trim();
+    for (final s in symptomCatalog) {
+      if (s.name.toLowerCase() == trimmed.toLowerCase()) return s;
+    }
+    final symptom = Symptom('eigen_${nextId()}', trimmed, custom: true);
+    customSymptoms.add(symptom);
+    JoeLog.log('Symptom angelegt (${symptom.id})');
+    _changed();
+    return symptom;
+  }
+
+  /// In wie vielen Eintraegen [symptomId] vorkommt – die Loeschkarte sagt
+  /// es dazu, damit niemand ungewollt seine Aufzeichnungen wegwirft.
+  int wellbeingUsageOf(String symptomId) =>
+      wellbeing.where((e) => e.symptoms.containsKey(symptomId)).length;
+
+  /// Loescht ein eigenes Symptom – samt seiner Werte in allen Eintraegen.
+  ///
+  /// Die Werte stehenzulassen waere die schlechtere Wahl: sie gehoerten zu
+  /// einem Namen, den es nicht mehr gibt, und wuerden nirgends mehr
+  /// angezeigt. Ein Eintrag, der dadurch leer wird, faellt mit weg.
+  void deleteCustomSymptom(String symptomId) {
+    customSymptoms.removeWhere((s) => s.id == symptomId);
+    for (final entry in wellbeing) {
+      entry.symptoms.remove(symptomId);
+    }
+    wellbeing.removeWhere((e) => e.isEmpty);
+    JoeLog.log('Symptom geloescht ($symptomId)');
+    _changed();
   }
 
   // ---- History ----

@@ -1,0 +1,32 @@
+appId: dev.joe.joe_todo
+name: Befinden als Kategorie in einer Notiz
+---
+- launchApp:
+    clearState: true
+- scrollUntilVisible:
+    element: "Notizen"
+    direction: DOWN
+    centerElement: true
+- tapOn: "Notizen"
+- tapOn: "(?s)Willkommen bei Joe.*"
+# Unter dem Text der Notiz steht die zweite Kategorie, zugeklappt.
+- assertVisible: "(?s).*Befinden.*"
+- assertVisible: "(?s).*nichts eingetragen.*"
+- tapOn: "(?s).*Befinden.*nichts eingetragen.*"
+- tapOn: "(?s).*Befinden eintragen.*"
+# Stimmung und Symptome, mit Uhrzeit oben.
+- assertVisible: "(?s).*Stimmung.*"
+- assertVisible: "(?s).*Kopfschmerzen.*"
+- tapOn: "(?s).*Okay.*"
+- takeScreenshot: shots/09_wellbeing_form
+- back
+# Der Eintrag steht als Zeile in der Kategorie, mit seiner Tageszeit.
+- assertVisible: "(?s).*Okay.*"
+- assertVisible: "(?s).*1 Eintrag.*"
+# Ein zweiter Eintrag in derselben Notiz kommt dazu, statt den ersten zu
+# ersetzen.
+- tapOn: "(?s).*Weiterer Eintrag.*"
+- tapOn: "(?s).*Schlecht.*"
+- back
+- assertVisible: "(?s).*2 Einträge.*"
+- takeScreenshot: shots/09_wellbeing_category
