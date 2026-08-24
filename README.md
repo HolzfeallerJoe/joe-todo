@@ -101,17 +101,25 @@ app/                  Flutter-Projekt (Android)
   env/.env.example    Vorlage; die echten env-Dateien sind nicht im Repo
   lib/toast.dart      Meldungen am oberen Rand – der eine Weg zum Nutzer
   lib/theme.dart      Themes + Textur-Painter
-  lib/pets.dart       Begleiter-Katalog (Name, Gruppe, Asset-Pfad)
-  lib/widgets.dart    PaperCard, Ordner-Reiter, Aufgaben-Zeile, Sheets
+  lib/pets.dart       Begleiter-Katalog (Name, Gruppe, Bild, Seitenverhaeltnis)
+                      + Plaetze je Seite (PetSpot, PetPage, PetPlacement)
+  lib/widgets.dart    JoeScaffold (Hintergrund + Begleiter-Ebene), PaperCard,
+                      Ordner-Reiter, Zaehler-Zeile + Ausklappmenue,
+                      Aufgaben-Zeile, Sheets, Loeschkarte
   lib/screens/        Dashboard, Aufgaben, Termine, Kalender, Notizen,
-                      Historie, Einstellungen
+                      Befinden (Kategorie in der Notiz), Historie,
+                      Einstellungen
   assets/themes/      Hintergründe – Originale + ausgelieferte compressed/
   assets/pets/        Begleiter als WebP, ein Ordner je Gruppe
   test/               Unit-Tests (Wiederholung, Priorität, Notiz-Datum,
                       Reiterfarben, Feiertage/Mondphasen gegen Referenz-
                       daten, Erinnerungsplan) + Widget-Tests für Dashboard
-                      und Aufgaben-Reiter
-maestro/              Maestro-UI-Flows (01–08) + Screenshots in shots/
+                      und Aufgaben-Reiter, Begleiter-Plaetze (pets_test),
+                      Terminliste aus beiden Quellen (agenda_test),
+                      Loeschweg aller drei Arten (delete_test),
+                      Lesbarkeit in leeren Zustaenden (legibility_test),
+                      Befinden in beiden Varianten (wellbeing_test)
+maestro/              Maestro-UI-Flows (01–09) + Screenshots in shots/
 requirements/         Original-Anforderungen (PDF + Layout-Referenzbild)
 ```
 
@@ -529,7 +537,52 @@ nicht: die 53 PNGs sind zusammen ~52 MB, die ausgelieferten WebPs ~0,9 MB.
 (Standard: der Download-Ordner) und braucht `ffmpeg` im PATH. Die Gruppen- und
 Dateinamen der Vorlage sind dort auf ASCII-Slugs abgebildet
 (`Axos\BücherAxo.png` → `axos\buecher-axo.webp`). Neue Begleiter kommen in die
-Tabelle `$map` im Skript und in `app\lib\pets.dart`.
+Tabelle `$map` im Skript und in `app\lib\pets.dart` – dort mit ihrem
+Seitenverhältnis (Breite ÷ Höhe der WebP-Datei, auf drei Stellen), aus dem
+`petBox` die Anzeigegröße rechnet. Ablesen lässt es sich aus dem VP8X-Kopf:
+
+```powershell
+Get-ChildItem -Recurse -Filter *.webp app\assets\pets | ForEach-Object {
+  $b = [System.IO.File]::ReadAllBytes($_.FullName)
+  $w = ($b[24] + $b[25]*256 + $b[26]*65536) + 1
+  $h = ($b[27] + $b[28]*256 + $b[29]*65536) + 1
+  # Invariant, sonst schreibt eine deutsche Konsole ein Komma hinein.
+  '{0} {1}' -f $_.BaseName, ($w/$h).ToString('F3', [cultureinfo]::InvariantCulture)
+}
+```
+
+### Werkzeugkette
+
+| | Version | steht in |
+| --- | --- | --- |
+| Flutter | 3.47.1 (Dart 3.13.1) | lokal + `.github/workflows/joe-todo-apk.yml` |
+| Gradle | 9.3.1 | `app/android/gradle/wrapper/gradle-wrapper.properties` |
+| Android Gradle Plugin | 9.1.0 | `app/android/settings.gradle.kts` |
+| Kotlin | 2.4.0 | ebenda |
+| JDK | 21 (das aus Android Studio) | `flutter doctor -v` zeigt, welches genommen wird |
+
+Alle vier entsprechen dem, was Flutter 3.47 für neue Projekte anlegt
+(`templateDefaultGradleVersion` und Nachbarn in `gradle_utils.dart`) – die
+Vorlage ist hier die Wahrheit, nicht die jeweils neueste Version auf
+Maven Central. Zwei Dinge hängen daran, die man von aussen nicht sieht:
+
+- **`android.newDsl=false`** in `app/android/gradle.properties`, obwohl AGP 9
+  die neue DSL als Standard hat. Sie verträgt sich noch nicht mit dem
+  Kotlin-Gradle-Plugin, das die Flutter-Plugins mitbringen; angeschaltet
+  bricht der Build mit „The 'org.jetbrains.kotlin.android' plugin is not
+  compatible with AGP's 9.0 new DSL" ab. Die Vorlage von Flutter 3.47 setzt
+  den Schalter aus demselben Grund auf `false`.
+- **kein `id("kotlin-android")`** im App-Modul: das wendet seit AGP 9 das
+  Flutter-Plugin selbst an. `jvmTarget` steht deshalb in einem eigenen
+  `kotlin { compilerOptions { … } }`-Block statt im abgekündigten
+  `kotlinOptions` innerhalb von `android { }`.
+
+Beim Bauen bleibt eine Warnung stehen, die nicht uns gehört:
+`device_calendar_plus_android` und `flutter_timezone` bringen noch ihr
+eigenes Kotlin-Gradle-Plugin mit. Beide sind auf der neuesten Fassung
+(0.8.0 bzw. 5.1.0); den Umstieg auf Built-in Kotlin müssen ihre Autoren
+machen. Heute ist es eine Warnung – „future versions of Flutter will fail to
+build" –, also im Blick behalten, wenn das nächste SDK-Upgrade ansteht.
 
 `build-debug-apk.ps1` liefert dasselbe Artefakt wie „Build > Build APK(s)" in
 Android Studio: debuggable, signiert mit dem Android-Debug-Keystore, alle ABIs.

@@ -8,6 +8,7 @@ import 'env.dart';
 import 'home_widget.dart';
 import 'log.dart';
 import 'models.dart';
+import 'pets.dart';
 import 'reminders.dart';
 import 'theme.dart';
 import 'toast.dart';
@@ -34,6 +35,12 @@ Future<void> main() async {
   };
   JoeLog.log('App-Start');
   JoeLog.log(JoeEnv.summary);
+  // Gewuerfelt wird einmal pro App-Start, und nur eine Zahl: aus diesem
+  // Startwert faellt fuer jede Seite ein eigener Platz. So sitzt der
+  // Begleiter ueberall woanders, aber auf einer Seite immer da, wo man ihn
+  // beim letzten Blick dort gesehen hat. Der Startwert steht im Log, damit
+  // sich ein gemeldeter Stand nachstellen laesst.
+  JoeLog.log('Begleiter: Startwert ${PetPlacement.roll()}');
   // Ab Android 15 laeuft die App ohnehin randlos: der Hintergrund liegt schon
   // hinter Status- und Navigationsleiste. Ohne diesen Aufruf legt das System
   // unten aber einen schwarzen Kontrastbalken darueber, waehrend oben die

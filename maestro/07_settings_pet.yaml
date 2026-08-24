@@ -4,7 +4,7 @@ name: Begleiter wechseln und ausblenden
 - launchApp:
     clearState: true
 # Erst warten bis das Dashboard steht, sonst landet der Homescreen im Shot.
-- assertVisible: "(?s).*offene Aufgaben heute.*"
+- assertVisible: "(?s).*offene Aufgaben und.*Termine heute.*"
 - waitForAnimationToEnd
 - takeScreenshot: shots/07_dashboard_katze
 - scrollUntilVisible:
@@ -42,7 +42,7 @@ name: Begleiter wechseln und ausblenden
 # Liste zuverlaessig zurueck – die Auswahl liegt in shared_preferences.
 - stopApp
 - launchApp
-- assertVisible: "(?s).*offene Aufgaben heute.*"
+- assertVisible: "(?s).*offene Aufgaben und.*Termine heute.*"
 - waitForAnimationToEnd
 - takeScreenshot: shots/07_dashboard_pizza_axo
 # Schalter aus: der Begleiter verschwindet, die Auswahl bleibt lesbar.
@@ -64,6 +64,6 @@ name: Begleiter wechseln und ausblenden
 - back
 - stopApp
 - launchApp
-- assertVisible: "(?s).*offene Aufgaben heute.*"
+- assertVisible: "(?s).*offene Aufgaben und.*Termine heute.*"
 - waitForAnimationToEnd
 - takeScreenshot: shots/07_dashboard_ohne_begleiter

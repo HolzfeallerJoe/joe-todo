@@ -1,21 +1,33 @@
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'device_calendar.dart';
 import 'models.dart';
+import 'pets.dart';
 import 'reminders.dart';
 import 'theme.dart';
 import 'toast.dart';
 import 'util.dart';
 
+// Jede Seite sagt JoeScaffold, welche Seite sie ist – dafuer braucht sie
+// PetPage, und dafuer soll sie nicht extra pets.dart kennen muessen.
+export 'pets.dart' show PetPage;
+
 /// Scaffold wrapper that paints the themed notebook background behind
-/// a transparent Material scaffold.
-class JoeScaffold extends StatelessWidget {
+/// a transparent Material scaffold – und traegt den Begleiter, der auf
+/// jeder Seite mitsitzt (siehe [_PetLayer]).
+class JoeScaffold extends StatefulWidget {
   final String? title;
   final Widget body;
   final Widget? floatingActionButton;
   final List<Widget>? actions;
+
+  /// Welche Seite das hier ist – daran haengt, wo der Begleiter sitzt. Jede
+  /// Seite bietet ihre eigenen Plaetze an (siehe [PetPage]).
+  final PetPage page;
 
   const JoeScaffold({
     super.key,
@@ -23,11 +35,43 @@ class JoeScaffold extends StatelessWidget {
     required this.body,
     this.floatingActionButton,
     this.actions,
+    required this.page,
   });
 
   @override
+  State<JoeScaffold> createState() => _JoeScaffoldState();
+}
+
+class _JoeScaffoldState extends State<JoeScaffold> {
+  /// Wie weit die Seite gescrollt ist. Der Begleiter sitzt auf der Kante der
+  /// ersten Karte – und wenn die wegscrollt, geht er mit. Ein Tierchen, das
+  /// beim Scrollen an derselben Stelle klebt, waere kein Aufsitzer mehr,
+  /// sondern ein Aufkleber auf dem Bildschirm.
+  ///
+  /// Bewusst ein Notifier und kein setState: sonst baute jedes Scroll-Bild
+  /// die ganze Seite neu, nur damit ein Bild ein paar Pixel wandert.
+  final _scrolled = ValueNotifier<double>(0);
+
+  @override
+  void dispose() {
+    _scrolled.dispose();
+    super.dispose();
+  }
+
+  /// Nur die Seite selbst zaehlt: `depth == 0` laesst Listen *innerhalb* der
+  /// Seite (die Symptomliste im Notiz-Editor etwa) aussen vor.
+  bool _onScroll(ScrollNotification notification) {
+    if (notification.depth != 0) return false;
+    if (notification.metrics.axis != Axis.vertical) return false;
+    _scrolled.value = notification.metrics.pixels.clamp(0.0, double.infinity);
+    return false;
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final state = AppScope.of(context);
     final theme = joeThemeOf(context);
+    final spot = PetPlacement.spotOn(widget.page);
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: theme.systemOverlayStyle,
       child: Stack(
@@ -39,7 +83,7 @@ class JoeScaffold extends StatelessWidget {
           ),
           Scaffold(
             backgroundColor: Colors.transparent,
-            appBar: title == null
+            appBar: widget.title == null
                 ? null
                 : AppBar(
                     backgroundColor: Colors.transparent,
@@ -50,22 +94,181 @@ class JoeScaffold extends StatelessWidget {
                     // ueberschreibt den der AnnotatedRegion.
                     systemOverlayStyle: theme.systemOverlayStyle,
                     title: Text(
-                      title!,
+                      widget.title!,
                       style: TextStyle(
                         color: theme.onBg,
                         fontWeight: FontWeight.w700,
                         shadows: theme.onBgShadows,
                       ),
                     ),
-                    actions: actions,
+                    actions: widget.actions,
                   ),
-            body: body,
-            floatingActionButton: floatingActionButton,
+            // Den Platz fuer den Begleiter haelt die Seite selbst frei, in
+            // ihrer Liste – siehe [petHeadroom]. Hier wird nur zugehoert,
+            // wie weit sie gescrollt ist.
+            body: NotificationListener<ScrollNotification>(
+              onNotification: _onScroll,
+              child: widget.body,
+            ),
+            floatingActionButton: widget.floatingActionButton,
           ),
+          if (state.showPet)
+            _PetLayer(
+              pet: state.pet,
+              spot: spot,
+              // Ohne Titelleiste faengt der Inhalt unter der Statusleiste an,
+              // mit Titelleiste darunter. Der Begleiter sitzt auf der
+              // Oberkante des Inhalts – so verdeckt er nie den Seitentitel.
+              contentTop: MediaQuery.paddingOf(context).top +
+                  (widget.title == null ? 0 : kToolbarHeight),
+              hasFab: widget.floatingActionButton != null,
+              scrolled: _scrolled,
+            ),
         ],
       ),
     );
   }
+}
+
+/// Der Begleiter als eigene Ebene ueber der Seite.
+///
+/// Er liegt bewusst *ueber* dem Inhalt – ein Tierchen, das hinter den Karten
+/// verschwindet, waere auf den meisten Seiten gar nicht zu sehen – nimmt aber
+/// keine Tipps entgegen ([IgnorePointer]) und traegt keine Semantik: er ist
+/// Deko und darf weder einen Knopf schlucken noch die Vorlesehilfe aufhalten.
+///
+/// Er haengt an dem, worauf er sitzt: die Plaetze auf der Inhaltskante
+/// scrollen mit der Seite weg und werden dabei an der Oberkante
+/// abgeschnitten; die unteren bleiben stehen – die Navigationsleiste und der
+/// Plus-Knopf scrollen ja auch nicht.
+class _PetLayer extends StatelessWidget {
+  final Pet pet;
+  final PetSpot spot;
+
+  /// Oberkante des Seiteninhalts (unter Statusleiste bzw. Titelleiste).
+  final double contentTop;
+
+  /// Unten rechts sitzt sonst der Plus-Knopf; dort rueckt der Begleiter zur
+  /// Seite, statt ihn zu verdecken.
+  final bool hasFab;
+
+  /// Wie weit die Seite gescrollt ist.
+  final ValueListenable<double> scrolled;
+
+  const _PetLayer({
+    required this.pet,
+    required this.spot,
+    required this.contentTop,
+    required this.hasFab,
+    required this.scrolled,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final box = petBox(pet, spot);
+    final sitting = Padding(
+      padding: EdgeInsets.only(
+        left: 14,
+        // Neben dem Plus-Knopf heisst: daneben, nicht darauf.
+        right: 14 + (spot == PetSpot.besideFab && hasFab ? _fabWidth : 0),
+        bottom: spot.isTop ? 0 : MediaQuery.paddingOf(context).bottom,
+      ),
+      child: Align(
+        alignment: switch ((spot.isTop, spot.side)) {
+          (true, -1) => Alignment.topLeft,
+          (true, 0) => Alignment.topCenter,
+          (true, _) => Alignment.topRight,
+          (false, -1) => Alignment.bottomLeft,
+          (false, 0) => Alignment.bottomCenter,
+          (false, _) => Alignment.bottomRight,
+        },
+        child: SizedBox(
+          width: box.width,
+          height: box.height,
+          child: Image.asset(
+            pet.asset,
+            fit: BoxFit.contain,
+            // Die Motive sind unten buendig gemalt: so steht jedes auf
+            // derselben Linie, egal wie hoch es ist.
+            alignment: Alignment.bottomCenter,
+            filterQuality: FilterQuality.medium,
+          ),
+        ),
+      ),
+    );
+
+    return Positioned(
+      top: contentTop,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      child: IgnorePointer(
+        child: ExcludeSemantics(
+          // Abgeschnitten an der Oberkante des Inhalts: beim Hochscrollen
+          // soll das Tierchen unter der Titelleiste verschwinden und nicht
+          // darueber liegen.
+          child: ClipRect(
+            child: spot.isTop
+                ? ValueListenableBuilder<double>(
+                    valueListenable: scrolled,
+                    builder: (context, offset, child) => Transform.translate(
+                      offset: Offset(0, -offset),
+                      child: child,
+                    ),
+                    child: sitting,
+                  )
+                : sitting,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Platz, den der Plus-Knopf unten rechts belegt (56 Knopf + 16 Rand).
+const _fabWidth = 72.0;
+
+/// Der Rand einer Seitenliste, mit dem Platz fuer den Begleiter darin.
+///
+/// [base] ist der Rand, den die Seite ohnehin haette; heraus kommt derselbe,
+/// nur oben (bzw. unten) so weit aufgemacht, dass das Tierchen hineinpasst.
+/// Bewusst das Groessere von beidem und keine Summe: der Platz *enthaelt*
+/// den normalen Rand, sonst schoebe er die erste Karte unter dem Begleiter
+/// weg, und der saesse auf nichts mehr.
+///
+/// Freihalten muss ihn die Seite selbst, und zwar **innerhalb** ihrer
+/// scrollenden Liste:
+///
+/// ```dart
+/// padding: petPadding(context, page, const EdgeInsets.fromLTRB(16, 4, 16, 96)),
+/// ```
+///
+/// Warum nicht einfach ein Padding um die Liste herum, von JoeScaffold aus?
+/// Dann liegt der Platz ausserhalb des Scroll-Bereichs: der Inhalt
+/// verschwindet beim Scrollen an einer Kante weiter unten, waehrend das
+/// Tierchen bis zur Titelleiste weiterwandert. Zwei Kanten, zwei Kaesten –
+/// und genau so sieht es dann auch aus. Liegt der Platz in der Liste,
+/// scrollt er mit dem Tierchen zusammen weg, und beide verschwinden an
+/// derselben Linie.
+///
+/// Bewusst eine Funktion und kein InheritedWidget: die Seite baut ihren
+/// Koerper, *bevor* JoeScaffold ihn einhaengt – ein Provider im Scaffold
+/// waere von dort aus gar nicht zu sehen.
+EdgeInsets petPadding(BuildContext context, PetPage page, EdgeInsets base) {
+  final state = AppScope.of(context);
+  if (!state.showPet) return base;
+  final spot = PetPlacement.spotOn(page);
+  final height = petBox(state.pet, spot).height;
+  final overlap = petOverlap(state.pet, spot, page);
+  return base.copyWith(
+    top: spot.isTop ? math.max(base.top, height - overlap) : base.top,
+    // Unten die *ganze* Hoehe und nicht nur die Ueberlappung: das Tierchen
+    // steht dort fest, waehrend die Liste hinter ihm durchlaeuft. Reserviert
+    // man nur einen Teil, bleibt am Ende der Liste Inhalt hinter ihm liegen
+    // – im Kalender verschwanden so die Kaestchen zweier Aufgaben hinter
+    // einer Katze.
+    bottom: spot.isTop ? base.bottom : math.max(base.bottom, height + 8),
+  );
 }
 
 JoeTheme joeThemeOf(BuildContext context) {

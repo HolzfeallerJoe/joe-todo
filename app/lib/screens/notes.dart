@@ -203,6 +203,7 @@ class _NoteEditScreenState extends State<NoteEditScreen>
 
   @override
   Widget build(BuildContext context) {
+    const page = PetPage.noteEdit;
     final theme = joeThemeOf(context);
     return PopScope(
       canPop: false,
@@ -210,6 +211,7 @@ class _NoteEditScreenState extends State<NoteEditScreen>
         if (!didPop) _saveAndClose();
       },
       child: JoeScaffold(
+        page: page,
         title: widget.note == null ? 'Neue Notiz' : 'Notiz',
         actions: [
           if (widget.note != null)

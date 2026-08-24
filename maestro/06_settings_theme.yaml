@@ -21,6 +21,6 @@ name: Design wechseln (Notizbuch-Themen)
 - back
 - stopApp
 - launchApp
-- assertVisible: "(?s).*offene Aufgaben heute.*"
+- assertVisible: "(?s).*offene Aufgaben und.*Termine heute.*"
 - waitForAnimationToEnd
 - takeScreenshot: shots/06_dashboard_aquarell

@@ -22,11 +22,17 @@ class SettingsScreen extends StatelessWidget {
     // the rest of the app does before handing it to the dropdown.
     final selected = state.themeIndex % joeThemes.length;
 
+    const page = PetPage.settings;
     return JoeScaffold(
+      page: page,
       title: 'Einstellungen',
       body: SafeArea(
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
+          padding: petPadding(
+            context,
+            page,
+            const EdgeInsets.fromLTRB(16, 4, 16, 24),
+          ),
           children: [
             const SectionTitle('Design'),
             PaperCard(

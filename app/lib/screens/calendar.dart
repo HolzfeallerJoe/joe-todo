@@ -89,11 +89,17 @@ class _CalendarScreenState extends State<CalendarScreen> {
     // der Lauf beginnt erst nach diesem Frame und meldet sich dann selbst.
     if (state.showMoon) MoonWarmup.instance.warm(_month);
 
+    const page = PetPage.calendar;
     return JoeScaffold(
+      page: page,
       title: 'Kalender',
       body: SafeArea(
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(12, 4, 12, 24),
+          padding: petPadding(
+            context,
+            page,
+            const EdgeInsets.fromLTRB(12, 4, 12, 24),
+          ),
           children: [
             PaperCard(
               padding: const EdgeInsets.fromLTRB(10, 8, 10, 14),

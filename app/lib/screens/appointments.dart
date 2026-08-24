@@ -9,16 +9,22 @@ class AppointmentsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    const page = PetPage.appointments;
     final state = AppScope.of(context);
     final theme = joeThemeOf(context);
     final upcoming = state.upcomingAppointments();
     final past = state.pastAppointments();
 
     return JoeScaffold(
+      page: page,
       title: 'Termine',
       body: SafeArea(
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 4, 16, 96),
+          padding: petPadding(
+            context,
+            page,
+            const EdgeInsets.fromLTRB(16, 4, 16, 96),
+          ),
           children: [
             if (upcoming.isEmpty && past.isEmpty)
               PaperCard(
