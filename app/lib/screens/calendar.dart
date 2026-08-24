@@ -160,7 +160,10 @@ class _CalendarScreenState extends State<CalendarScreen> {
                     gridDelegate:
                         const SliverGridDelegateWithFixedCrossAxisCount(
                       crossAxisCount: 7,
-                      childAspectRatio: 0.78,
+                      // Drei Reihen wollen Platz: Punkte (Aufgaben), Uhren
+                      // (Termine) und die Zeichenzeile. Mit dem alten
+                      // Verhaeltnis 0.78 blieb fuer die dritte nichts uebrig.
+                      childAspectRatio: 0.68,
                     ),
                     itemCount: leadingBlanks + daysInMonth,
                     itemBuilder: (context, index) {
@@ -440,18 +443,20 @@ class _DayCell extends StatelessWidget {
     // nach und meldet sich, dann steht der Mond da.
     final moon = state.showMoon ? cachedMoonPhaseOnDay(day) : null;
 
-    final markers = <Widget>[];
-    for (final a in appointments) {
-      markers.add(_marker(a.color, done: false));
-    }
-    for (final task in tasks) {
-      markers.add(_marker(task.color, done: task.isCompletedOn(day)));
-    }
-    // Geraete-Termine als letzte Punkte, in der Farbe ihres Kalenders –
-    // die eigenen Eintraege behalten den Vortritt im Sechs-Punkte-Budget.
-    for (final e in deviceEvents) {
-      markers.add(_marker(e.color ?? theme.accent, done: false));
-    }
+    // Die Punktreihe gehoert den Aufgaben, die Uhrenreihe darunter den
+    // Terminen. Vorher standen beide als Punkte nebeneinander und waren
+    // nicht auseinanderzuhalten – ob an einem Tag ein Termin liegt, war das
+    // Erste, was man wissen will, und genau das ging unter.
+    final markers = <Widget>[
+      for (final task in tasks)
+        _marker(task.color, done: task.isCompletedOn(day)),
+    ];
+    // Eigene Termine zuerst, danach die des Geraets in der Farbe ihres
+    // Kalenders – wie im Tagesdetail.
+    final clocks = <Widget>[
+      for (final a in appointments) _clock(a.color),
+      for (final e in deviceEvents) _clock(e.color ?? theme.accent),
+    ];
 
     String countLabel(int count, String singular, String plural) =>
         '$count ${count == 1 ? singular : plural}';
@@ -500,6 +505,7 @@ class _DayCell extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 2),
+              // Oben die Aufgaben als Punkte …
               Expanded(
                 child: Wrap(
                   alignment: WrapAlignment.center,
@@ -508,10 +514,21 @@ class _DayCell extends StatelessWidget {
                   children: markers.take(6).toList(),
                 ),
               ),
-              // Die untere Badge-Zeile: Stern (Feiertag) links, "N" (Notiz) in
-              // der Mitte, Mond (Hauptphase) rechts. Keins davon bekommt einen
-              // Farbpunkt – sie haben keine eigene Farbe und sollen die
-              // Punktreihe der Aufgaben nicht verwaessern.
+              // … darunter die Termine als eigene Reihe von Uhren, in der
+              // Farbe des jeweiligen Termins.
+              if (clocks.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 1),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    spacing: 1,
+                    children: clocks.take(4).toList(),
+                  ),
+                ),
+              // Ganz unten die Zeichenzeile: Stern (Feiertag), "N" (Notiz),
+              // Mond (Hauptphase). Keins davon bekommt einen Farbpunkt – sie
+              // haben keine eigene Farbe und sollen die Punktreihe der
+              // Aufgaben nicht verwaessern.
               if (holidays.isNotEmpty || hasNotes || moon != null)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 2),
@@ -520,10 +537,10 @@ class _DayCell extends StatelessWidget {
                     spacing: 2,
                     children: [
                       if (holidays.isNotEmpty)
-                        Icon(Icons.star_rounded, size: 14, color: theme.accent),
-                      if (hasNotes) _NoteBadge(theme: theme, size: 12),
+                        Icon(Icons.star_rounded, size: 13, color: theme.accent),
+                      if (hasNotes) _NoteBadge(theme: theme, size: 11),
                       if (moon != null)
-                        MoonIcon(kind: moon, size: 11, color: theme.accent),
+                        MoonIcon(kind: moon, size: 10, color: theme.accent),
                     ],
                   ),
                 ),
@@ -546,6 +563,10 @@ class _DayCell extends StatelessWidget {
       ),
     );
   }
+
+  /// Ein Termin in der Uhrenreihe – in seiner Farbe, damit sich die Termine
+  /// eines Tages auch dort auseinanderhalten lassen.
+  Widget _clock(Color color) => Icon(Icons.schedule, size: 11, color: color);
 }
 
 /// Ein Termin aus einem Geraete-Kalender in der Tageskarte: nur Anzeige,
