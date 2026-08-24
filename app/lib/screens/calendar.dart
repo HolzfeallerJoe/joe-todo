@@ -505,37 +505,36 @@ class _DayCell extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 2),
-              // Aufgaben und Termine stehen zusammen in der Mitte des
-              // Kaestchens: oben die Punkte, darunter die Uhren. Vorher
-              // drueckte der Expanded die Uhrenreihe an den unteren Rand,
-              // dicht an die Zeichenzeile.
+              // Oben die Aufgaben als Punkte, direkt unter der Zahl …
               Expanded(
                 child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Flexible(
-                      child: Wrap(
-                        alignment: WrapAlignment.center,
-                        spacing: 2,
-                        runSpacing: 2,
-                        children: markers.take(6).toList(),
-                      ),
+                    Wrap(
+                      alignment: WrapAlignment.center,
+                      spacing: 2,
+                      runSpacing: 2,
+                      children: markers.take(6).toList(),
                     ),
-                    // Die Termine in der Farbe des jeweiligen Termins. Die
-                    // FittedBox laesst sie auf schmalen Telefonen kleiner
-                    // werden, statt die Zelle ueberlaufen zu lassen.
-                    if (clocks.isNotEmpty)
-                      Padding(
-                        padding: EdgeInsets.only(top: markers.isEmpty ? 0 : 3),
-                        child: FittedBox(
-                          fit: BoxFit.scaleDown,
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            spacing: 2,
-                            children: clocks.take(3).toList(),
-                          ),
-                        ),
-                      ),
+                    // … und die Termine als eigene Reihe von Uhren, in der
+                    // Farbe des jeweiligen Termins. Sie steht mittig im
+                    // freien Platz zwischen Punkten und Zeichenzeile –
+                    // vorher klebte sie unten an den Zeichen. Die FittedBox
+                    // laesst sie auf schmalen Telefonen kleiner werden,
+                    // statt die Zelle ueberlaufen zu lassen.
+                    Expanded(
+                      child: clocks.isEmpty
+                          ? const SizedBox.shrink()
+                          : Center(
+                              child: FittedBox(
+                                fit: BoxFit.scaleDown,
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  spacing: 2,
+                                  children: clocks.take(3).toList(),
+                                ),
+                              ),
+                            ),
+                    ),
                   ],
                 ),
               ),
