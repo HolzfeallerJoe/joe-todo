@@ -64,21 +64,16 @@ class _AppointmentCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final state = AppScope.of(context);
     final theme = joeThemeOf(context);
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
         onTap: () => showAppointmentSheet(context, appointment: appointment),
-        onLongPress: () async {
-          final confirmed = await confirmDelete(
-            context,
-            title: 'Termin löschen?',
-            subject: appointment.title,
-          );
-          if (confirmed) state.deleteAppointment(appointment);
-        },
+        // Langer Druck fuehrt auf dasselbe Blatt wie bei einer Aufgabe:
+        // Bearbeiten oder Loeschen, statt sofort zu fragen, ob geloescht
+        // werden soll.
+        onLongPress: () => showAppointmentOptions(context, appointment),
         child: PaperCard(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           child: Row(

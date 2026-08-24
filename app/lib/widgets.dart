@@ -801,31 +801,165 @@ class TaskTile extends StatelessWidget {
 /// Rueckfrage vor dem Loeschen – liefert nur die Entscheidung, loescht
 /// nichts selbst. Jeder Loeschweg der App fragt hierueber nach: es gibt
 /// kein Undo, ein verrutschter Tipper waere sonst endgueltig.
+///
+/// Sie kommt als Karte von unten, im unteren Drittel des Bildschirms: dort
+/// ist der Daumen, und dort stehen in dieser App ohnehin alle Rueckfragen
+/// (Eingabeblaetter, das Bearbeiten/Loeschen-Blatt). Ein Dialog mitten auf
+/// dem Bild war der einzige Ort, an dem Joe anders gefragt hat.
 Future<bool> confirmDelete(
   BuildContext context, {
   required String title,
   required String subject,
 }) async {
-  final theme = joeThemeOf(context);
-  final confirmed = await showDialog<bool>(
-    context: context,
-    builder: (dialogContext) => AlertDialog(
-      backgroundColor: theme.paper,
-      title: Text(title, style: TextStyle(color: theme.ink)),
-      content: Text(subject, style: TextStyle(color: theme.inkSoft)),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(dialogContext, false),
-          child: Text('Abbrechen', style: TextStyle(color: theme.ink)),
-        ),
-        TextButton(
-          onPressed: () => Navigator.pop(dialogContext, true),
-          child: Text('Löschen', style: TextStyle(color: theme.accent)),
-        ),
-      ],
-    ),
+  final confirmed = await showJoeSheet<bool>(
+    context,
+    expand: true,
+    builder: (sheetContext) => _DeleteCard(title: title, subject: subject),
   );
   return confirmed ?? false;
+}
+
+/// Die Loeschkarte selbst: Zeichen, Frage, Gegenstand, dann die beiden
+/// Knoepfe. Sie fuellt mindestens das untere Drittel – kuerzer waere sie ein
+/// Streifen, in dem "Löschen" direkt unter dem Daumen laege, der eben noch
+/// lange gedrueckt hat.
+class _DeleteCard extends StatelessWidget {
+  final String title;
+  final String subject;
+
+  const _DeleteCard({required this.title, required this.subject});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = joeThemeOf(context);
+    return SafeArea(
+      top: false,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          minHeight: MediaQuery.sizeOf(context).height / 3,
+        ),
+        // mainAxisSize.min mit einer Mindesthoehe: die Karte ist so hoch wie
+        // das Drittel, und was uebrig bleibt, verteilt spaceBetween zwischen
+        // Frage und Knoepfen. Ein langer Titel macht sie laenger, statt zu
+        // ueberlaufen.
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    margin: const EdgeInsets.only(top: 10, bottom: 18),
+                    decoration: BoxDecoration(
+                      color: theme.inkSoft.withValues(alpha: 0.4),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                Container(
+                  width: 56,
+                  height: 56,
+                  decoration: BoxDecoration(
+                    color: theme.accent.withValues(alpha: 0.14),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Icons.delete_outline,
+                    size: 30,
+                    color: theme.accent,
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  child: Text(
+                    title,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: theme.ink,
+                      fontSize: 19,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  child: Text(
+                    subject,
+                    textAlign: TextAlign.center,
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(color: theme.inkSoft, fontSize: 15),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  child: Text(
+                    'Das lässt sich nicht rückgängig machen.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: theme.inkSoft, fontSize: 13),
+                  ),
+                ),
+              ],
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: theme.ink,
+                        side: BorderSide(color: theme.inkSoft),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
+                      onPressed: () => Navigator.pop(context, false),
+                      child: const Text(
+                        'Abbrechen',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: FilledButton(
+                      style: FilledButton.styleFrom(
+                        backgroundColor: theme.accent,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
+                      onPressed: () => Navigator.pop(context, true),
+                      child: const Text(
+                        'Löschen',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 /// showModalBottomSheet im Joe-Gewand: Papierfarbe, oben gerundet.
@@ -835,12 +969,12 @@ Future<bool> confirmDelete(
 /// useSafeArea haelt das Blatt unter der Statusleiste – ohne das nimmt
 /// showModalBottomSheet padding.top heraus und der Titel rutscht bei
 /// offener Tastatur hinter die Uhr.
-Future<void> showJoeSheet(
+Future<T?> showJoeSheet<T>(
   BuildContext context, {
   bool expand = false,
   required WidgetBuilder builder,
 }) {
-  return showModalBottomSheet<void>(
+  return showModalBottomSheet<T>(
     context: context,
     isScrollControlled: expand,
     useSafeArea: expand,
@@ -852,8 +986,59 @@ Future<void> showJoeSheet(
   );
 }
 
-void showTaskOptions(BuildContext context, Task task) {
-  final state = AppScope.of(context);
+/// Ein Blatt von unten, das nach einem einzelnen Text fragt – zum Beispiel
+/// nach dem Namen eines eigenen Symptoms. Gibt den Text zurueck, oder null,
+/// wenn abgebrochen wurde.
+Future<String?> showTextEntrySheet(
+  BuildContext context, {
+  required String title,
+  required String hint,
+  String initialText = '',
+}) {
+  return showJoeSheet<String>(
+    context,
+    expand: true,
+    builder: (sheetContext) => SheetHost(
+      initialText: initialText,
+      builder: (sheetContext, controller, setSheetState) => SheetFrame(
+        title: title,
+        footer: SheetSaveButton(
+          onPressed: () {
+            final text = controller.text.trim();
+            if (text.isEmpty) {
+              JoeToast.error('Bitte gib einen Namen ein.');
+              return;
+            }
+            Navigator.pop(sheetContext, text);
+          },
+        ),
+        children: [
+          SheetTextField(
+            controller: controller,
+            hint: hint,
+            autofocus: true,
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+/// Das Blatt hinter dem langen Druck – fuer Aufgaben, Termine und Notizen
+/// dasselbe: Bearbeiten oben, Loeschen darunter, und die Rueckfrage vor dem
+/// Loeschen ([confirmDelete]) gehoert dazu.
+///
+/// Vorher hatte jede der drei Arten ihren eigenen Weg: die Aufgabe dieses
+/// Blatt, der Termin loeschte auf langen Druck sofort nach einer Rueckfrage,
+/// die Notiz nur ueber den Papierkorb im Editor. Jetzt fuehrt ueberall
+/// derselbe Griff zum selben Blatt.
+void showEntryOptions(
+  BuildContext context, {
+  required String deleteTitle,
+  required String subject,
+  required VoidCallback onEdit,
+  required VoidCallback onDelete,
+}) {
   final theme = joeThemeOf(context);
   showJoeSheet(
     context,
@@ -866,7 +1051,7 @@ void showTaskOptions(BuildContext context, Task task) {
             title: Text('Bearbeiten', style: TextStyle(color: theme.ink)),
             onTap: () {
               Navigator.pop(sheetContext);
-              showTaskSheet(context, task: task);
+              onEdit();
             },
           ),
           ListTile(
@@ -876,15 +1061,37 @@ void showTaskOptions(BuildContext context, Task task) {
               Navigator.pop(sheetContext);
               final confirmed = await confirmDelete(
                 context,
-                title: 'Aufgabe löschen?',
-                subject: task.title,
+                title: deleteTitle,
+                subject: subject,
               );
-              if (confirmed) state.deleteTask(task);
+              if (confirmed) onDelete();
             },
           ),
         ],
       ),
     ),
+  );
+}
+
+void showTaskOptions(BuildContext context, Task task) {
+  final state = AppScope.of(context);
+  showEntryOptions(
+    context,
+    deleteTitle: 'Aufgabe löschen?',
+    subject: task.title,
+    onEdit: () => showTaskSheet(context, task: task),
+    onDelete: () => state.deleteTask(task),
+  );
+}
+
+void showAppointmentOptions(BuildContext context, Appointment appointment) {
+  final state = AppScope.of(context);
+  showEntryOptions(
+    context,
+    deleteTitle: 'Termin löschen?',
+    subject: appointment.title,
+    onEdit: () => showAppointmentSheet(context, appointment: appointment),
+    onDelete: () => state.deleteAppointment(appointment),
   );
 }
 

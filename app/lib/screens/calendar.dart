@@ -339,6 +339,7 @@ class _AppointmentRow extends StatelessWidget {
     return InkWell(
       borderRadius: BorderRadius.circular(10),
       onTap: () => showAppointmentSheet(context, appointment: appointment),
+      onLongPress: () => showAppointmentOptions(context, appointment),
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 6),
         child: Row(
@@ -387,6 +388,7 @@ class _NoteRow extends StatelessWidget {
       onTap: () => Navigator.of(context).push(
         MaterialPageRoute<void>(builder: (_) => NoteEditScreen(note: note)),
       ),
+      onLongPress: () => showNoteOptions(context, note),
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 8),
         child: Row(
@@ -395,7 +397,7 @@ class _NoteRow extends StatelessWidget {
             const SizedBox(width: 10),
             Expanded(
               child: Text(
-                note.title.isEmpty ? 'Ohne Titel' : note.title,
+                noteTitleOrPlaceholder(note),
                 style: TextStyle(color: theme.ink, fontSize: 15),
                 overflow: TextOverflow.ellipsis,
               ),

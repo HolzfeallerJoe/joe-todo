@@ -38,12 +38,15 @@ class NotesScreen extends StatelessWidget {
                     child: InkWell(
                       borderRadius: BorderRadius.circular(16),
                       onTap: () => _openNote(context, note),
+                      // Wie bei Aufgaben und Terminen: langer Druck fuehrt
+                      // auf das Blatt mit Bearbeiten und Loeschen.
+                      onLongPress: () => showNoteOptions(context, note),
                       child: PaperCard(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              note.title.isEmpty ? 'Ohne Titel' : note.title,
+                              noteTitleOrPlaceholder(note),
                               style: TextStyle(
                                 color: theme.ink,
                                 fontSize: 16,
@@ -89,6 +92,37 @@ class NotesScreen extends StatelessWidget {
       MaterialPageRoute<void>(builder: (_) => NoteEditScreen(note: note)),
     );
   }
+}
+
+/// Das Bearbeiten/Loeschen-Blatt einer Notiz. Es steht hier und nicht in
+/// widgets.dart, weil "Bearbeiten" den Notiz-Editor oeffnet – widgets.dart
+/// darf die Bildschirme nicht kennen, sonst zeigen die Importe im Kreis.
+void showNoteOptions(BuildContext context, Note note) {
+  final state = AppScope.of(context);
+  showEntryOptions(
+    context,
+    deleteTitle: 'Notiz löschen?',
+    subject: noteDeleteSubject(state, note),
+    onEdit: () => Navigator.of(context).push(
+      MaterialPageRoute<void>(builder: (_) => NoteEditScreen(note: note)),
+    ),
+    onDelete: () => state.deleteNote(note),
+  );
+}
+
+/// Der Titel einer Notiz, wie er ueberall in der App steht – auch wenn
+/// keiner eingegeben wurde.
+String noteTitleOrPlaceholder(Note note) =>
+    note.title.isEmpty ? 'Ohne Titel' : note.title;
+
+/// Was auf der Loeschkarte einer Notiz steht. Haengt Befinden daran, sagt
+/// sie es dazu: es geht mit der Notiz, und niemand soll seine
+/// Aufzeichnungen ueber sich selbst verlieren, ohne es vorher zu lesen.
+String noteDeleteSubject(AppState state, Note note) {
+  final entries = state.wellbeingOfNote(note.id).length;
+  if (entries == 0) return noteTitleOrPlaceholder(note);
+  return '${noteTitleOrPlaceholder(note)} – '
+      '$entries ${entries == 1 ? 'Befinden-Eintrag geht' : 'Befinden-Einträge gehen'} mit.';
 }
 
 class NoteEditScreen extends StatefulWidget {
@@ -223,7 +257,7 @@ class _NoteEditScreenState extends State<NoteEditScreen>
                 final confirmed = await confirmDelete(
                   context,
                   title: 'Notiz löschen?',
-                  subject: note.title.isEmpty ? 'Ohne Titel' : note.title,
+                  subject: noteDeleteSubject(_state, note),
                 );
                 if (!confirmed || !mounted) return;
                 _state.deleteNote(note);
