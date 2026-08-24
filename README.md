@@ -764,11 +764,13 @@ eingetragen (aktuell 3.47.1) und sollte mit der lokalen uebereinstimmen.
 
 Bei einem Push auf `main` landet das APK zusaetzlich als GitHub-Release unter
 dem Tag `joe-todo-v<version>` (Version aus `app/pubspec.yaml`, aktuell
-`1.0.3+4` → `joe-todo-v1.0.3+4`). Das Repo enthaelt mehrere Projekte mit einer
+`1.1.0+5` → `joe-todo-v1.1.0+5`). Das Repo enthaelt mehrere Projekte mit einer
 gemeinsamen Release-Liste, darum steht der Projektname im Tag. Solange die
 Version in `pubspec.yaml` unveraendert bleibt, wird dasselbe Release
 ueberschrieben und der Tag auf den neuen Commit gesetzt; fuer einen dauerhaft
-abgelegten Stand vorher die Version anheben. Die Releases sind als
+abgelegten Stand vorher die Version anheben – deshalb steht in
+[AGENTS.md](AGENTS.md) die Regel, dass vor jedem Push die Version steigt. Die
+Releases sind als
 Pre-Release markiert, weil es Debug-Builds sind. Aus Pull Requests entsteht
 kein Release, dort bleibt es beim Artefakt.
 
