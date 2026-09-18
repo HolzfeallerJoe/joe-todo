@@ -41,6 +41,12 @@ class JoeTheme {
 
   Color get onBg => onBackground ?? ink;
 
+  /// Farbe des siebten Reiters (Einkaufsliste). Die Vorlagen bringen genau
+  /// sechs Farben mit, eine je Reiter; die Mitte der beiden Nachbarreiter
+  /// (Notizen, Historie) passt zum Design und hebt sich von beiden ab. Wer
+  /// echte Vorlagenfarben nachliefert, traegt sie als siebten Wert ein.
+  Color get shoppingTabColor => Color.lerp(tabColors[3], tabColors[4], 0.5)!;
+
   /// Wie Android Status- und Navigationsleiste ueber der App zeichnen soll.
   ///
   /// Die App laeuft randlos, der Hintergrund liegt also schon hinter beiden

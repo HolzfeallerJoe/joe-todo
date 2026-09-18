@@ -1,0 +1,36 @@
+appId: dev.joe.joe_todo
+name: Einkaufsliste im eigenen Reiter
+---
+- launchApp:
+    clearState: true
+- scrollUntilVisible:
+    element: "Einkaufsliste"
+    direction: DOWN
+    centerElement: true
+# retryTapIfNoChange aus: sonst tippt Maestro nach dem Seitenwechsel ein
+# zweites Mal auf dieselbe Stelle.
+- tapOn:
+    text: "Einkaufsliste"
+    retryTapIfNoChange: false
+- assertVisible: "(?s).*Noch nichts auf der Liste.*"
+# Eingabefeld unten; nach Enter bleibt der Fokus darin, der zweite Eintrag
+# geht also ohne erneutes Antippen. Hinweis: inputText kann nur ASCII.
+- tapOn: "Was fehlt?"
+- inputText: "Milch"
+- pressKey: Enter
+- inputText: "Brot"
+- pressKey: Enter
+- hideKeyboard
+- assertVisible: "Milch"
+- assertVisible: "Brot"
+# Abhaken per Tipp: Milch rutscht unter Brot.
+- tapOn: "Milch"
+# Loeschen per langem Druck, mit Rueckfrage.
+- longPressOn: "Brot"
+- tapOn: "Löschen"
+- assertVisible: "Eintrag löschen?"
+- tapOn: "Löschen"
+- assertNotVisible: "Brot"
+- assertVisible: "Milch"
+- takeScreenshot: shots/10_shopping
+- back

@@ -68,6 +68,12 @@ void main() {
       expectOnPaper(tester, find.textContaining('Noch keine Notizen'));
     });
 
+    testWidgets('Einkaufsliste (eigener Reiter)', (tester) async {
+      await pump(tester);
+      await open(tester, 'Einkaufsliste');
+      expectOnPaper(tester, find.textContaining('Noch nichts auf der Liste'));
+    });
+
     testWidgets('Historie', (tester) async {
       await pump(tester);
       await open(tester, 'Historie');
