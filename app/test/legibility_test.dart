@@ -74,6 +74,15 @@ void main() {
       expectOnPaper(tester, find.textContaining('Noch nichts auf der Liste'));
     });
 
+    testWidgets('Einkaufsliste (je Tag, in den Notizen)', (tester) async {
+      final state = await pump(tester);
+      state.setShoppingMode(ShoppingListMode.perDay);
+      await tester.pumpAndSettle();
+      await open(tester, 'Notizen');
+      await open(tester, 'Einkaufsliste');
+      expectOnPaper(tester, find.textContaining('Noch nichts auf der Liste'));
+    });
+
     testWidgets('Historie', (tester) async {
       await pump(tester);
       await open(tester, 'Historie');

@@ -5,36 +5,127 @@ import 'package:flutter/material.dart';
 import '../models.dart';
 import '../util.dart';
 import '../widgets.dart';
+import 'shopping.dart';
 import 'wellbeing.dart';
 
 const noteAutosaveDelay = Duration(milliseconds: 700);
 
-class NotesScreen extends StatelessWidget {
+/// Die beiden Teile der Notizen-Seite im Modus [ShoppingListMode.perDay].
+enum _NotesTab { notes, shopping }
+
+class NotesScreen extends StatefulWidget {
   const NotesScreen({super.key});
 
   @override
+  State<NotesScreen> createState() => _NotesScreenState();
+}
+
+class _NotesScreenState extends State<NotesScreen> {
+  /// Bewusst nicht gespeichert: die Notizen oeffnen immer mit "Notizen".
+  _NotesTab _tab = _NotesTab.notes;
+
+  /// Der Tag der Einkaufsliste – zuerst heute.
+  DateTime _day = today();
+
+  @override
   Widget build(BuildContext context) {
-    const page = PetPage.notes;
+    final state = AppScope.of(context);
     final theme = joeThemeOf(context);
+    // Im Modus "Eigener Reiter" sieht die Seite genau aus wie vorher: kein
+    // Umschalter, die Einkaufsliste hat dann ihren eigenen Reiter.
+    final perDay = state.shoppingMode == ShoppingListMode.perDay;
+    final shopping = perDay && _tab == _NotesTab.shopping;
+    // Auf der Einkaufsseite sitzt der Begleiter nur oben – unten steht das
+    // Eingabefeld.
+    final page = shopping ? PetPage.shopping : PetPage.notes;
 
     return JoeScaffold(
       page: page,
       title: 'Notizen',
-      body: SafeArea(child: _notesList(context, page)),
-      floatingActionButton: FloatingActionButton(
-        backgroundColor: theme.accent,
-        foregroundColor: Colors.white,
-        tooltip: 'Neue Notiz',
-        onPressed: () => _openNote(context, null),
-        child: const Icon(Icons.edit_outlined),
+      body: SafeArea(
+        child: shopping
+            ? ShoppingList(
+                day: _day,
+                header: [
+                  _header(
+                    context,
+                    extra: _DaySwitcher(
+                      day: _day,
+                      onChanged: (day) => setState(() => _day = day),
+                    ),
+                  ),
+                ],
+              )
+            : _notesList(
+                context,
+                page,
+                header: perDay ? _header(context) : null,
+              ),
+      ),
+      // Kein Plus auf der Einkaufsseite: dort ist das Eingabefeld der Weg.
+      floatingActionButton: shopping
+          ? null
+          : FloatingActionButton(
+              backgroundColor: theme.accent,
+              foregroundColor: Colors.white,
+              tooltip: 'Neue Notiz',
+              onPressed: () => _openNote(context, null),
+              child: const Icon(Icons.edit_outlined),
+            ),
+    );
+  }
+
+  /// Die Karte oben mit dem Umschalter "Notizen | Einkaufsliste", auf der
+  /// Einkaufsseite samt Datumszeile ([extra]). Sie steht in der Liste, damit
+  /// der Begleiter auf ihr sitzt und mit ihr wegscrollt.
+  Widget _header(BuildContext context, {Widget? extra}) {
+    final theme = joeThemeOf(context);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: PaperCard(
+        padding: const EdgeInsets.all(10),
+        child: Column(
+          children: [
+            SizedBox(
+              width: double.infinity,
+              child: SegmentedButton<_NotesTab>(
+                segments: const [
+                  ButtonSegment(
+                    value: _NotesTab.notes,
+                    label: Text('Notizen'),
+                    icon: Icon(Icons.edit_note),
+                  ),
+                  ButtonSegment(
+                    value: _NotesTab.shopping,
+                    label: Text('Einkaufsliste'),
+                    icon: Icon(Icons.shopping_basket_outlined),
+                  ),
+                ],
+                selected: {_tab},
+                showSelectedIcon: false,
+                onSelectionChanged: (selection) =>
+                    setState(() => _tab = selection.first),
+                style: SegmentedButton.styleFrom(
+                  backgroundColor: theme.paper,
+                  foregroundColor: theme.ink,
+                  selectedBackgroundColor: theme.accent,
+                  selectedForegroundColor: theme.bestOn(theme.accent),
+                  side: BorderSide(color: theme.accent),
+                ),
+              ),
+            ),
+            ?extra,
+          ],
+        ),
       ),
     );
   }
 
-  Widget _notesList(BuildContext context, PetPage page) {
+  Widget _notesList(BuildContext context, PetPage page, {Widget? header}) {
     final state = AppScope.of(context);
     final theme = joeThemeOf(context);
     final notes = state.notes;
+    final offset = header == null ? 0 : 1;
 
     return notes.isEmpty
             // Auf einer Karte, nicht blank auf dem Hintergrund: die
@@ -49,6 +140,7 @@ class NotesScreen extends StatelessWidget {
                   const EdgeInsets.fromLTRB(16, 4, 16, 96),
                 ),
                 children: [
+                  ?header,
                   PaperCard(
                     child: Text(
                       'Noch keine Notizen. Tippe auf den Stift, um '
@@ -64,9 +156,10 @@ class NotesScreen extends StatelessWidget {
                   page,
                   const EdgeInsets.fromLTRB(16, 4, 16, 96),
                 ),
-                itemCount: notes.length,
+                itemCount: notes.length + offset,
                 itemBuilder: (context, index) {
-                  final note = notes[index];
+                  if (index < offset) return header!;
+                  final note = notes[index - offset];
                   return Padding(
                     padding: const EdgeInsets.only(bottom: 10),
                     child: InkWell(
@@ -147,6 +240,61 @@ class NotesScreen extends StatelessWidget {
   void _openNote(BuildContext context, Note? note) {
     Navigator.of(context).push(
       MaterialPageRoute<void>(builder: (_) => NoteEditScreen(note: note)),
+    );
+  }
+}
+
+/// Die Datumszeile der Einkaufsliste je Tag: `‹ Freitag, 18. September ›`.
+/// Die Pfeile gehen einen Tag vor oder zurueck, ein Tipp aufs Datum oeffnet
+/// den Datumsdialog.
+class _DaySwitcher extends StatelessWidget {
+  final DateTime day;
+  final ValueChanged<DateTime> onChanged;
+
+  const _DaySwitcher({required this.day, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = joeThemeOf(context);
+    return Padding(
+      padding: const EdgeInsets.only(top: 6),
+      child: Row(
+        children: [
+          IconButton(
+            icon: Icon(Icons.chevron_left, color: theme.ink),
+            tooltip: 'Voriger Tag',
+            onPressed: () => onChanged(addCalendarDays(day, -1)),
+          ),
+          Expanded(
+            child: TextButton(
+              style: TextButton.styleFrom(foregroundColor: theme.ink),
+              onPressed: () async {
+                final picked = await showDatePicker(
+                  context: context,
+                  initialDate: day,
+                  firstDate: DateTime(2020),
+                  lastDate: DateTime(2035),
+                );
+                if (picked != null) onChanged(dateOnly(picked));
+              },
+              child: Text(
+                formatDateFull(day),
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: theme.ink,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ),
+          IconButton(
+            icon: Icon(Icons.chevron_right, color: theme.ink),
+            tooltip: 'Nächster Tag',
+            onPressed: () => onChanged(addCalendarDays(day, 1)),
+          ),
+        ],
+      ),
     );
   }
 }

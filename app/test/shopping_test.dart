@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:joe_todo/main.dart';
 import 'package:joe_todo/models.dart';
 import 'package:joe_todo/theme.dart';
+import 'package:joe_todo/util.dart';
 
 /// Die Einkaufsliste auf dem Bildschirm: der Reiter, das Eingabefeld unten,
 /// Abhaken per Tipp, Bearbeiten und Loeschen per langem Druck.
@@ -150,6 +151,85 @@ void main() {
       await tap(tester, find.text('Löschen'));
       expect(state.shopping, isEmpty);
       expect(find.text('Milch'), findsNothing);
+    });
+  });
+
+  group('Modus je Tag in den Notizen', () {
+    Future<AppState> pumpPerDay(
+      WidgetTester tester, {
+      List<ShoppingItem> items = const [],
+    }) async {
+      final state = await pump(tester, items: items);
+      state.setShoppingMode(ShoppingListMode.perDay);
+      await tester.pumpAndSettle();
+      return state;
+    }
+
+    testWidgets('kein Reiter, dafuer der Umschalter in den Notizen',
+        (tester) async {
+      await pumpPerDay(tester);
+      expect(find.text('Einkaufsliste'), findsNothing);
+
+      await tap(tester, find.text('Notizen'));
+      // Die Notizen oeffnen mit "Notizen": Liste und Stift wie gewohnt.
+      expect(find.text('Einkaufsliste'), findsOneWidget);
+      expect(find.textContaining('Noch keine Notizen'), findsOneWidget);
+      expect(find.byTooltip('Neue Notiz'), findsOneWidget);
+
+      await tap(tester, find.text('Einkaufsliste'));
+      expect(find.text(formatDateFull(today())), findsOneWidget);
+      expect(find.textContaining('Noch nichts auf der Liste'), findsOneWidget);
+      // Auf der Einkaufsseite kein Stift – das Eingabefeld ist der Weg.
+      expect(find.byTooltip('Neue Notiz'), findsNothing);
+    });
+
+    testWidgets('der Eintrag gehoert zu heute, ein anderer Tag ist leer',
+        (tester) async {
+      final state = await pumpPerDay(tester);
+      await tap(tester, find.text('Notizen'));
+      await tap(tester, find.text('Einkaufsliste'));
+
+      await type(tester, 'Milch');
+      expect(dateKey(state.shopping.single.day!), dateKey(today()));
+      expect(titles(state), isEmpty, reason: 'nicht in der Reiter-Liste');
+      expect(find.text('Milch'), findsOneWidget);
+
+      await tap(tester, find.byTooltip('Nächster Tag'));
+      final tomorrow = addCalendarDays(today(), 1);
+      expect(find.text(formatDateFull(tomorrow)), findsOneWidget);
+      expect(find.text('Milch'), findsNothing);
+      expect(find.textContaining('Noch nichts auf der Liste'), findsOneWidget);
+
+      await type(tester, 'Brot');
+      expect(titles(state, tomorrow), ['Brot']);
+      expect(titles(state, today()), ['Milch']);
+
+      await tap(tester, find.byTooltip('Voriger Tag'));
+      expect(find.text('Milch'), findsOneWidget);
+      expect(find.text('Brot'), findsNothing);
+    });
+
+    testWidgets('die Notizen oeffnen wieder mit "Notizen"', (tester) async {
+      await pumpPerDay(tester);
+      await tap(tester, find.text('Notizen'));
+      await tap(tester, find.text('Einkaufsliste'));
+      await tester.pageBack();
+      await tester.pumpAndSettle();
+
+      await tap(tester, find.text('Notizen'));
+      expect(find.textContaining('Noch keine Notizen'), findsOneWidget);
+    });
+
+    testWidgets('Umschalten loescht nichts', (tester) async {
+      final state = await pumpPerDay(
+        tester,
+        items: [item('1', 'Milch')],
+      );
+      // Der Reiter-Eintrag ist unsichtbar, aber noch da.
+      await tap(tester, find.text('Notizen'));
+      await tap(tester, find.text('Einkaufsliste'));
+      expect(find.text('Milch'), findsNothing);
+      expect(state.shopping, hasLength(1));
     });
   });
 
