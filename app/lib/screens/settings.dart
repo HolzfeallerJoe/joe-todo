@@ -227,6 +227,35 @@ class SettingsScreen extends StatelessWidget {
                 ],
               ),
             ),
+            const SectionTitle('Einkaufsliste'),
+            // Umschalten loescht nichts: Eintraege des anderen Modus bleiben
+            // gespeichert und sind nur nicht zu sehen (siehe
+            // AppState.shoppingItemsFor).
+            _TileCard(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+              child: RadioGroup<ShoppingListMode>(
+                groupValue: state.shoppingMode,
+                onChanged: (mode) {
+                  if (mode != null) state.setShoppingMode(mode);
+                },
+                child: Column(
+                  children: [
+                    for (final mode in ShoppingListMode.values)
+                      RadioListTile<ShoppingListMode>(
+                        value: mode,
+                        contentPadding:
+                            const EdgeInsets.symmetric(horizontal: 4),
+                        activeColor: theme.accent,
+                        title: Text(mode.label,
+                            style: TextStyle(color: theme.ink, fontSize: 16)),
+                        subtitle: Text(mode.description,
+                            style: TextStyle(
+                                color: theme.inkSoft, fontSize: 13)),
+                      ),
+                  ],
+                ),
+              ),
+            ),
             const SectionTitle('Erinnerungen'),
             _TileCard(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),

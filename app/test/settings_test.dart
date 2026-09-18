@@ -187,4 +187,42 @@ void main() {
       expect(sixth.top, greaterThan(first.bottom));
     });
   });
+
+  group('Einkaufsliste', () {
+    Finder option(ShoppingListMode mode) => find.ancestor(
+          of: find.text(mode.label),
+          matching: find.byType(RadioListTile<ShoppingListMode>),
+        );
+
+    /// Ob die Vorlesehilfe [mode] als gewaehlt meldet – und damit auch, ob
+    /// der Punkt gefuellt ist.
+    bool isChosen(WidgetTester tester, ShoppingListMode mode) =>
+        isSemantics(isChecked: true)
+            .matches(tester.getSemantics(option(mode)), {});
+
+    testWidgets('Standard ist der eigene Reiter, umgeschaltet wird per Tipp',
+        (tester) async {
+      final semantics = tester.ensureSemantics();
+      final state = await pumpSettings(tester);
+      await ensureVisible(tester, option(ShoppingListMode.perDay));
+
+      expect(find.text('Eine Liste für alle Tage'), findsOneWidget);
+      expect(find.text('Jeder Tag hat seine eigene Liste'), findsOneWidget);
+      expect(isChosen(tester, ShoppingListMode.tab), isTrue);
+      expect(isChosen(tester, ShoppingListMode.perDay), isFalse);
+
+      await tester.tap(option(ShoppingListMode.perDay));
+      await tester.pumpAndSettle();
+
+      expect(state.shoppingMode, ShoppingListMode.perDay);
+      expect(isChosen(tester, ShoppingListMode.perDay), isTrue);
+      expect(isChosen(tester, ShoppingListMode.tab), isFalse);
+
+      // Und zurueck – nichts daran ist eine Einbahnstrasse.
+      await tester.tap(option(ShoppingListMode.tab));
+      await tester.pumpAndSettle();
+      expect(state.shoppingMode, ShoppingListMode.tab);
+      semantics.dispose();
+    });
+  });
 }
