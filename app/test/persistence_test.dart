@@ -170,6 +170,34 @@ void main() {
     expect(prefs.getString(AppState.rescueKey), raw);
   });
 
+  test('eine taegliche Aufgabe von vorher laedt als alle sieben Tage',
+      () async {
+    // "daily" gibt es als eigene Art nicht mehr (Wochenskala). Das
+    // Umschreiben ist kein Verlust, also auch keine Rettungskopie.
+    final data = validData()
+      ..['tasks'] = [
+        {
+          'id': 'alt',
+          'title': 'Blumen gießen',
+          'recurrence': 'daily',
+          'intervalDays': 2,
+          'startDate': '2026-07-01',
+          'colorIndex': 2,
+          'completedDates': ['2026-07-02'],
+        },
+      ];
+    SharedPreferences.setMockInitialValues({'joe_data_v1': jsonEncode(data)});
+    final state = AppState();
+    await state.load();
+
+    final task = state.tasks.single;
+    expect(task.recurrence, RecurrenceType.weekly);
+    expect(task.weekdays, allWeekdays);
+    expect(task.isCompletedOn(DateTime(2026, 7, 2)), isTrue);
+    final prefs = await SharedPreferences.getInstance();
+    expect(prefs.getString(AppState.rescueKey), isNull);
+  });
+
   test('Kalender-Ebenen: Standards und gespeicherte Werte', () async {
     // Ohne gespeicherte Schluessel: Feiertage und Mond an, Geraete-Kalender
     // aus (der braucht eine Berechtigung und wartet auf den Schalter).

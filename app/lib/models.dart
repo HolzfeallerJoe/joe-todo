@@ -50,7 +50,21 @@ const taskPaletteNames = [
   'Nachtblau', 'Pflaume', 'Altrosa', 'Lavendel',
 ];
 
-enum RecurrenceType { none, daily, weekly, monthly, everyXDays }
+/// Wie sich eine Aufgabe wiederholt.
+///
+/// "Taeglich" ist kein eigener Typ mehr: die Wochenskala im Blatt deckt es
+/// ab, alle sieben Tage markiert heisst taeglich ([allWeekdays]). Zwei Wege
+/// zum selben Ergebnis haetten nur die Frage aufgeworfen, welcher gilt. Den
+/// Namen 'daily' gibt es noch im Bestand aelterer Fassungen; [Task.fromJson]
+/// schreibt ihn beim Laden um.
+enum RecurrenceType { none, weekly, monthly, yearly, everyXDays }
+
+/// Alle sieben Wochentage, 1 = Montag wie bei [DateTime.weekday]. Eine
+/// woechentliche Aufgabe mit diesen Tagen ist eine taegliche.
+const allWeekdays = {1, 2, 3, 4, 5, 6, 7};
+
+bool _isLeapYear(int year) =>
+    year % 4 == 0 && (year % 100 != 0 || year % 400 == 0);
 
 /// Three priority levels for tasks and appointments. Level 3 ("Niedrig") is
 /// the quiet one: an ihrem Faelligkeitstag zaehlt sie mit wie jede andere,
@@ -86,6 +100,12 @@ class Task {
   /// eigene Uhrzeit, deshalb bringt die Erinnerung ihre eigene mit.
   int? reminderMinuteOfDay;
 
+  /// Die Wochentage einer woechentlichen Aufgabe (1 = Montag wie bei
+  /// [DateTime.weekday]); fuer die anderen Arten ohne Bedeutung. Eine
+  /// woechentliche Aufgabe ohne Tag gibt es nicht – fehlt die Angabe, gilt
+  /// der Wochentag des Starts, wie in der Fassung vor der Wochenskala.
+  Set<int> weekdays;
+
   Task({
     required this.id,
     required this.title,
@@ -95,32 +115,66 @@ class Task {
     this.colorIndex = 0,
     this.priority = Priority.mittel,
     this.reminderMinuteOfDay,
+    Set<int>? weekdays,
     Set<String>? completedDates,
-  }) : completedDates = completedDates ?? {};
+  })  : weekdays = _validWeekdays(weekdays, recurrence, startDate),
+        completedDates = completedDates ?? {};
+
+  /// Nur 1–7 zaehlen; eine woechentliche Aufgabe ohne gueltigen Tag bekommt
+  /// den Wochentag ihres Starts.
+  static Set<int> _validWeekdays(
+      Iterable<int>? days, RecurrenceType recurrence, DateTime startDate) {
+    final valid = {...?days?.where((d) => d >= 1 && d <= 7)};
+    if (recurrence == RecurrenceType.weekly && valid.isEmpty) {
+      return {startDate.weekday};
+    }
+    return valid;
+  }
+
+  /// Die Tage, an denen eine woechentliche Aufgabe tatsaechlich faellt.
+  /// [weekdays] ist ein oeffentliches Feld und koennte nach dem Bau geleert
+  /// werden; dann gilt dieselbe Regel wie im Konstruktor.
+  Set<int> get _weeklyDays =>
+      weekdays.isEmpty ? {dateOnly(startDate).weekday} : weekdays;
 
   Color get color => taskPalette[colorIndex % taskPalette.length];
 
   bool get isRecurring => recurrence != RecurrenceType.none;
 
-  /// Whether a recurring task has an occurrence on [day] (also true for a
-  /// one-off task on its due date).
-  bool occursOn(DateTime day) {
+  /// Ob an [day] eine Wiederholung der Aufgabe *beginnt* (bei einer
+  /// einmaligen: ob [day] ihr Starttag ist).
+  bool startsOn(DateTime day) {
     final d = dateOnly(day);
     final s = dateOnly(startDate);
     if (d.isBefore(s)) return false;
     switch (recurrence) {
       case RecurrenceType.none:
         return d == s;
-      case RecurrenceType.daily:
-        return true;
       case RecurrenceType.weekly:
-        return d.weekday == s.weekday;
+        return _weeklyDays.contains(d.weekday);
       case RecurrenceType.monthly:
+        // Am 31. begonnen heisst: Monate ohne 31. fallen aus – wie bisher.
         return d.day == s.day;
+      case RecurrenceType.yearly:
+        if (d.month != s.month) return false;
+        if (d.day == s.day) return true;
+        // Am 29.2. begonnen: in Jahren ohne Schalttag am 28.2.
+        return s.month == 2 &&
+            s.day == 29 &&
+            d.day == 28 &&
+            !_isLeapYear(d.year);
       case RecurrenceType.everyXDays:
-        return d.difference(s).inDays % (intervalDays < 1 ? 1 : intervalDays) == 0;
+        // In Kalendertagen gezaehlt, nicht in Stunden: ueber die
+        // Sommerzeit-Umstellung hinweg fehlt sonst eine Stunde, und
+        // Duration.inDays rundet einen ganzen Tag weg.
+        return calendarDaysBetween(s, d) %
+                (intervalDays < 1 ? 1 : intervalDays) ==
+            0;
     }
   }
+
+  /// Ob die Aufgabe an [day] faellig ist (bei einer einmaligen: ihr Tag).
+  bool occursOn(DateTime day) => startsOn(day);
 
   /// One-off tasks are done once and stay done; recurring tasks are completed
   /// per occurrence day.
@@ -133,15 +187,31 @@ class Task {
     switch (recurrence) {
       case RecurrenceType.none:
         return 'Einmalig';
-      case RecurrenceType.daily:
-        return 'Täglich';
       case RecurrenceType.weekly:
-        return 'Wöchentlich';
+        return weekdaysLabel(_weeklyDays);
       case RecurrenceType.monthly:
         return 'Monatlich';
+      case RecurrenceType.yearly:
+        return 'Jährlich';
       case RecurrenceType.everyXDays:
         return 'Alle $intervalDays Tage';
     }
+  }
+
+  /// Wie eine Auswahl auf der Wochenskala heisst: "Täglich", "Werktags",
+  /// "Am Wochenende", "Jeden Montag" oder die Kurznamen in Wochenfolge
+  /// ("Mo, Mi, Fr").
+  static String weekdaysLabel(Set<int> days) {
+    final sorted = days.where((d) => d >= 1 && d <= 7).toSet().toList()..sort();
+    if (sorted.length == 7) return 'Täglich';
+    if (sorted.length == 5 && sorted.first == 1 && sorted.last == 5) {
+      return 'Werktags';
+    }
+    if (sorted.length == 2 && sorted.first == 6 && sorted.last == 7) {
+      return 'Am Wochenende';
+    }
+    if (sorted.length == 1) return 'Jeden ${weekdayNames[sorted.single - 1]}';
+    return sorted.map((d) => weekdayNamesShort[d - 1]).join(', ');
   }
 
   Map<String, dynamic> toJson() => {
@@ -150,24 +220,42 @@ class Task {
         'recurrence': recurrence.name,
         'intervalDays': intervalDays,
         'startDate': dateKey(startDate),
+        if (recurrence == RecurrenceType.weekly)
+          'weekdays': _weeklyDays.toList()..sort(),
         'colorIndex': colorIndex,
         'priority': priority.name,
         'reminderMinuteOfDay': reminderMinuteOfDay,
         'completedDates': completedDates.toList(),
       };
 
-  factory Task.fromJson(Map<String, dynamic> json) => Task(
-        id: json['id'] as String,
-        title: json['title'] as String,
-        recurrence: RecurrenceType.values
-            .firstWhere((r) => r.name == json['recurrence'], orElse: () => RecurrenceType.none),
-        intervalDays: json['intervalDays'] as int? ?? 2,
-        startDate: parseDateKey(json['startDate'] as String),
-        colorIndex: json['colorIndex'] as int? ?? 0,
-        priority: Priority.fromJson(json['priority']),
-        reminderMinuteOfDay: minuteOfDayFromJson(json['reminderMinuteOfDay']),
-        completedDates: (json['completedDates'] as List<dynamic>? ?? []).cast<String>().toSet(),
-      );
+  factory Task.fromJson(Map<String, dynamic> json) {
+    final storedRecurrence = json['recurrence'];
+    // 'daily' stammt aus der Fassung vor der Wochenskala (siehe
+    // [RecurrenceType]): taeglich ist jetzt woechentlich an allen Tagen.
+    final wasDaily = storedRecurrence == 'daily';
+    final storedDays = json['weekdays'];
+    return Task(
+      id: json['id'] as String,
+      title: json['title'] as String,
+      recurrence: wasDaily
+          ? RecurrenceType.weekly
+          : RecurrenceType.values.firstWhere((r) => r.name == storedRecurrence,
+              orElse: () => RecurrenceType.none),
+      intervalDays: json['intervalDays'] as int? ?? 2,
+      startDate: parseDateKey(json['startDate'] as String),
+      colorIndex: json['colorIndex'] as int? ?? 0,
+      priority: Priority.fromJson(json['priority']),
+      reminderMinuteOfDay: minuteOfDayFromJson(json['reminderMinuteOfDay']),
+      // Fremdkoerper in der Liste fallen still weg; ein fehlender Tag ist
+      // kein Verlust, der Konstruktor setzt den Wochentag des Starts.
+      weekdays: wasDaily
+          ? allWeekdays
+          : storedDays is List
+              ? storedDays.whereType<int>().toSet()
+              : null,
+      completedDates: (json['completedDates'] as List<dynamic>? ?? []).cast<String>().toSet(),
+    );
+  }
 }
 
 class Appointment {
@@ -474,7 +562,8 @@ class AppState extends ChangeNotifier {
       Task(
         id: nextId(),
         title: 'Blumen gießen',
-        recurrence: RecurrenceType.daily,
+        recurrence: RecurrenceType.weekly,
+        weekdays: allWeekdays,
         startDate: t.subtract(const Duration(days: 3)),
         colorIndex: 2,
         completedDates: {

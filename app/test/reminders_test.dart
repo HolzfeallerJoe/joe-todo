@@ -33,6 +33,7 @@ void main() {
     String title = 'Blumen gießen',
     required DateTime start,
     RecurrenceType recurrence = RecurrenceType.none,
+    Set<int>? weekdays,
     int? reminder,
     Set<String>? done,
   }) =>
@@ -41,6 +42,7 @@ void main() {
         title: title,
         startDate: start,
         recurrence: recurrence,
+        weekdays: weekdays,
         reminderMinuteOfDay: reminder,
         completedDates: done,
       );
@@ -158,7 +160,8 @@ void main() {
         tasks: [
           task(
             start: DateTime(2026, 3, 28),
-            recurrence: RecurrenceType.daily,
+            recurrence: RecurrenceType.weekly,
+            weekdays: allWeekdays,
             reminder: 9 * 60,
           ),
         ],
@@ -207,7 +210,8 @@ void main() {
         tasks: [
           task(
             start: heute,
-            recurrence: RecurrenceType.daily,
+            recurrence: RecurrenceType.weekly,
+            weekdays: allWeekdays,
             reminder: 18 * 60,
           ),
         ],
@@ -228,7 +232,8 @@ void main() {
         tasks: [
           task(
             start: heute,
-            recurrence: RecurrenceType.daily,
+            recurrence: RecurrenceType.weekly,
+            weekdays: allWeekdays,
             reminder: 18 * 60,
             done: {dateKey(heute.add(const Duration(days: 1)))},
           ),
@@ -246,7 +251,8 @@ void main() {
         tasks: [
           task(
             start: heute,
-            recurrence: RecurrenceType.daily,
+            recurrence: RecurrenceType.weekly,
+            weekdays: allWeekdays,
             reminder: 8 * 60,
           ),
         ],
@@ -338,7 +344,8 @@ void main() {
         tasks: [
           task(
             start: heute,
-            recurrence: RecurrenceType.daily,
+            recurrence: RecurrenceType.weekly,
+            weekdays: allWeekdays,
             reminder: 9 * 60,
           ),
         ],
@@ -359,7 +366,8 @@ void main() {
             task(
               id: 't$i',
               start: heute,
-              recurrence: RecurrenceType.daily,
+              recurrence: RecurrenceType.weekly,
+              weekdays: allWeekdays,
               reminder: 9 * 60,
             ),
         ],
@@ -371,7 +379,7 @@ void main() {
     test('gedeckelt wird am Ende, die naechsten Erinnerungen gewinnen', () {
       final geplant = pendingReminders(
         tasks: [
-          task(start: heute, recurrence: RecurrenceType.daily, reminder: 540),
+          task(start: heute, recurrence: RecurrenceType.weekly, weekdays: allWeekdays, reminder: 540),
         ],
         appointments: const [],
         from: now,
@@ -433,7 +441,8 @@ void main() {
           task(
             id: 'taeglich',
             start: heute,
-            recurrence: RecurrenceType.daily,
+            recurrence: RecurrenceType.weekly,
+            weekdays: allWeekdays,
             reminder: 9 * 60,
           ),
         ],

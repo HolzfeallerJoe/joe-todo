@@ -16,9 +16,13 @@ void main() {
   group('Recurrence', () {
     final start = DateTime(2026, 7, 1); // a Wednesday
 
-    test('daily occurs every day from start', () {
+    test('alle sieben Wochentage = jeden Tag', () {
       final t = Task(
-          id: '1', title: 'x', recurrence: RecurrenceType.daily, startDate: start);
+          id: '1',
+          title: 'x',
+          recurrence: RecurrenceType.weekly,
+          weekdays: allWeekdays,
+          startDate: start);
       expect(t.occursOn(DateTime(2026, 6, 30)), isFalse);
       expect(t.occursOn(DateTime(2026, 7, 1)), isTrue);
       expect(t.occursOn(DateTime(2026, 8, 15)), isTrue);
@@ -57,7 +61,11 @@ void main() {
       expect(oneOff.isCompletedOn(DateTime(2026, 7, 5)), isTrue);
 
       final daily = Task(
-          id: '2', title: 'y', recurrence: RecurrenceType.daily, startDate: start);
+          id: '2',
+          title: 'y',
+          recurrence: RecurrenceType.weekly,
+          weekdays: allWeekdays,
+          startDate: start);
       daily.completedDates.add(dateKey(DateTime(2026, 7, 2)));
       expect(daily.isCompletedOn(DateTime(2026, 7, 2)), isTrue);
       expect(daily.isCompletedOn(DateTime(2026, 7, 3)), isFalse);
@@ -165,7 +173,8 @@ void main() {
         Task(
           id: 'taeglich',
           title: 'Leise, aber taeglich',
-          recurrence: RecurrenceType.daily,
+          recurrence: RecurrenceType.weekly,
+          weekdays: allWeekdays,
           startDate: t.subtract(const Duration(days: 10)),
           priority: Priority.niedrig,
         ),
@@ -222,7 +231,8 @@ void main() {
       final done = Task(
         id: 'erledigt',
         title: 'Schon abgehakt',
-        recurrence: RecurrenceType.daily,
+        recurrence: RecurrenceType.weekly,
+        weekdays: allWeekdays,
         startDate: t.subtract(const Duration(days: 3)),
         priority: Priority.niedrig,
         completedDates: {dateKey(t)},

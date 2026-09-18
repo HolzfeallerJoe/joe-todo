@@ -1518,6 +1518,14 @@ Future<void> showTaskSheet(
       JoeToast.error('Bitte gib einen Titel ein.');
       return;
     }
+    // Bis das Blatt eine Wochenskala hat: "Woechentlich" heisst am
+    // Wochentag des Datums. Eine Aufgabe, die schon woechentlich war (auch
+    // eine umgeschriebene taegliche), behaelt ihre Tage.
+    final weekdays = recurrence != RecurrenceType.weekly
+        ? <int>{}
+        : task != null && task.recurrence == RecurrenceType.weekly
+            ? task.weekdays
+            : {date.weekday};
     if (task == null) {
       state.addTask(
         Task(
@@ -1529,11 +1537,13 @@ Future<void> showTaskSheet(
           colorIndex: colorIndex,
           priority: priority,
           reminderMinuteOfDay: reminderMinute,
+          weekdays: weekdays,
         ),
       );
     } else {
       task.title = title;
       task.recurrence = recurrence;
+      task.weekdays = weekdays;
       task.intervalDays = intervalDays;
       task.startDate = date;
       task.colorIndex = colorIndex;
@@ -1570,9 +1580,9 @@ Future<void> showTaskSheet(
                 ChoiceChip(
                   label: Text(switch (r) {
                     RecurrenceType.none => 'Einmalig',
-                    RecurrenceType.daily => 'Täglich',
                     RecurrenceType.weekly => 'Wöchentlich',
                     RecurrenceType.monthly => 'Monatlich',
+                    RecurrenceType.yearly => 'Jährlich',
                     RecurrenceType.everyXDays => 'Alle X Tage',
                   }),
                   selected: recurrence == r,

@@ -19,6 +19,18 @@ DateTime dateOnly(DateTime d) => DateTime(d.year, d.month, d.day);
 
 DateTime today() => dateOnly(DateTime.now());
 
+/// Kalendertage von [from] bis [to] (beides nur als Datum gelesen), an der
+/// Sommerzeit-Grenze stabil: gezaehlt wird ueber UTC-Daten, nicht ueber eine
+/// Dauer – zwischen zwei lokalen Mitternaechten liegen im Maerz nur 23 Stunden.
+int calendarDaysBetween(DateTime from, DateTime to) =>
+    DateTime.utc(to.year, to.month, to.day)
+        .difference(DateTime.utc(from.year, from.month, from.day))
+        .inDays;
+
+/// [d] plus [days] Kalendertage, als lokales Datum.
+DateTime addCalendarDays(DateTime d, int days) =>
+    DateTime(d.year, d.month, d.day + days);
+
 String dateKey(DateTime d) =>
     '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
 
