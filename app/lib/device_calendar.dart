@@ -286,13 +286,25 @@ bool eventCoversDay(Event event, DateTime day) {
   return !d.isBefore(first) && !d.isAfter(last);
 }
 
-/// Zeile fuers Tagesdetail am Tag [day]: "14:30 Uhr" bzw. "ganztägig".
+/// Zeile fuers Tagesdetail am Tag [day]: "14:30 Uhr", "ganztägig" bzw. am
+/// Endtag eines mehrtaegigen Termins "bis 09:00".
 ///
 /// Ein mehrtaegiger Termin faengt an seinen Folgetagen nicht noch einmal an:
 /// dort ist er den ganzen Tag da, die Startuhrzeit von vorgestern waere
-/// falsch. Dieselbe Regel wie `_deviceEntry` in agenda.dart (Dashboard).
+/// falsch. An seinem Endtag sagt er, wann er aufhoert – wie ein eigener
+/// Termin mit Dauer (appointmentDayLabel in agenda.dart), damit beide Quellen
+/// gleich beschriftet sind. Dieselbe Regel wie `_deviceEntry` in agenda.dart
+/// (Dashboard).
 String deviceEventTimeLabel(Event event, DateTime day) {
+  // Ganztaegige bleiben ganztaegig: ihr Ende liegt auf der (lokalen)
+  // Mitternacht nach dem letzten Tag, eine Uhrzeit haben sie nie.
+  if (event.isAllDay) return 'ganztägig';
+  final d = dateOnly(day);
   final start = event.startDate.toLocal();
-  if (event.isAllDay || dateOnly(start) != dateOnly(day)) return 'ganztägig';
-  return formatTime(start);
+  if (dateOnly(start) == d) return formatTime(start);
+  // Ein Ende genau um Mitternacht gehoert nicht mehr auf diesen Tag (Ende
+  // exklusiv, siehe eventCoversDay) – dann hat der Vortag ihn ganz.
+  final end = event.endDate.toLocal();
+  if (dateOnly(end) == d && end.isAfter(d)) return 'bis ${formatHm(end)}';
+  return 'ganztägig';
 }

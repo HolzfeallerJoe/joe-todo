@@ -119,16 +119,24 @@ AgendaEntry _deviceEntry(Event event, DateTime day, Color fallback) {
   final start = event.startDate.toLocal();
   // Ein mehrtaegiger Termin faengt an seinen Folgetagen nicht noch einmal an:
   // dort ist er den ganzen Tag da, und die Uhrzeit von vorgestern waere
-  // schlicht falsch. Auch sein Endtag heisst hier noch "ganztägig" – genau
-  // wie im Tagesdetail des Kalenders (deviceEventTimeLabel); beide reden
-  // dieselbe Sprache und stellen nur gemeinsam um.
-  final allDay = event.isAllDay || dateOnly(start) != day;
+  // schlicht falsch. An seinem Endtag steht "bis 09:00", genau wie bei einem
+  // eigenen Termin mit Dauer (_ownEntry) und wie im Tagesdetail des
+  // Kalenders (deviceEventTimeLabel) – die beiden Dateien reden dieselbe
+  // Sprache; agenda_test.dart haelt sie beisammen. Ganztaegige bleiben
+  // ganztaegig, auch falls ein Plugin ihr Ende nicht auf Mitternacht legt.
+  final end = event.endDate.toLocal();
+  final continued = dateOnly(start) != day;
+  final until = !event.isAllDay && continued && _endsWithTimeOn(end, day)
+      ? end
+      : null;
+  final allDay = event.isAllDay || (continued && until == null);
   return AgendaEntry(
-    when: allDay ? day : start,
+    when: allDay || until != null ? day : start,
     title: event.title,
     color: event.color ?? fallback,
     allDay: allDay,
     continued: dateOnly(start).isBefore(day),
+    until: until,
   );
 }
 

@@ -263,6 +263,7 @@ void main() {
       // zwei Dateien; auseinanderlaufen duerfen sie nicht.
       final e = device('umzug',
           start: DateTime(2026, 8, 13, 18), end: DateTime(2026, 8, 15, 9));
+      final labels = <String>[];
       for (final day in [13, 14, 15]) {
         final d = DateTime(2026, 8, day);
         final entry = agendaForDay(
@@ -271,6 +272,53 @@ void main() {
           deviceEvents: [e],
           deviceColor: fallback,
         ).single;
+        expect(agendaTimeLabel(entry), deviceEventTimeLabel(e, d),
+            reason: 'Tag $day');
+        labels.add(agendaTimeLabel(entry));
+      }
+      // Und beide so wie ein eigener Termin mit Dauer.
+      expect(labels, ['18:00 Uhr', 'ganztägig', 'bis 09:00']);
+    });
+
+    test('Geraete-Termin am Endtag steht vorn wie ein eigener', () {
+      // Er hat vor dem Tag begonnen und steht deshalb auf dem Tagesbeginn,
+      // vor einem eigenen Termin um 08:00 – dieselbe Ordnung wie bei _ownEntry.
+      final entries = agendaForDay(
+        DateTime(2026, 8, 15),
+        appointments: [
+          Appointment(
+              id: 'frueh', title: 'Frueh', when: DateTime(2026, 8, 15, 8)),
+        ],
+        deviceEvents: [
+          device('umzug',
+              start: DateTime(2026, 8, 13, 18),
+              end: DateTime(2026, 8, 15, 9)),
+        ],
+        deviceColor: fallback,
+      );
+      expect(entries.map((e) => e.title), ['umzug', 'Frueh']);
+      expect(entries.first.allDay, isFalse);
+      expect(entries.first.continued, isTrue);
+      expect(entries.first.until, DateTime(2026, 8, 15, 9));
+    });
+
+    test('ganztaegiger Geraete-Termin: auch der letzte Tag ohne "bis"', () {
+      // Lokale Mitternacht wie vom Plugin; das exklusive Ende am 27. darf
+      // nie als "bis 00:00" auftauchen.
+      final e = device('feiertage',
+          start: DateTime(2026, 12, 24),
+          end: DateTime(2026, 12, 27),
+          allDay: true);
+      for (final day in [24, 25, 26]) {
+        final d = DateTime(2026, 12, day);
+        final entry = agendaForDay(
+          d,
+          appointments: const [],
+          deviceEvents: [e],
+          deviceColor: fallback,
+        ).single;
+        expect(entry.allDay, isTrue, reason: 'Tag $day');
+        expect(entry.until, isNull, reason: 'Tag $day');
         expect(agendaTimeLabel(entry), deviceEventTimeLabel(e, d),
             reason: 'Tag $day');
       }

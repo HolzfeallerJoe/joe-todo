@@ -142,16 +142,44 @@ void main() {
     );
   });
 
-  test('mehrtaegiger Termin: Starttag mit Uhrzeit, Folgetage ganztaegig', () {
+  test('mehrtaegiger Termin: Starttag mit Uhrzeit, Mitte ganztaegig, "bis …"',
+      () {
     // Frueher stand im Tagesdetail an jedem Folgetag die Startuhrzeit, weil
-    // die Beschriftung den Tag nicht kannte.
+    // die Beschriftung den Tag nicht kannte. Der Endtag sagt jetzt, wann der
+    // Termin aufhoert – wie ein eigener Termin mit Dauer.
     final e = event(
       start: DateTime(2026, 8, 13, 18),
       end: DateTime(2026, 8, 15, 9),
     );
     expect(deviceEventTimeLabel(e, DateTime(2026, 8, 13)), '18:00 Uhr');
     expect(deviceEventTimeLabel(e, DateTime(2026, 8, 14)), 'ganztägig');
-    expect(deviceEventTimeLabel(e, DateTime(2026, 8, 15)), 'ganztägig');
+    expect(deviceEventTimeLabel(e, DateTime(2026, 8, 15)), 'bis 09:00');
+    expect(
+      deviceEventTimeLabel(e, DateTime(2026, 8, 15, 12, 30)),
+      'bis 09:00',
+    );
+  });
+
+  test('Ende um Mitternacht: der Vortag ist ganz, kein "bis 00:00"', () {
+    final e = event(
+      start: DateTime(2026, 8, 13, 18),
+      end: DateTime(2026, 8, 15),
+    );
+    expect(deviceEventTimeLabel(e, DateTime(2026, 8, 14)), 'ganztägig');
+  });
+
+  test('ganztaegig ueber mehrere Tage: auch der letzte Tag ohne "bis"', () {
+    // Das Plugin liefert lokale Mitternacht; das Ende liegt exklusiv auf der
+    // Mitternacht nach dem letzten Tag und darf nie als Uhrzeit auftauchen.
+    final e = event(
+      start: DateTime(2026, 12, 24),
+      end: DateTime(2026, 12, 27),
+      allDay: true,
+    );
+    for (final day in [24, 25, 26]) {
+      expect(deviceEventTimeLabel(e, DateTime(2026, 12, day)), 'ganztägig',
+          reason: 'Tag $day');
+    }
   });
 
   test('Beschriftung: der Tag darf eine Uhrzeit tragen', () {
