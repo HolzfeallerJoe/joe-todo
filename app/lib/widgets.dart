@@ -282,6 +282,14 @@ JoeTheme joeThemeOf(BuildContext context) {
 }
 
 /// Cream paper card with a soft shadow, like a note pinned on the board.
+///
+/// Das Kind liegt in einer durchsichtigen [Material]-Schicht. Zeilen, die
+/// beim Antippen eine Tintenwelle malen (ListTile, SwitchListTile, InkWell),
+/// malen auf das naechste Material darueber – ohne diese Schicht laege das
+/// *unter* der Papierfarbe der Karte, die Welle bliebe unsichtbar, und
+/// Flutter meldete das im Debug-Build als Fehler. Durchsichtig heisst: kein
+/// eigener Hintergrund, kein Schatten, kein Clip – die Karte sieht aus wie
+/// vorher.
 class PaperCard extends StatelessWidget {
   final Widget child;
   final EdgeInsetsGeometry padding;
@@ -311,7 +319,11 @@ class PaperCard extends StatelessWidget {
           ),
         ],
       ),
-      child: child,
+      child: Material(
+        type: MaterialType.transparency,
+        borderRadius: BorderRadius.circular(16),
+        child: child,
+      ),
     );
   }
 }

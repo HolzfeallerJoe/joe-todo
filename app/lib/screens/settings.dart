@@ -63,7 +63,7 @@ class SettingsScreen extends StatelessWidget {
               ),
             ),
             const SectionTitle('Prioritäten'),
-            _TileCard(
+            PaperCard(
               padding: const EdgeInsets.fromLTRB(14, 4, 14, 12),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -82,7 +82,7 @@ class SettingsScreen extends StatelessWidget {
               ),
             ),
             const SectionTitle('Begleiter'),
-            _TileCard(
+            PaperCard(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
               child: SwitchListTile(
                 contentPadding: EdgeInsets.zero,
@@ -100,7 +100,7 @@ class SettingsScreen extends StatelessWidget {
             // und nicht antippbar.
             Opacity(
               opacity: state.showPet ? 1 : 0.45,
-              child: _TileCard(
+              child: PaperCard(
                 margin: const EdgeInsets.only(top: 12),
                 padding: EdgeInsets.zero,
                 child: InkWell(
@@ -130,7 +130,7 @@ class SettingsScreen extends StatelessWidget {
               ),
             ),
             const SectionTitle('Kalender'),
-            _TileCard(
+            PaperCard(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
               child: Column(
                 children: [
@@ -231,7 +231,7 @@ class SettingsScreen extends StatelessWidget {
             // Umschalten loescht nichts: Eintraege des anderen Modus bleiben
             // gespeichert und sind nur nicht zu sehen (siehe
             // AppState.shoppingItemsFor).
-            _TileCard(
+            PaperCard(
               padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
               child: RadioGroup<ShoppingListMode>(
                 groupValue: state.shoppingMode,
@@ -257,7 +257,7 @@ class SettingsScreen extends StatelessWidget {
               ),
             ),
             const SectionTitle('Erinnerungen'),
-            _TileCard(
+            PaperCard(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
               child: Column(
                 children: [
@@ -714,37 +714,6 @@ class _PetOption extends StatelessWidget {
         const SizedBox(width: 6),
         Icon(Icons.arrow_drop_down, color: theme.ink),
       ],
-    );
-  }
-}
-
-/// Eine [PaperCard] fuer Zeilen, die beim Antippen eine Tintenwelle malen
-/// (ListTile, SwitchListTile, InkWell). Die malen auf das naechste
-/// [Material] darueber – das liegt ohne diese Huelle *unter* der Papierfarbe
-/// der Karte, die Welle bliebe unsichtbar, und Flutter meldet das im
-/// Debug-Build als Fehler. Die durchsichtige Materialschicht zwischen Karte
-/// und Zeile gibt ihr eine Flaeche auf dem Papier.
-class _TileCard extends StatelessWidget {
-  final Widget child;
-  final EdgeInsetsGeometry padding;
-  final EdgeInsetsGeometry margin;
-
-  const _TileCard({
-    required this.child,
-    required this.padding,
-    this.margin = EdgeInsets.zero,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return PaperCard(
-      margin: margin,
-      padding: padding,
-      child: Material(
-        type: MaterialType.transparency,
-        borderRadius: BorderRadius.circular(16),
-        child: child,
-      ),
     );
   }
 }
