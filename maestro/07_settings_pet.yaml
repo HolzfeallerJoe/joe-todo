@@ -16,9 +16,19 @@ name: Begleiter wechseln und ausblenden
 - tapOn:
     text: "Einstellungen"
     retryTapIfNoChange: false
+# Ueber dem Begleiter stehen Design und Prioritaeten; auf einem kleinen
+# Bildschirm liegt er damit unter dem Falz.
+- scrollUntilVisible:
+    element: "(?s).*Begleiter anzeigen.*"
+    direction: DOWN
+    centerElement: true
 - assertVisible: "(?s).*Begleiter anzeigen.*"
 # Die Auswahlzeile zeigt den aktuellen Begleiter (Standard: Katze, Aquarell)
 # und oeffnet das Auswahlblatt.
+- scrollUntilVisible:
+    element: "(?s)Katze.*Aquarell.*"
+    direction: DOWN
+    centerElement: true
 - tapOn: "(?s)Katze.*Aquarell.*"
 # Die Gruppe des aktuellen Begleiters ist schon aufgeklappt.
 - assertVisible: "Begleiter wählen"
@@ -53,6 +63,10 @@ name: Begleiter wechseln und ausblenden
 - tapOn:
     text: "Einstellungen"
     retryTapIfNoChange: false
+- scrollUntilVisible:
+    element: "(?s).*Begleiter anzeigen.*"
+    direction: DOWN
+    centerElement: true
 - tapOn: "(?s).*Begleiter anzeigen.*"
 # Auswahl bleibt lesbar, ist aber ausgegraut und nicht mehr antippbar.
 - assertVisible: "(?s)Pizza-Axo.*"

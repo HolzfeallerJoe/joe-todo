@@ -22,7 +22,13 @@ name: Aufgaben-Reiter mit Prioritaeten
 - inputText: "Steuer machen"
 - hideKeyboard
 # Stufe und Beschriftung liegen in einem Knoten ("Stufe 1 Hoch"), deshalb
-# der umschliessende Regex – ein blosses "Hoch" matcht nicht.
+# der umschliessende Regex – ein blosses "Hoch" matcht nicht. Seit Wochenskala
+# und Dauer-Schalter im Blatt stehen, liegt die Prioritaet weiter unten; auf
+# einem kleinen Bildschirm erst hinscrollen.
+- scrollUntilVisible:
+    element: "(?s).*Stufe 1.*Hoch.*"
+    direction: DOWN
+    centerElement: true
 - tapOn: "(?s).*Stufe 1.*Hoch.*"
 - tapOn: "Speichern"
 - assertVisible: "(?s).*Steuer machen.*"
