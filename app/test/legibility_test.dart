@@ -81,7 +81,20 @@ void main() {
     });
 
     testWidgets('Kalender: leerer Tag', (tester) async {
-      await pump(tester);
+      // Feiertag und Mondphase zaehlen im Tagesdetail als Inhalt, dann steht
+      // dort kein "Nichts eingetragen". Der Kalender geht auf heute auf –
+      // mit beiden an hinge der Test also vom Datum ab und fiele an jedem
+      // Feiertag und jeder Mondhauptphase durch. Deshalb hier beide aus.
+      await pump(
+        tester,
+        state: AppState()
+          ..tasks = []
+          ..appointments = []
+          ..notes = []
+          ..showPet = false
+          ..showHolidays = false
+          ..showMoon = false,
+      );
       await open(tester, 'Kalender');
       expectOnPaper(tester, find.textContaining('Nichts eingetragen'));
     });
