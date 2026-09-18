@@ -63,13 +63,13 @@ class SettingsScreen extends StatelessWidget {
               ),
             ),
             const SectionTitle('Begleiter'),
-            PaperCard(
+            _TileCard(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
               child: SwitchListTile(
                 contentPadding: EdgeInsets.zero,
                 title: Text('Begleiter anzeigen',
                     style: TextStyle(color: theme.ink, fontSize: 16)),
-                subtitle: Text('Kleine Deko auf dem Dashboard',
+                subtitle: Text('Kleine Deko auf jeder Seite',
                     style: TextStyle(color: theme.inkSoft, fontSize: 13)),
                 activeThumbColor: theme.accent,
                 value: state.showPet,
@@ -81,7 +81,7 @@ class SettingsScreen extends StatelessWidget {
             // und nicht antippbar.
             Opacity(
               opacity: state.showPet ? 1 : 0.45,
-              child: PaperCard(
+              child: _TileCard(
                 margin: const EdgeInsets.only(top: 12),
                 padding: EdgeInsets.zero,
                 child: InkWell(
@@ -95,8 +95,23 @@ class SettingsScreen extends StatelessWidget {
                 ),
               ),
             ),
+            // Die Groesse gehoert zum Begleiter und ist ohne ihn genauso
+            // bedeutungslos wie die Auswahl: dasselbe Muster, ausgegraut und
+            // gesperrt. Der Regler wirkt sofort – das Tierchen sitzt auch
+            // auf dieser Seite, man sieht also beim Ziehen, was man bekommt.
+            Opacity(
+              opacity: state.showPet ? 1 : 0.45,
+              child: IgnorePointer(
+                ignoring: !state.showPet,
+                child: PaperCard(
+                  margin: const EdgeInsets.only(top: 12),
+                  padding: const EdgeInsets.fromLTRB(14, 10, 14, 2),
+                  child: _PetScaleRow(state: state, theme: theme),
+                ),
+              ),
+            ),
             const SectionTitle('Kalender'),
-            PaperCard(
+            _TileCard(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
               child: Column(
                 children: [
@@ -194,7 +209,7 @@ class SettingsScreen extends StatelessWidget {
               ),
             ),
             const SectionTitle('Erinnerungen'),
-            PaperCard(
+            _TileCard(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
               child: Column(
                 children: [
@@ -650,6 +665,103 @@ class _PetOption extends StatelessWidget {
         ),
         const SizedBox(width: 6),
         Icon(Icons.arrow_drop_down, color: theme.ink),
+      ],
+    );
+  }
+}
+
+/// Eine [PaperCard] fuer Zeilen, die beim Antippen eine Tintenwelle malen
+/// (ListTile, SwitchListTile, InkWell). Die malen auf das naechste
+/// [Material] darueber – das liegt ohne diese Huelle *unter* der Papierfarbe
+/// der Karte, die Welle bliebe unsichtbar, und Flutter meldet das im
+/// Debug-Build als Fehler. Die durchsichtige Materialschicht zwischen Karte
+/// und Zeile gibt ihr eine Flaeche auf dem Papier.
+class _TileCard extends StatelessWidget {
+  final Widget child;
+  final EdgeInsetsGeometry padding;
+  final EdgeInsetsGeometry margin;
+
+  const _TileCard({
+    required this.child,
+    required this.padding,
+    this.margin = EdgeInsets.zero,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return PaperCard(
+      margin: margin,
+      padding: padding,
+      child: Material(
+        type: MaterialType.transparency,
+        borderRadius: BorderRadius.circular(16),
+        child: child,
+      ),
+    );
+  }
+}
+
+/// Der Regler fuer die Groesse des Begleiters: Ueberschrift mit der
+/// Prozentzahl, darunter der Regler von [minPetScale] bis [maxPetScale] in
+/// Zehnerschritten. 100 % ist schon groesser als die erste Fassung (siehe
+/// `_baseScale` in pets.dart).
+class _PetScaleRow extends StatelessWidget {
+  final AppState state;
+  final JoeTheme theme;
+
+  const _PetScaleRow({required this.state, required this.theme});
+
+  /// Zehn Schritte, von 60 % bis 160 %.
+  static final _divisions = ((maxPetScale - minPetScale) * 10).round();
+
+  @override
+  Widget build(BuildContext context) {
+    final percent = '${(state.petScale * 100).round()} %';
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text('Größe',
+                  style: TextStyle(color: theme.ink, fontSize: 16)),
+            ),
+            Text(
+              percent,
+              style: TextStyle(
+                color: theme.ink,
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+        Slider(
+          min: minPetScale,
+          max: maxPetScale,
+          divisions: _divisions,
+          value: state.petScale,
+          label: percent,
+          // Ohne das liest die Vorlesehilfe den Anteil am Regelweg vor –
+          // bei 100 % also "40 %", weil der Regler bei 60 % anfaengt.
+          semanticFormatterCallback: (value) => '${(value * 100).round()} %',
+          activeColor: theme.accent,
+          // Ausgeschaltet sperrt schon der IgnorePointer um die Karte; ohne
+          // onChanged meldet der Regler sich zusaetzlich der Vorlesehilfe
+          // als gesperrt, statt sich dort weiter bedienen zu lassen.
+          onChanged: state.showPet
+              ? (value) {
+                  // Der Regler liefert dieselbe Stufe mehrfach, sobald sein
+                  // Wert (0.7000000001) und der gerundete gespeicherte (0.7)
+                  // auseinanderliegen. Gespeichert wird nur ein Stufenwechsel,
+                  // also hoechstens zehnmal je Zug.
+                  if ((value * 10).round() == (state.petScale * 10).round()) {
+                    return;
+                  }
+                  state.setPetScale(value);
+                }
+              : null,
+        ),
       ],
     );
   }
