@@ -68,6 +68,21 @@ void main() {
       expectOnPaper(tester, find.textContaining('Noch keine Notizen'));
     });
 
+    testWidgets('Einkaufsliste (eigener Reiter)', (tester) async {
+      await pump(tester);
+      await open(tester, 'Einkaufsliste');
+      expectOnPaper(tester, find.textContaining('Noch nichts auf der Liste'));
+    });
+
+    testWidgets('Einkaufsliste (je Tag, in den Notizen)', (tester) async {
+      final state = await pump(tester);
+      state.setShoppingMode(ShoppingListMode.perDay);
+      await tester.pumpAndSettle();
+      await open(tester, 'Notizen');
+      await open(tester, 'Einkaufsliste');
+      expectOnPaper(tester, find.textContaining('Noch nichts auf der Liste'));
+    });
+
     testWidgets('Historie', (tester) async {
       await pump(tester);
       await open(tester, 'Historie');
@@ -81,7 +96,20 @@ void main() {
     });
 
     testWidgets('Kalender: leerer Tag', (tester) async {
-      await pump(tester);
+      // Feiertag und Mondphase zaehlen im Tagesdetail als Inhalt, dann steht
+      // dort kein "Nichts eingetragen". Der Kalender geht auf heute auf –
+      // mit beiden an hinge der Test also vom Datum ab und fiele an jedem
+      // Feiertag und jeder Mondhauptphase durch. Deshalb hier beide aus.
+      await pump(
+        tester,
+        state: AppState()
+          ..tasks = []
+          ..appointments = []
+          ..notes = []
+          ..showPet = false
+          ..showHolidays = false
+          ..showMoon = false,
+      );
       await open(tester, 'Kalender');
       expectOnPaper(tester, find.textContaining('Nichts eingetragen'));
     });

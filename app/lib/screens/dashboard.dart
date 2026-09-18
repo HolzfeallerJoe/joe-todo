@@ -10,6 +10,7 @@ import 'appointments.dart';
 import 'notes.dart';
 import 'history.dart';
 import 'settings.dart';
+import 'shopping.dart';
 import 'tasks.dart';
 
 class DashboardScreen extends StatelessWidget {
@@ -17,6 +18,7 @@ class DashboardScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final state = AppScope.of(context);
     final theme = joeThemeOf(context);
 
     const page = PetPage.dashboard;
@@ -63,6 +65,15 @@ class DashboardScreen extends StatelessWidget {
               color: theme.tabColors[3],
               onTap: () => _push(context, const NotesScreen()),
             ),
+            // Die Einkaufsliste hat nur im Modus "Eigener Reiter" einen
+            // eigenen Reiter; sonst wohnt sie in den Notizen (je Tag).
+            if (state.shoppingMode == ShoppingListMode.tab)
+              FolderTabButton(
+                icon: Icons.shopping_basket_outlined,
+                label: 'Einkaufsliste',
+                color: theme.shoppingTabColor,
+                onTap: () => _push(context, const ShoppingListScreen()),
+              ),
             FolderTabButton(
               icon: Icons.history,
               label: 'Historie',

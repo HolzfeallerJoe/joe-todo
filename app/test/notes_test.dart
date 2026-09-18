@@ -111,6 +111,29 @@ void main() {
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
   });
 
+  testWidgets('Modus eigener Reiter: die Notizen haben keinen Umschalter',
+      (tester) async {
+    final state = AppState()
+      ..tasks = []
+      ..appointments = []
+      ..notes = []
+      ..showPet = false;
+    expect(state.shoppingMode, ShoppingListMode.tab);
+    await tester.pumpWidget(
+      AppScope(
+        state: state,
+        child: const MaterialApp(home: NotesScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Die Seite sieht aus wie vor der Einkaufsliste: Liste und Stift.
+    expect(find.byWidgetPredicate((w) => w is SegmentedButton), findsNothing);
+    expect(find.text('Einkaufsliste'), findsNothing);
+    expect(find.textContaining('Noch keine Notizen'), findsOneWidget);
+    expect(find.byTooltip('Neue Notiz'), findsOneWidget);
+  });
+
   testWidgets('Zurück speichert sofort und schließt den Editor',
       (tester) async {
     final note = Note(
