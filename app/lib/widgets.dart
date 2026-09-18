@@ -1148,21 +1148,37 @@ void showAppointmentOptions(BuildContext context, Appointment appointment) {
 
 /// The 25 warm colors as dots. At this count the dots are deliberately small
 /// so the whole palette stays on a few rows inside an input sheet.
+///
+/// Wo mehr Platz ist (das Farbblatt einer Prioritaet in den Einstellungen),
+/// werden die Punkte ueber [dotSize] groesser, und [columns] stellt die
+/// Palette auf eine feste Zahl Punkte je Reihe. Ohne [columns] fliessen sie
+/// wie bisher, so viele je Reihe, wie Platz ist.
 class ColorDotPicker extends StatelessWidget {
-  final int selected;
+  /// Der markierte Punkt; null heisst: keiner ("Keine Farbe").
+  final int? selected;
   final ValueChanged<int> onChanged;
+
+  /// Durchmesser eines Punkts; das Haekchen waechst mit.
+  final double dotSize;
+
+  /// Feste Zahl Punkte je Reihe, oder null fuer so viele, wie passen.
+  final int? columns;
+
+  static const double _spacing = 8;
 
   const ColorDotPicker({
     super.key,
     required this.selected,
     required this.onChanged,
+    this.dotSize = 28,
+    this.columns,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
+    final wrap = Wrap(
+      spacing: _spacing,
+      runSpacing: _spacing,
       children: [
         for (int i = 0; i < taskPalette.length; i++)
           GestureDetector(
@@ -1171,8 +1187,8 @@ class ColorDotPicker extends StatelessWidget {
               label: 'Farbe ${taskPaletteNames[i]}',
               selected: i == selected,
               child: Container(
-                width: 28,
-                height: 28,
+                width: dotSize,
+                height: dotSize,
                 decoration: BoxDecoration(
                   color: taskPalette[i],
                   shape: BoxShape.circle,
@@ -1187,12 +1203,22 @@ class ColorDotPicker extends StatelessWidget {
                       : null,
                 ),
                 child: i == selected
-                    ? const Icon(Icons.check, size: 15, color: Colors.white)
+                    // 15 bei 28 – dasselbe Verhaeltnis in jeder Groesse.
+                    ? Icon(Icons.check,
+                        size: dotSize * 15 / 28, color: Colors.white)
                     : null,
               ),
             ),
           ),
       ],
+    );
+    final cols = columns;
+    if (cols == null) return wrap;
+    // Genau so breit, dass [cols] Punkte samt Abstaenden in eine Reihe
+    // passen – der naechste bricht um.
+    return SizedBox(
+      width: cols * dotSize + (cols - 1) * _spacing,
+      child: wrap,
     );
   }
 }

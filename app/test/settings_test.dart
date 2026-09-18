@@ -140,9 +140,15 @@ void main() {
         tester.getSemantics(inSheet(find.text('Keine Farbe'))),
         isSemantics(isSelected: true, isButton: true),
       );
-      // Alle 25 Farben stehen zur Wahl.
+      // Alle 25 Farben stehen zur Wahl, und bei "Keine Farbe" ist keine
+      // davon markiert.
       for (final name in taskPaletteNames) {
         expect(inSheet(find.bySemanticsLabel('Farbe $name')), findsOneWidget);
+        expect(
+          tester.getSemantics(inSheet(find.bySemanticsLabel('Farbe $name'))),
+          isSemantics(isSelected: false),
+          reason: name,
+        );
       }
 
       await tester.tap(inSheet(find.bySemanticsLabel('Farbe Mint')));
@@ -180,9 +186,12 @@ void main() {
       Rect dot(int i) => tester.getRect(
           inSheet(find.bySemanticsLabel('Farbe ${taskPaletteNames[i]}')));
       final first = dot(0);
+      final fifth = dot(4);
       final sixth = dot(5);
-      expect(first.width, greaterThanOrEqualTo(40));
-      // Fuenf je Reihe: der sechste beginnt die zweite Reihe.
+      expect(first.width, moreOrLessEquals(44));
+      // Fuenf je Reihe: der fuenfte steht noch in der ersten, der sechste
+      // beginnt die zweite.
+      expect(fifth.top, moreOrLessEquals(first.top));
       expect(sixth.left, moreOrLessEquals(first.left, epsilon: 0.5));
       expect(sixth.top, greaterThan(first.bottom));
     });

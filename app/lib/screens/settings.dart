@@ -835,18 +835,6 @@ class _PriorityColorSheet extends StatelessWidget {
     required this.theme,
   });
 
-  /// Der [ColorDotPicker] ist fuers enge Aufgabenblatt gebaut: Punkte zu
-  /// 28 px mit 8 px Abstand, so viele je Reihe, wie Platz ist. Hier ist
-  /// Platz, und die Wahl gilt fuer viele Aufgaben auf einmal – also
-  /// derselbe Waehler, auf genau fuenf Punkte Breite gestellt (5 × 5 bei 25
-  /// Farben) und so weit vergroessert, dass jeder Punkt 44 px misst, eine
-  /// volle Fingerkuppe. FittedBox skaliert auch die Tippflaechen mit.
-  static const _pickerDot = 28.0;
-  static const _pickerGap = 8.0;
-  static const _perRow = 5;
-  static const _dotSize = 44.0;
-  static const _pickerWidth = _perRow * _pickerDot + (_perRow - 1) * _pickerGap;
-
   void _pick(BuildContext context, int? index) {
     state.setPriorityColor(priority, index);
     Navigator.pop(context);
@@ -904,19 +892,15 @@ class _PriorityColorSheet extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 16),
-            SizedBox(
-              width: _pickerWidth * _dotSize / _pickerDot,
-              child: FittedBox(
-                child: SizedBox(
-                  width: _pickerWidth,
-                  child: ColorDotPicker(
-                    // -1 trifft keinen Punkt: bei "Keine Farbe" ist keiner
-                    // markiert.
-                    selected: selected ?? -1,
-                    onChanged: (i) => _pick(context, i),
-                  ),
-                ),
-              ),
+            // Derselbe Waehler wie im Aufgabenblatt, aber hier ist Platz,
+            // und die Wahl gilt fuer viele Aufgaben auf einmal: fuenf Punkte
+            // je Reihe (5 × 5 bei 25 Farben), jeder 44 px – eine volle
+            // Fingerkuppe. Bei "Keine Farbe" ist keiner markiert.
+            ColorDotPicker(
+              dotSize: 44,
+              columns: 5,
+              selected: selected,
+              onChanged: (i) => _pick(context, i),
             ),
           ],
         ),
