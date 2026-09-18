@@ -281,7 +281,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                       // Geraete-Termine stehen bei den Terminen, aber nach
                       // den eigenen: was man selbst eingetragen hat, zuerst.
                       for (final e in dayDeviceEvents)
-                        _DeviceEventRow(event: e),
+                        _DeviceEventRow(event: e, day: _selected),
                     ],
                     [
                       for (final task in dayTasks)
@@ -584,10 +584,14 @@ class _DayCell extends StatelessWidget {
 
 /// Ein Termin aus einem Geraete-Kalender in der Tageskarte: nur Anzeige,
 /// gepflegt wird er in seiner Kalender-App. Ganztaegige zeigen "ganztägig"
-/// statt einer Uhrzeit.
+/// statt einer Uhrzeit, mehrtaegige an ihren Folgetagen ebenso.
 class _DeviceEventRow extends StatelessWidget {
   final Event event;
-  const _DeviceEventRow({required this.event});
+
+  /// Der angezeigte Tag – ohne ihn stuende an jedem Folgetag eines
+  /// mehrtaegigen Termins wieder dessen Startuhrzeit.
+  final DateTime day;
+  const _DeviceEventRow({required this.event, required this.day});
 
   @override
   Widget build(BuildContext context) {
@@ -599,7 +603,7 @@ class _DeviceEventRow extends StatelessWidget {
           Icon(Icons.event, size: 18, color: event.color ?? theme.accent),
           const SizedBox(width: 10),
           Text(
-            deviceEventTimeLabel(event),
+            deviceEventTimeLabel(event, day),
             style: TextStyle(
               color: theme.inkSoft,
               fontWeight: FontWeight.w600,
