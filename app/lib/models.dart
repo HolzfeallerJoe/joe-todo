@@ -580,6 +580,10 @@ class AppState extends ChangeNotifier {
   bool showPet = true;
   String petId = defaultPetId;
 
+  /// Groesse des Begleiters aus dem Regler, 1.0 = 100 % (siehe [petBox]),
+  /// immer zwischen [minPetScale] und [maxPetScale].
+  double petScale = 1.0;
+
   /// Whether the dashboard's "Heute abhaken" fold-out stands open. Kept in
   /// storage so the dashboard comes back the way it was left.
   bool todayExpanded = true;
@@ -681,6 +685,10 @@ class AppState extends ChangeNotifier {
     showPet = storedShowPet is bool ? storedShowPet : true;
     final storedPet = data['petId'];
     petId = storedPet is String ? storedPet : defaultPetId;
+    final storedScale = data['petScale'];
+    petScale = storedScale is num
+        ? _clampPetScale(storedScale.toDouble())
+        : 1.0;
     final storedExpanded = data['todayExpanded'];
     todayExpanded = storedExpanded is bool ? storedExpanded : true;
     final storedAppointments = data['appointmentsExpanded'];
@@ -838,6 +846,7 @@ class AppState extends ChangeNotifier {
           'themeIndex': themeIndex,
           'showPet': showPet,
           'petId': petId,
+          'petScale': petScale,
           'todayExpanded': todayExpanded,
           'appointmentsExpanded': appointmentsExpanded,
           'showHolidays': showHolidays,
@@ -1313,6 +1322,19 @@ class AppState extends ChangeNotifier {
     petId = id;
     _changed();
   }
+
+  /// Stellt die Groesse des Begleiters ein – auf eine Nachkommastelle
+  /// gerundet (der Regler hat Zehnerschritte, und im Bestand soll keine
+  /// 0.7000000001 stehen) und in die Grenzen des Reglers geklemmt.
+  void setPetScale(double value) {
+    petScale = _clampPetScale((value * 10).round() / 10);
+    _changed();
+  }
+
+  /// NaN und Unendlich werden zu 100 %, alles andere in die Grenzen des
+  /// Reglers gelegt.
+  static double _clampPetScale(double value) =>
+      value.isFinite ? value.clamp(minPetScale, maxPetScale) : 1.0;
 }
 
 class AppScope extends InheritedNotifier<AppState> {

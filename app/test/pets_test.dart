@@ -35,41 +35,111 @@ void main() {
   });
 
   group('Groesse', () {
-    test('alle Motive wirken an einem Platz gleich gross', () {
-      for (final spot in PetSpot.values) {
-        // Das geometrische Mittel ist das Mass: gleiche Hoehe hiesse, der
-        // quer liegende Hai wuerde bildschirmbreit, gleiche Breite hiesse,
-        // das hochkant stehende Lama verschwaende zu einem Strich.
-        final gauges = [
-          for (final pet in joePets)
-            math.sqrt(petBox(pet, spot).width * petBox(pet, spot).height),
-        ];
-        final smallest = gauges.reduce(math.min);
-        final largest = gauges.reduce(math.max);
-        expect(
-          largest / smallest,
-          // Nicht ganz exakt: die Deckel in [petBox] druecken die extremen
-          // Schnitte (Lama, Hai) noch einmal herunter. Ein groesserer
-          // Abstand hiesse, dass die Normierung selbst nicht mehr greift –
-          // ohne sie liegen zwischen Lama und Hai gut zwei Laengen.
-          lessThan(1.3),
-          reason: 'an $spot faellt die gefuehlte Groesse zu weit auseinander',
-        );
-      }
-    });
+    // Bei 100 % gilt die alte Toleranz. Bei 160 % greifen die harten
+    // Grenzen (siehe pets.dart) beim Lama deutlich frueher als bei den
+    // runden Motiven – dort muss das Hochkantbild mehr Groesse hergeben,
+    // sonst ragte es oben weit in die erste Karte. Eine eigene, weitere
+    // Toleranz haelt trotzdem fest, dass die Normierung weiter greift:
+    // ohne sie laegen zwischen Lama und Hai gut zwei Laengen.
+    for (final (scale, tolerance) in [(1.0, 1.3), (maxPetScale, 1.6)]) {
+      test('alle Motive wirken an einem Platz gleich gross (${(scale * 100).round()} %)',
+          () {
+        for (final spot in PetSpot.values) {
+          // Das geometrische Mittel ist das Mass: gleiche Hoehe hiesse, der
+          // quer liegende Hai wuerde bildschirmbreit, gleiche Breite hiesse,
+          // das hochkant stehende Lama verschwaende zu einem Strich.
+          final gauges = [
+            for (final pet in joePets)
+              () {
+                final box = petBox(pet, spot, scale: scale);
+                return math.sqrt(box.width * box.height);
+              }(),
+          ];
+          final smallest = gauges.reduce(math.min);
+          final largest = gauges.reduce(math.max);
+          expect(
+            largest / smallest,
+            // Nicht ganz exakt: die Deckel in [petBox] druecken die extremen
+            // Schnitte (Lama, Hai) noch einmal herunter.
+            lessThan(tolerance),
+            reason: 'an $spot faellt die gefuehlte Groesse zu weit auseinander',
+          );
+        }
+      });
+    }
 
     test('die Deckel halten die Extreme im Rahmen', () {
       final lama = petById('lama'); // 130x320, das hoechste Motiv
       final hai = petById('hai'); // 320x196, das breiteste
       for (final spot in PetSpot.values) {
-        expect(petBox(lama, spot).height, lessThanOrEqualTo(132));
-        expect(petBox(hai, spot).width, lessThanOrEqualTo(168));
+        // Bei 100 %: die Deckel der ersten Fassung mal 1,25.
+        expect(petBox(lama, spot).height, lessThanOrEqualTo(165));
+        expect(petBox(hai, spot).width, lessThanOrEqualTo(210));
+        // Bei 160 %: die harten Grenzen.
+        final big = spot.isTop ? (h: 160.0, w: 200.0) : (h: 200.0, w: 240.0);
+        expect(petBox(lama, spot, scale: maxPetScale).height,
+            lessThanOrEqualTo(big.h));
+        expect(petBox(hai, spot, scale: maxPetScale).width,
+            lessThanOrEqualTo(big.w));
+        for (final pet in joePets) {
+          final box = petBox(pet, spot, scale: maxPetScale);
+          expect(box.height, lessThanOrEqualTo(big.h), reason: pet.id);
+          expect(box.width, lessThanOrEqualTo(big.w), reason: pet.id);
+        }
       }
       // Oben ist weniger Platz als unten: da muss das Lama kleiner ausfallen.
       expect(
         petBox(lama, PetSpot.contentTopLeft).height,
         lessThan(petBox(lama, PetSpot.bottomLeft).height),
       );
+    });
+
+    test('bei 100 % ist jedes Motiv groesser als in der ersten Fassung', () {
+      // Die Formel der ersten Fassung, von Hand nachgerechnet.
+      ({double width, double height}) frueher(Pet pet, PetSpot spot) {
+        final gauge = spot.isTop ? 78.0 : 94.0;
+        final maxHeight = spot.isTop ? 96.0 : 132.0;
+        final maxWidth = spot.isTop ? 124.0 : 168.0;
+        final root = math.sqrt(pet.aspect);
+        final width = gauge * root;
+        final height = gauge / root;
+        final shrink =
+            math.min(math.min(1.0, maxHeight / height), maxWidth / width);
+        return (width: width * shrink, height: height * shrink);
+      }
+
+      for (final pet in joePets) {
+        for (final spot in PetSpot.values) {
+          final alt = frueher(pet, spot);
+          final neu = petBox(pet, spot);
+          expect(neu.width, greaterThan(alt.width), reason: '${pet.id} $spot');
+          expect(neu.height, greaterThan(alt.height), reason: '${pet.id} $spot');
+          // Genau das 1,25-Fache: bei 100 % greift keine harte Grenze.
+          expect(neu.width, closeTo(alt.width * 1.25, 0.001));
+        }
+      }
+    });
+
+    test('der Regler vergroessert jedes Motiv', () {
+      for (final pet in joePets) {
+        for (final spot in PetSpot.values) {
+          final klein = petBox(pet, spot, scale: minPetScale);
+          final mittel = petBox(pet, spot);
+          final gross = petBox(pet, spot, scale: maxPetScale);
+          expect(mittel.width, greaterThan(klein.width));
+          expect(mittel.height, greaterThan(klein.height));
+          // Oben drueckt die harte Grenze; kleiner wird es dadurch nie.
+          expect(gross.width * gross.height,
+              greaterThan(mittel.width * mittel.height),
+              reason: '${pet.id} $spot');
+        }
+      }
+      // Was ausserhalb des Reglers liegt, wird geklemmt.
+      final lama = petById('lama');
+      expect(petBox(lama, PetSpot.bottomLeft, scale: 9),
+          petBox(lama, PetSpot.bottomLeft, scale: maxPetScale));
+      expect(petBox(lama, PetSpot.bottomLeft, scale: 0),
+          petBox(lama, PetSpot.bottomLeft, scale: minPetScale));
     });
 
     test('der Begleiter ragt nur teilweise in die Seite', () {

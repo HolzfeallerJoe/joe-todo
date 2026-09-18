@@ -318,6 +318,44 @@ void main() {
     });
   });
 
+  test('die Groesse des Begleiters kommt zurueck', () async {
+    SharedPreferences.setMockInitialValues(
+        {'joe_data_v1': jsonEncode(validData())});
+    final state = AppState();
+    await state.load();
+    expect(state.petScale, 1.0, reason: 'Standard: 100 %');
+
+    // Gerundet auf Zehnerschritte, wie der Regler sie liefert.
+    state.setPetScale(1.3000000001);
+    expect(state.petScale, 1.3);
+    await pumpEventQueue();
+    final wieder = AppState();
+    await wieder.load();
+    expect(wieder.petScale, 1.3);
+
+    // Ausserhalb des Reglers wird geklemmt.
+    state.setPetScale(0.1);
+    expect(state.petScale, minPetScale);
+  });
+
+  test('eine unbrauchbare Begleitergroesse faellt auf 100 %', () async {
+    Future<double> geladen(Object? value) async {
+      final data = validData()..['petScale'] = value;
+      SharedPreferences.setMockInitialValues(
+          {'joe_data_v1': jsonEncode(data)});
+      final state = AppState();
+      await state.load();
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getString(AppState.rescueKey), isNull);
+      return state.petScale;
+    }
+
+    expect(await geladen('gross'), 1.0);
+    expect(await geladen(9), maxPetScale);
+    expect(await geladen(0.2), minPetScale);
+    expect(await geladen(null), 1.0);
+  });
+
   test('Kalender-Ebenen: Standards und gespeicherte Werte', () async {
     // Ohne gespeicherte Schluessel: Feiertage und Mond an, Geraete-Kalender
     // aus (der braucht eine Berechtigung und wartet auf den Schalter).

@@ -244,10 +244,26 @@ const _defaultTopOverlap = 0.2;
 ///
 /// Die beiden Deckel begrenzen danach die Extreme: das Lama darf oben nicht
 /// bis in die Statusleiste wachsen, der Hai nicht ueber den halben Bildschirm.
-({double width, double height}) petBox(Pet pet, PetSpot spot) {
-  final gauge = spot.isTop ? _gaugeTop : _gaugeBottom;
-  final maxHeight = spot.isTop ? _maxHeightTop : _maxHeightBottom;
-  final maxWidth = spot.isTop ? _maxWidthTop : _maxWidthBottom;
+///
+/// [scale] ist der Regler aus den Einstellungen (1 = 100 %), geklemmt auf
+/// [minPetScale] bis [maxPetScale]. Mass und Deckel wachsen mit, sonst
+/// haette der Regler bei Lama und Hai kaum Wirkung; die harten Grenzen
+/// darueber fangen die grossen Stufen ab.
+({double width, double height}) petBox(
+  Pet pet,
+  PetSpot spot, {
+  double scale = 1,
+}) {
+  final s = _baseScale * scale.clamp(minPetScale, maxPetScale);
+  final gauge = (spot.isTop ? _gaugeTop : _gaugeBottom) * s;
+  final maxHeight = math.min(
+    (spot.isTop ? _maxHeightTop : _maxHeightBottom) * s,
+    spot.isTop ? _hardMaxHeightTop : _hardMaxHeightBottom,
+  );
+  final maxWidth = math.min(
+    (spot.isTop ? _maxWidthTop : _maxWidthBottom) * s,
+    spot.isTop ? _hardMaxWidthTop : _hardMaxWidthBottom,
+  );
 
   final root = math.sqrt(pet.aspect);
   var width = gauge * root;
@@ -270,8 +286,13 @@ const _defaultTopOverlap = 0.2;
 ///
 /// Unten sitzt es auf der Kante ueber der Navigationsleiste; dort steht
 /// selten Text, also darf es tiefer.
-double petOverlap(Pet pet, PetSpot spot, PetPage page) {
-  final height = petBox(pet, spot).height;
+double petOverlap(
+  Pet pet,
+  PetSpot spot,
+  PetPage page, {
+  double scale = 1,
+}) {
+  final height = petBox(pet, spot, scale: scale).height;
   if (!spot.isTop) return height * 0.5;
   return math.min(height * page.topOverlap, _maxTopOverlap);
 }
@@ -281,6 +302,17 @@ double petOverlap(Pet pet, PetSpot spot, PetPage page) {
 /// der Kante und die erste Zeile bleibt frei.
 const _maxTopOverlap = 12.0;
 
+/// Grundmass: 100 % im Regler sind das 1,25-Fache der ersten Fassung – die
+/// Tierchen waren auf grossen Telefonen zu klein, um sie zu bemerken.
+const _baseScale = 1.25;
+
+/// Grenzen des Reglers in den Einstellungen (60 % bis 160 %).
+const minPetScale = 0.6;
+const maxPetScale = 1.6;
+
+// Die Masse der ersten Fassung; [petBox] rechnet sie mit [_baseScale] und
+// dem Regler hoch – Mass und Deckel gleichermassen, damit alle Motive
+// zusammen wachsen.
 const _gaugeTop = 78.0;
 const _maxHeightTop = 96.0;
 const _maxWidthTop = 124.0;
@@ -288,6 +320,15 @@ const _maxWidthTop = 124.0;
 const _gaugeBottom = 94.0;
 const _maxHeightBottom = 132.0;
 const _maxWidthBottom = 168.0;
+
+// Harte Grenzen, die kein Regler ueberschreitet. petBox kennt die
+// Bildschirmbreite nicht; die Werte sind so gewaehlt, dass auf einem
+// 360-dp-Telefon neben dem Plus-Knopf (72 Punkt) Platz bleibt und das Lama
+// oben nicht die halbe erste Karte verdeckt.
+const _hardMaxHeightTop = 160.0;
+const _hardMaxWidthTop = 200.0;
+const _hardMaxHeightBottom = 200.0;
+const _hardMaxWidthBottom = 240.0;
 
 /// Wo der Begleiter in dieser Sitzung sitzt.
 ///

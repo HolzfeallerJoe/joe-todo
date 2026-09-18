@@ -116,6 +116,7 @@ class _JoeScaffoldState extends State<JoeScaffold> {
             _PetLayer(
               pet: state.pet,
               spot: spot,
+              scale: state.petScale,
               // Ohne Titelleiste faengt der Inhalt unter der Statusleiste an,
               // mit Titelleiste darunter. Der Begleiter sitzt auf der
               // Oberkante des Inhalts – so verdeckt er nie den Seitentitel.
@@ -145,6 +146,9 @@ class _PetLayer extends StatelessWidget {
   final Pet pet;
   final PetSpot spot;
 
+  /// Groesse aus dem Regler in den Einstellungen (siehe [petBox]).
+  final double scale;
+
   /// Oberkante des Seiteninhalts (unter Statusleiste bzw. Titelleiste).
   final double contentTop;
 
@@ -158,6 +162,7 @@ class _PetLayer extends StatelessWidget {
   const _PetLayer({
     required this.pet,
     required this.spot,
+    required this.scale,
     required this.contentTop,
     required this.hasFab,
     required this.scrolled,
@@ -165,7 +170,7 @@ class _PetLayer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final box = petBox(pet, spot);
+    final box = petBox(pet, spot, scale: scale);
     final sitting = Padding(
       padding: EdgeInsets.only(
         left: 14,
@@ -258,8 +263,8 @@ EdgeInsets petPadding(BuildContext context, PetPage page, EdgeInsets base) {
   final state = AppScope.of(context);
   if (!state.showPet) return base;
   final spot = PetPlacement.spotOn(page);
-  final height = petBox(state.pet, spot).height;
-  final overlap = petOverlap(state.pet, spot, page);
+  final height = petBox(state.pet, spot, scale: state.petScale).height;
+  final overlap = petOverlap(state.pet, spot, page, scale: state.petScale);
   return base.copyWith(
     top: spot.isTop ? math.max(base.top, height - overlap) : base.top,
     // Unten die *ganze* Hoehe und nicht nur die Ueberlappung: das Tierchen
