@@ -256,13 +256,23 @@ bool eventCoversDay(Event event, DateTime day) {
   DateTime first;
   DateTime last;
   if (event.isAllDay) {
-    // Ganztaegige Termine liegen im Calendar Provider auf UTC-Mitternacht,
-    // das Ende exklusiv auf der Mitternacht nach dem letzten Tag. Lokale
-    // Umrechnung wuerde sie je nach Zeitzone auf den Nachbartag schieben.
-    final s = event.startDate.toUtc();
-    final e = event.endDate.toUtc().subtract(const Duration(seconds: 1));
+    // Der Calendar Provider legt ganztaegige Termine zwar auf
+    // UTC-Mitternacht ab, das Plugin rechnet sie beim Lesen aber schon
+    // selbst auf lokale Mitternacht um (device_calendar_plus 0.8.0 /
+    // device_calendar_plus_android 0.7.1: `utcToLocalMidnight` in
+    // EventsService.kt). Hier also nur noch das Datum ablesen – ein zweites
+    // toUtc() schob den Termin in jeder Zeitzone oestlich von UTC auf den
+    // Vortag und liess ihn zwei Tage belegen. Bei einem Plugin-Update pruefen,
+    // ob das so bleibt.
+    // toLocal() ist bei einem lokalen Wert ein No-op; es sichert nur ab,
+    // falls eine Plugin-Version doch UTC liefert.
+    final s = event.startDate.toLocal();
+    final e = event.endDate.toLocal();
     first = DateTime(s.year, s.month, s.day);
-    last = DateTime(e.year, e.month, e.day);
+    // Das Ende ist exklusiv (Mitternacht nach dem letzten Tag). Ein Termin
+    // ohne das "+1 Tag" (Ende == Start) bleibt ein Tag.
+    final lastDay = e.isAfter(s) ? e.subtract(const Duration(seconds: 1)) : s;
+    last = DateTime(lastDay.year, lastDay.month, lastDay.day);
   } else {
     first = dateOnly(event.startDate.toLocal());
     // Das Ende ist exklusiv: ein Termin bis Mitternacht gehoert nicht
@@ -276,6 +286,13 @@ bool eventCoversDay(Event event, DateTime day) {
   return !d.isBefore(first) && !d.isAfter(last);
 }
 
-/// Zeile fuers Tagesdetail: "14:30 Uhr" bzw. "ganztägig".
-String deviceEventTimeLabel(Event event) =>
-    event.isAllDay ? 'ganztägig' : formatTime(event.startDate.toLocal());
+/// Zeile fuers Tagesdetail am Tag [day]: "14:30 Uhr" bzw. "ganztägig".
+///
+/// Ein mehrtaegiger Termin faengt an seinen Folgetagen nicht noch einmal an:
+/// dort ist er den ganzen Tag da, die Startuhrzeit von vorgestern waere
+/// falsch. Dieselbe Regel wie `_deviceEntry` in agenda.dart (Dashboard).
+String deviceEventTimeLabel(Event event, DateTime day) {
+  final start = event.startDate.toLocal();
+  if (event.isAllDay || dateOnly(start) != dateOnly(day)) return 'ganztägig';
+  return formatTime(start);
+}
