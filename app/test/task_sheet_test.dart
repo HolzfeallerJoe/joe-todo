@@ -30,7 +30,12 @@ Future<AppState> pumpTasksScreen(
     ..showPet = false;
   await tester.pumpWidget(AppScope(
     state: state,
-    child: const MaterialApp(home: TasksScreen()),
+    // Wie in der App ueber dem Navigator, damit ein Toast auch ueber dem
+    // offenen Blatt steht.
+    child: MaterialApp(
+      builder: (context, child) => ToastHost(child: child!),
+      home: const TasksScreen(),
+    ),
   ));
   await tester.pumpAndSettle();
   return state;
@@ -44,6 +49,33 @@ Future<void> openTaskSheet(WidgetTester tester, {Task? task}) async {
   } else {
     showTaskSheet(tester.element(find.byType(TasksScreen)), task: task);
   }
+  await tester.pumpAndSettle();
+}
+
+/// Oeffnet ein Blatt direkt an einem festen Tag – so haengt kein Test daran,
+/// ob drei Tage spaeter noch im selben Monat liegen.
+Future<void> openSheetOn(
+  WidgetTester tester,
+  DateTime day, {
+  bool appointment = false,
+}) async {
+  final context = tester.element(find.byType(TasksScreen));
+  if (appointment) {
+    showAppointmentSheet(context, initialDate: day);
+  } else {
+    showTaskSheet(context, initialDate: day);
+  }
+  await tester.pumpAndSettle();
+}
+
+/// Waehlt im offenen Datumswaehler den Tag [day] des angezeigten Monats.
+Future<void> pickDay(WidgetTester tester, int day) async {
+  await tester.tap(find.descendant(
+    of: find.byType(DatePickerDialog),
+    matching: find.text('$day'),
+  ));
+  await tester.pumpAndSettle();
+  await tester.tap(find.text('OK'));
   await tester.pumpAndSettle();
 }
 
@@ -166,6 +198,225 @@ void main() {
       expect(find.text('am 14. jedes Monats'), findsOneWidget);
       await tapAndSettle(tester, find.text('Jährlich'));
       expect(find.text('jedes Jahr am 14. März'), findsOneWidget);
+    });
+  });
+
+  group('Dauer', () {
+    final monday = DateTime(2026, 9, 14);
+
+    testWidgets('Mo bis Do: drei Tage, Uhrzeiten gesetzt', (tester) async {
+      final state = await pumpTasksScreen(tester);
+      await openSheetOn(tester, monday);
+
+      await tapAndSettle(tester, find.byType(Switch));
+      // Die Von-Zeile ersetzt das Datum; Standard 12:00 bis 18:00.
+      expect(find.textContaining('Datum:'), findsNothing);
+      expect(find.text('Mo, 14. Sep'), findsNWidgets(2));
+      await tapAndSettle(tester, find.byKey(const ValueKey('task-end-date')));
+      await pickDay(tester, 17);
+      expect(find.text('Do, 17. Sep'), findsOneWidget);
+      await saveAs(tester, 'Umzug');
+
+      final task = state.tasks.single;
+      expect(task.startDate, monday);
+      expect(task.spanDays, 3);
+      expect(task.startMinute, 12 * 60);
+      expect(task.endMinute, 18 * 60);
+    });
+
+    testWidgets('das Enddatum wandert mit dem Anfang', (tester) async {
+      final state = await pumpTasksScreen(tester);
+      await openSheetOn(tester, monday);
+
+      await tapAndSettle(tester, find.byType(Switch));
+      await tapAndSettle(tester, find.byKey(const ValueKey('task-end-date')));
+      await pickDay(tester, 15);
+      await tapAndSettle(
+          tester, find.byKey(const ValueKey('task-start-date')));
+      await pickDay(tester, 16);
+      // Einen Tag Dauer behaelt die Aufgabe: jetzt Mi bis Do.
+      expect(find.text('Do, 17. Sep'), findsOneWidget);
+      await saveAs(tester, 'Besuch');
+
+      expect(state.tasks.single.startDate, DateTime(2026, 9, 16));
+      expect(state.tasks.single.spanDays, 1);
+    });
+
+    testWidgets('Ende vor Anfang: Hinweis, Blatt bleibt offen',
+        (tester) async {
+      final state = await pumpTasksScreen(tester);
+      await openSheetOn(tester, monday);
+
+      await tapAndSettle(tester, find.byType(Switch));
+      await tapAndSettle(tester, find.byKey(const ValueKey('task-end-date')));
+      await pickDay(tester, 12);
+      await tester.enterText(find.byType(TextField).first, 'Rueckwaerts');
+      await tester.tap(find.text('Speichern'));
+      await tester.pump();
+
+      expect(find.text('Das Ende liegt vor dem Anfang.'), findsOneWidget);
+      expect(find.text('Neue Aufgabe'), findsOneWidget);
+      expect(state.tasks, isEmpty);
+      await tester.pump(JoeToast.showDuration);
+    });
+
+    testWidgets('ohne Dauer bleibt alles wie bisher', (tester) async {
+      final state = await pumpTasksScreen(tester);
+      await openSheetOn(tester, monday);
+
+      await tapAndSettle(tester, find.byType(Switch));
+      await tapAndSettle(tester, find.byType(Switch));
+      expect(find.textContaining('Datum:'), findsOneWidget);
+      await saveAs(tester, 'Kurz');
+
+      final task = state.tasks.single;
+      expect(task.hasDuration, isFalse);
+      expect(task.startMinute, isNull);
+      expect(task.endMinute, isNull);
+    });
+
+    testWidgets('Mo+Mi: das Plus bleibt bei "+1 Tag" stehen', (tester) async {
+      final state = await pumpTasksScreen(tester);
+      await openSheetOn(tester, monday);
+
+      await tapAndSettle(tester, weekday('Mo'));
+      await tapAndSettle(tester, weekday('Mi'));
+      await tapAndSettle(tester, find.byType(Switch));
+      expect(find.text('am selben Tag'), findsOneWidget);
+
+      final plus = find.byTooltip('Einen Tag länger');
+      await tapAndSettle(tester, plus);
+      await tapAndSettle(tester, plus);
+      await tapAndSettle(tester, plus);
+
+      expect(find.text('+1 Tag'), findsOneWidget);
+      expect(
+        tester
+            .widget<IconButton>(
+                find.ancestor(of: plus, matching: find.byType(IconButton)))
+            .onPressed,
+        isNull,
+      );
+      expect(
+        find.text('Länger würde die nächste Wiederholung überlappen.'),
+        findsOneWidget,
+      );
+      await saveAs(tester, 'Training');
+      expect(state.tasks.single.spanDays, 1);
+    });
+
+    testWidgets('Wiederholung nach der Dauer verkuerzt: Hinweis beim Speichern',
+        (tester) async {
+      final state = await pumpTasksScreen(tester);
+      await openSheetOn(tester, monday);
+
+      await tapAndSettle(tester, weekday('Mo'));
+      await tapAndSettle(tester, find.byType(Switch));
+      final plus = find.byTooltip('Einen Tag länger');
+      await tapAndSettle(tester, plus);
+      await tapAndSettle(tester, plus);
+      // Mo+Di laesst keinen Tag Dauer mehr zu.
+      await tapAndSettle(tester, weekday('Di'));
+      await tester.enterText(find.byType(TextField).first, 'Zu lang');
+      await tester.tap(find.text('Speichern'));
+      await tester.pump();
+
+      expect(
+        find.text(
+            'Die Dauer ist länger als der Abstand zwischen zwei Wiederholungen.'),
+        findsOneWidget,
+      );
+      expect(state.tasks, isEmpty);
+      await tester.pump(JoeToast.showDuration);
+    });
+
+    testWidgets('eine Aufgabe mit Dauer oeffnet mit Schalter an',
+        (tester) async {
+      final task = Task(
+        id: '1',
+        title: 'Umzug',
+        startDate: monday,
+        spanDays: 3,
+        startMinute: 9 * 60,
+        endMinute: 17 * 60,
+      );
+      await pumpTasksScreen(tester, tasks: [task]);
+      await openTaskSheet(tester, task: task);
+
+      expect(tester.widget<Switch>(find.byType(Switch)).value, isTrue);
+      expect(find.text('Do, 17. Sep'), findsOneWidget);
+      expect(find.text('09:00'), findsOneWidget);
+      expect(find.text('17:00'), findsOneWidget);
+    });
+
+    testWidgets('Terminblatt: eingeschaltet eine Stunde', (tester) async {
+      final state = await pumpTasksScreen(tester);
+      await openSheetOn(tester, monday, appointment: true);
+
+      await tapAndSettle(tester, find.byType(Switch));
+      expect(find.text('13:00'), findsOneWidget);
+      await saveAs(tester, 'Arzt');
+
+      final a = state.appointments.single;
+      expect(a.when, DateTime(2026, 9, 14, 12));
+      expect(a.end, DateTime(2026, 9, 14, 13));
+    });
+
+    testWidgets('Terminblatt: das Ende wandert mit dem Start', (tester) async {
+      final state = await pumpTasksScreen(tester);
+      await openSheetOn(tester, monday, appointment: true);
+
+      await tapAndSettle(tester, find.byType(Switch));
+      // Start um zwei Tage verschieben (ueber das Datum; der Uhrzeiger-
+      // Waehler laesst sich im Test nur umstaendlich bedienen).
+      await tapAndSettle(tester, find.text('14. September'));
+      await pickDay(tester, 16);
+      expect(find.text('Mi, 16. Sep'), findsOneWidget);
+      await saveAs(tester, 'Seminar');
+
+      final a = state.appointments.single;
+      expect(a.when, DateTime(2026, 9, 16, 12));
+      expect(a.end, DateTime(2026, 9, 16, 13));
+    });
+
+    testWidgets('Terminblatt: Ende vor Anfang wird abgelehnt', (tester) async {
+      final state = await pumpTasksScreen(tester);
+      await openSheetOn(tester, monday, appointment: true);
+
+      await tapAndSettle(tester, find.byType(Switch));
+      await tapAndSettle(
+          tester, find.byKey(const ValueKey('appointment-end-date')));
+      await pickDay(tester, 13);
+      await tester.enterText(find.byType(TextField).first, 'Falsch');
+      await tester.tap(find.text('Speichern'));
+      await tester.pump();
+
+      expect(find.text('Das Ende liegt vor dem Anfang.'), findsOneWidget);
+      expect(state.appointments, isEmpty);
+      await tester.pump(JoeToast.showDuration);
+    });
+
+    testWidgets('Terminblatt: ein Termin mit Ende oeffnet mit Schalter an',
+        (tester) async {
+      final a = Appointment(
+        id: 'a',
+        title: 'Messe',
+        when: DateTime(2026, 9, 14, 12),
+        end: DateTime(2026, 9, 17, 18),
+      );
+      final state = await pumpTasksScreen(tester);
+      state.appointments = [a];
+      showAppointmentSheet(tester.element(find.byType(TasksScreen)),
+          appointment: a);
+      await tester.pumpAndSettle();
+
+      expect(tester.widget<Switch>(find.byType(Switch)).value, isTrue);
+      expect(find.text('Do, 17. Sep'), findsOneWidget);
+      // Ausschalten und speichern macht ihn wieder zum Zeitpunkt.
+      await tapAndSettle(tester, find.byType(Switch));
+      await tester.tap(find.text('Speichern'));
+      await tester.pumpAndSettle();
+      expect(a.end, isNull);
     });
   });
 }

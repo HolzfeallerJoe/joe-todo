@@ -57,6 +57,29 @@ void main() {
     expect(button.top, greaterThanOrEqualTo(0));
   });
 
+  // Mit der Dauer ist das Aufgabenblatt um zwei Zeilen laenger geworden –
+  // der Knopf muss trotzdem ueber der Tastatur stehen bleiben.
+  for (final entry in ['Neue Aufgabe', 'Neuer Termin']) {
+    testWidgets('$entry: Speichern bleibt mit Dauer ueber der Tastatur',
+        (tester) async {
+      await openSheet(tester, entry: entry, bottomInset: keyboard);
+
+      await tester.ensureVisible(find.byType(Switch));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byType(Switch));
+      await tester.pumpAndSettle();
+      expect(tester.widget<Switch>(find.byType(Switch)).value, isTrue);
+
+      final button = tester.getRect(find.text('Speichern'));
+      expect(
+        button.bottom,
+        lessThanOrEqualTo(screenHeight - keyboard),
+        reason: 'Speichern liegt unter der Tastatur',
+      );
+      expect(button.top, greaterThanOrEqualTo(statusBar));
+    });
+  }
+
   testWidgets('Blatt bleibt unter der Statusleiste', (tester) async {
     await openSheet(tester, bottomInset: keyboard);
 

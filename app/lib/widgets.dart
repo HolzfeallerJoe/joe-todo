@@ -696,6 +696,20 @@ class PriorityMark extends StatelessWidget {
   }
 }
 
+/// Die Spanne der Wiederholung von [task], die [day] abdeckt: mit Uhrzeit
+/// "12:00 – 18:00 Uhr" bzw. "Mo, 14. Sep 12:00 – Do, 17. Sep 18:00", ohne
+/// Uhrzeit nur die Tage ("14. September – 17. September"). Liegt [day] in
+/// keiner Wiederholung (eine liegengebliebene Aufgabe), gilt die erste.
+String taskSpanLabel(Task task, DateTime day) {
+  final start = task.occurrenceStartFor(day) ?? dateOnly(task.startDate);
+  if (task.startMinute == null) {
+    return '${formatDate(start)} – '
+        '${formatDate(addCalendarDays(start, task.spanDays))}';
+  }
+  final span = task.spanOf(start);
+  return formatSpan(span.start, span.end);
+}
+
 /// Checkable task row. [day] is the occurrence day being toggled.
 class TaskTile extends StatelessWidget {
   final Task task;
@@ -717,15 +731,17 @@ class TaskTile extends StatelessWidget {
     final state = AppScope.of(context);
     final theme = joeThemeOf(context);
     final done = task.isCompletedOn(day);
+    // Ueberfaellig ist eine Aufgabe mit Dauer erst nach ihrem letzten Tag.
     final overdue = showOverdue &&
         !task.isRecurring &&
         !done &&
-        (task.priority == Priority.niedrig ||
-            dateOnly(task.startDate).isBefore(today()));
+        (task.priority == Priority.niedrig || task.lastDay.isBefore(today()));
+    final span = task.hasDuration ? taskSpanLabel(task, day) : null;
     final semanticParts = <String>[
       task.title,
       if (task.isRecurring) task.recurrenceLabel,
-      if (overdue) 'Offen seit ${formatDate(task.startDate)}',
+      ?span,
+      if (overdue) 'Offen seit ${formatDate(task.lastDay)}',
       if (task.priority != Priority.mittel) 'Priorität ${task.priority.label}',
     ];
     return Semantics(
@@ -775,10 +791,14 @@ class TaskTile extends StatelessWidget {
                         decorationColor: theme.inkSoft,
                       ),
                     ),
-                    if (task.isRecurring || overdue)
+                    if (task.isRecurring || span != null || overdue)
                       Padding(
                         padding: const EdgeInsets.only(top: 2),
-                        child: Row(
+                        // Wrap statt Row: mit der Spanne sind es bis zu drei
+                        // Angaben, die liefen auf einem schmalen Telefon
+                        // ueber den Rand.
+                        child: Wrap(
+                          spacing: 8,
                           children: [
                             if (task.isRecurring)
                               Text(
@@ -788,9 +808,17 @@ class TaskTile extends StatelessWidget {
                                   color: theme.inkSoft,
                                 ),
                               ),
+                            if (span != null)
+                              Text(
+                                span,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: theme.inkSoft,
+                                ),
+                              ),
                             if (overdue)
                               Text(
-                                'offen seit ${formatDate(task.startDate)}',
+                                'offen seit ${formatDate(task.lastDay)}',
                                 style: TextStyle(
                                   fontSize: 12,
                                   // A level-3 leftover is not an alarm; only
@@ -1596,6 +1624,270 @@ class SheetSaveButton extends StatelessWidget {
   }
 }
 
+/// Die Uhrzeiten, mit denen die Dauer einer Aufgabe beim Einschalten
+/// beginnt: ein Nachmittag, 12:00 bis 18:00.
+const _defaultStartMinute = 12 * 60;
+const _defaultEndMinute = 18 * 60;
+
+/// "Mo, 14. Sep" – kurz genug fuer einen Knopf neben der Uhrzeit.
+String _shortDay(DateTime d) => '${weekdayNamesShort[d.weekday - 1]}, '
+    '${d.day}. ${monthNamesShort[d.month - 1]}';
+
+/// Minuten seit Mitternacht als "12:00".
+String _hm(int minute) => '${(minute ~/ 60).toString().padLeft(2, '0')}:'
+    '${(minute % 60).toString().padLeft(2, '0')}';
+
+Future<DateTime?> _pickDate(BuildContext context, DateTime initial) async {
+  final picked = await showDatePicker(
+    context: context,
+    initialDate: initial,
+    firstDate: DateTime(2020),
+    lastDate: DateTime(2035),
+  );
+  return picked == null ? null : dateOnly(picked);
+}
+
+Future<int?> _pickMinute(BuildContext context, int initial) async {
+  final picked = await showTimePicker(
+    context: context,
+    initialTime: TimeOfDay(hour: initial ~/ 60, minute: initial % 60),
+  );
+  return picked == null ? null : picked.hour * 60 + picked.minute;
+}
+
+/// Ein Knopf im Blatt, der Datum oder Uhrzeit zeigt und beim Tippen den
+/// passenden Waehler oeffnet – dieselbe Form wie im Terminblatt.
+class _PickButton extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onPressed;
+
+  const _PickButton({
+    super.key,
+    required this.icon,
+    required this.label,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = joeThemeOf(context);
+    return OutlinedButton.icon(
+      icon: Icon(icon, size: 18, color: theme.ink),
+      label: Text(label, style: TextStyle(color: theme.ink)),
+      onPressed: onPressed,
+    );
+  }
+}
+
+/// Die Zeile "Dauer" mit ihrem Schalter, in beiden Blaettern. Ein
+/// Zeitpunkt bleibt der Normalfall, deshalb steht sie anfangs aus.
+class _DurationSwitch extends StatelessWidget {
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  const _DurationSwitch({required this.value, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = joeThemeOf(context);
+    // Vorgelesen als ein Knoten: "Dauer, Schalter, aus".
+    return MergeSemantics(
+      child: Row(
+        children: [
+          Icon(Icons.date_range_outlined, size: 20, color: theme.inkSoft),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'Dauer',
+              style: TextStyle(color: theme.ink, fontSize: 15),
+            ),
+          ),
+          Switch(
+            value: value,
+            activeThumbColor: theme.accent,
+            onChanged: onChanged,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Eine Zeile "Von"/"Bis" der Dauer einer einmaligen Aufgabe: Datum und
+/// Uhrzeit nebeneinander.
+class _SpanRow extends StatelessWidget {
+  final String label;
+  final Key dateKey;
+  final Key timeKey;
+  final DateTime day;
+  final int minute;
+  final ValueChanged<DateTime> onDay;
+  final ValueChanged<int> onMinute;
+
+  const _SpanRow({
+    required this.label,
+    required this.dateKey,
+    required this.timeKey,
+    required this.day,
+    required this.minute,
+    required this.onDay,
+    required this.onMinute,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = joeThemeOf(context);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 40,
+            child: Text(label, style: TextStyle(color: theme.inkSoft)),
+          ),
+          Expanded(
+            flex: 3,
+            child: _PickButton(
+              key: dateKey,
+              icon: Icons.event_outlined,
+              label: _shortDay(day),
+              onPressed: () async {
+                final picked = await _pickDate(context, day);
+                if (picked != null) onDay(picked);
+              },
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            flex: 2,
+            child: _PickButton(
+              key: timeKey,
+              icon: Icons.schedule,
+              label: _hm(minute),
+              onPressed: () async {
+                final picked = await _pickMinute(context, minute);
+                if (picked != null) onMinute(picked);
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Die Dauer einer wiederkehrenden Aufgabe. Ein Enddatum gaebe es nur fuer
+/// die erste Wiederholung, und die faellt bei der Wochenskala nicht
+/// zwingend auf das "Ab"-Datum – deshalb zaehlt hier ein Abstand in Tagen
+/// ab jedem Wiederholungstag.
+///
+/// Der Zaehler hoert bei [maxSpanDays] auf: laenger, und die naechste
+/// Wiederholung finge an, bevor diese vorbei ist (siehe [Task.maxSpanDays]).
+class _RecurringSpanEditor extends StatelessWidget {
+  final int spanDays;
+  final int maxSpanDays;
+  final int startMinute;
+  final int endMinute;
+  final ValueChanged<int> onSpanDays;
+  final ValueChanged<int> onStartMinute;
+  final ValueChanged<int> onEndMinute;
+
+  const _RecurringSpanEditor({
+    required this.spanDays,
+    required this.maxSpanDays,
+    required this.startMinute,
+    required this.endMinute,
+    required this.onSpanDays,
+    required this.onStartMinute,
+    required this.onEndMinute,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = joeThemeOf(context);
+    final ink = TextStyle(color: theme.ink);
+    final spanLabel = switch (spanDays) {
+      0 => 'am selben Tag',
+      1 => '+1 Tag',
+      _ => '+$spanDays Tage',
+    };
+    // Wrap statt Row: auf einem schmalen Telefon rutscht die Uhrzeit in die
+    // naechste Zeile, statt ueber den Rand zu laufen.
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Wrap(
+          crossAxisAlignment: WrapCrossAlignment.center,
+          spacing: 8,
+          children: [
+            Text('Beginn', style: TextStyle(color: theme.inkSoft)),
+            Text('an jedem Wiederholungstag um', style: ink),
+            _PickButton(
+              key: const ValueKey('task-start-time'),
+              icon: Icons.schedule,
+              label: _hm(startMinute),
+              onPressed: () async {
+                final picked = await _pickMinute(context, startMinute);
+                if (picked != null) onStartMinute(picked);
+              },
+            ),
+          ],
+        ),
+        Wrap(
+          crossAxisAlignment: WrapCrossAlignment.center,
+          spacing: 8,
+          children: [
+            Text('Ende', style: TextStyle(color: theme.inkSoft)),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                IconButton(
+                  icon: Icon(Icons.remove_circle_outline, color: theme.ink),
+                  tooltip: 'Einen Tag kürzer',
+                  onPressed:
+                      spanDays > 0 ? () => onSpanDays(spanDays - 1) : null,
+                ),
+                Text(
+                  spanLabel,
+                  style: ink.copyWith(fontWeight: FontWeight.w700),
+                ),
+                IconButton(
+                  icon: Icon(Icons.add_circle_outline, color: theme.ink),
+                  tooltip: 'Einen Tag länger',
+                  onPressed: spanDays < maxSpanDays
+                      ? () => onSpanDays(spanDays + 1)
+                      : null,
+                ),
+              ],
+            ),
+            Text('um', style: ink),
+            _PickButton(
+              key: const ValueKey('task-end-time'),
+              icon: Icons.schedule,
+              label: _hm(endMinute),
+              onPressed: () async {
+                final picked = await _pickMinute(context, endMinute);
+                if (picked != null) onEndMinute(picked);
+              },
+            ),
+          ],
+        ),
+        if (spanDays >= maxSpanDays)
+          Padding(
+            padding: const EdgeInsets.only(top: 2, left: 4),
+            child: Text(
+              spanDays > maxSpanDays
+                  ? 'Zu lang: die nächste Wiederholung finge vorher an.'
+                  : 'Länger würde die nächste Wiederholung überlappen.',
+              style: TextStyle(color: theme.inkSoft, fontSize: 12),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
 /// Bottom sheet for creating or editing a task.
 Future<void> showTaskSheet(
   BuildContext context, {
@@ -1616,6 +1908,14 @@ Future<void> showTaskSheet(
   var date = task != null ? dateOnly(task.startDate) : (initialDate ?? today());
   // Aufgaben haben keine Uhrzeit, die Erinnerung bringt ihre eigene mit.
   var reminderMinute = task?.reminderMinuteOfDay;
+  // Die Dauer ist optional (Schalter "Dauer"). Eine Zahl fuer beide Arten:
+  // bei einer einmaligen Aufgabe ist das Enddatum [date] + [spanDays] – so
+  // wandert das Ende mit, wenn man den Anfang verschiebt, und die Dauer
+  // bleibt. Bei einer wiederkehrenden steuert der Zaehler sie direkt.
+  var withDuration = task?.hasDuration ?? false;
+  var spanDays = task?.spanDays ?? 0;
+  var startMinute = task?.startMinute ?? _defaultStartMinute;
+  var endMinute = task?.endMinute ?? _defaultEndMinute;
 
   void save(BuildContext sheetContext, TextEditingController titleController) {
     final title = titleController.text.trim();
@@ -1623,8 +1923,34 @@ Future<void> showTaskSheet(
       JoeToast.error('Bitte gib einen Titel ein.');
       return;
     }
+    if (withDuration) {
+      // Ende nicht nach dem Anfang: bei einmaligen ein Enddatum vor dem
+      // Start oder am selben Tag zu frueh, bei wiederkehrenden nur Letzteres.
+      if (spanDays < 0 || (spanDays == 0 && endMinute <= startMinute)) {
+        JoeToast.error('Das Ende liegt vor dem Anfang.');
+        return;
+      }
+      // Wer die Wiederholung nach der Dauer umstellt (etwa auf Mo+Mi bei
+      // drei Tagen Dauer), bekaeme sich ueberlappende Wiederholungen – dann
+      // waere unklar, welche man abhakt.
+      if (recurrence != RecurrenceType.none &&
+          spanDays > Task.maxSpanDays(recurrence, weekdays, intervalDays)) {
+        JoeToast.error(
+          'Die Dauer ist länger als der Abstand zwischen zwei Wiederholungen.',
+        );
+        return;
+      }
+      // Laenger nimmt das Modell beim Laden nicht an.
+      if (spanDays > Task.maxStoredSpanDays) {
+        JoeToast.error('Eine Aufgabe kann höchstens ein Jahr dauern.');
+        return;
+      }
+    }
     final days =
         recurrence == RecurrenceType.weekly ? {...weekdays} : <int>{};
+    final span = withDuration ? spanDays : 0;
+    final from = withDuration ? startMinute : null;
+    final to = withDuration ? endMinute : null;
     if (task == null) {
       state.addTask(
         Task(
@@ -1637,6 +1963,9 @@ Future<void> showTaskSheet(
           priority: priority,
           reminderMinuteOfDay: reminderMinute,
           weekdays: days,
+          spanDays: span,
+          startMinute: from,
+          endMinute: to,
         ),
       );
     } else {
@@ -1645,6 +1974,9 @@ Future<void> showTaskSheet(
       task.weekdays = days;
       task.intervalDays = intervalDays;
       task.startDate = date;
+      task.spanDays = span;
+      task.startMinute = from;
+      task.endMinute = to;
       task.colorIndex = colorIndex;
       task.priority = priority;
       task.reminderMinuteOfDay = reminderMinute;
@@ -1756,36 +2088,73 @@ Future<void> showTaskSheet(
             }),
           ),
           const SizedBox(height: 6),
-          InkWell(
-            onTap: () async {
-              final picked = await showDatePicker(
-                context: sheetContext,
-                initialDate: date,
-                firstDate: DateTime(2020),
-                lastDate: DateTime(2035),
-              );
-              if (picked != null) setSheetState(() => date = dateOnly(picked));
-            },
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              child: Row(
-                children: [
-                  Icon(Icons.event_outlined, size: 20, color: theme.inkSoft),
-                  const SizedBox(width: 8),
-                  Text(
-                    recurrence == RecurrenceType.none
-                        ? 'Datum: ${formatDateYear(date)}'
-                        : 'Ab: ${formatDateYear(date)}',
-                    style: TextStyle(color: theme.ink, fontSize: 15),
-                  ),
-                ],
+          // Mit Dauer ersetzt bei einer einmaligen Aufgabe die Von-Zeile das
+          // Datum; eine wiederkehrende behaelt ihr "Ab".
+          if (!withDuration || recurrence != RecurrenceType.none)
+            InkWell(
+              onTap: () async {
+                final picked = await _pickDate(sheetContext, date);
+                if (picked != null) setSheetState(() => date = picked);
+              },
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: Row(
+                  children: [
+                    Icon(Icons.event_outlined, size: 20, color: theme.inkSoft),
+                    const SizedBox(width: 8),
+                    Text(
+                      recurrence == RecurrenceType.none
+                          ? 'Datum: ${formatDateYear(date)}'
+                          : 'Ab: ${formatDateYear(date)}',
+                      style: TextStyle(color: theme.ink, fontSize: 15),
+                    ),
+                  ],
+                ),
               ),
             ),
+          _DurationSwitch(
+            value: withDuration,
+            onChanged: (on) => setSheetState(() => withDuration = on),
           ),
+          if (withDuration && recurrence == RecurrenceType.none) ...[
+            _SpanRow(
+              label: 'Von',
+              dateKey: const ValueKey('task-start-date'),
+              timeKey: const ValueKey('task-start-time'),
+              day: date,
+              minute: startMinute,
+              // Das Enddatum haengt als Abstand am Anfang: es wandert mit,
+              // die Dauer bleibt.
+              onDay: (d) => setSheetState(() => date = d),
+              onMinute: (m) => setSheetState(() => startMinute = m),
+            ),
+            _SpanRow(
+              label: 'Bis',
+              dateKey: const ValueKey('task-end-date'),
+              timeKey: const ValueKey('task-end-time'),
+              day: addCalendarDays(date, spanDays),
+              minute: endMinute,
+              onDay: (d) =>
+                  setSheetState(() => spanDays = calendarDaysBetween(date, d)),
+              onMinute: (m) => setSheetState(() => endMinute = m),
+            ),
+          ],
+          if (withDuration && recurrence != RecurrenceType.none)
+            _RecurringSpanEditor(
+              spanDays: spanDays,
+              maxSpanDays:
+                  Task.maxSpanDays(recurrence, weekdays, intervalDays),
+              startMinute: startMinute,
+              endMinute: endMinute,
+              onSpanDays: (n) => setSheetState(() => spanDays = n),
+              onStartMinute: (m) => setSheetState(() => startMinute = m),
+              onEndMinute: (m) => setSheetState(() => endMinute = m),
+            ),
           const SizedBox(height: 10),
           const SheetLabel('Erinnerung'),
           // Die Uhrzeit gilt am Faelligkeitstag; bei einer wiederkehrenden
-          // Aufgabe also an jedem ihrer Tage.
+          // Aufgabe also an jedem ihrer Tage. Mit Dauer nur am ersten Tag der
+          // Spanne – sonst kaeme dieselbe Erinnerung mehrmals.
           Row(
             children: [
               Expanded(
@@ -1869,25 +2238,40 @@ Future<void> showAppointmentSheet(
       ? appointment.reminderLeadMinutes
       : state.defaultAppointmentLead;
 
+  DateTime start() =>
+      DateTime(date.year, date.month, date.day, time.hour, time.minute);
+
+  // Die Dauer ist optional; ein neuer Termin ist weiter ein Zeitpunkt. Ein
+  // bestehender mit Ende oeffnet mit eingeschaltetem Schalter.
+  var withEnd = appointment?.end != null;
+  var end = appointment?.end ?? start().add(const Duration(hours: 1));
+
+  /// Start-Datum oder -Uhrzeit aendern: das Ende wandert mit, die Dauer
+  /// bleibt – wer einen Termin verschiebt, verschiebt ihn ganz.
+  void moveStart(void Function() change) {
+    final before = start();
+    change();
+    end = end.add(start().difference(before));
+  }
+
   void save(BuildContext sheetContext, TextEditingController titleController) {
     final title = titleController.text.trim();
     if (title.isEmpty) {
       JoeToast.error('Bitte gib einen Titel ein.');
       return;
     }
-    final when = DateTime(
-      date.year,
-      date.month,
-      date.day,
-      time.hour,
-      time.minute,
-    );
+    final when = start();
+    if (withEnd && !end.isAfter(when)) {
+      JoeToast.error('Das Ende liegt vor dem Anfang.');
+      return;
+    }
     if (appointment == null) {
       state.addAppointment(
         Appointment(
           id: state.nextId(),
           title: title,
           when: when,
+          end: withEnd ? end : null,
           colorIndex: colorIndex,
           priority: priority,
           reminderLeadMinutes: lead,
@@ -1896,6 +2280,7 @@ Future<void> showAppointmentSheet(
     } else {
       appointment.title = title;
       appointment.when = when;
+      appointment.end = withEnd ? end : null;
       appointment.colorIndex = colorIndex;
       appointment.priority = priority;
       appointment.reminderLeadMinutes = lead;
@@ -1938,7 +2323,9 @@ Future<void> showAppointmentSheet(
                       lastDate: DateTime(2035),
                     );
                     if (picked != null) {
-                      setSheetState(() => date = dateOnly(picked));
+                      setSheetState(
+                        () => moveStart(() => date = dateOnly(picked)),
+                      );
                     }
                   },
                 ),
@@ -1956,12 +2343,38 @@ Future<void> showAppointmentSheet(
                       context: sheetContext,
                       initialTime: time,
                     );
-                    if (picked != null) setSheetState(() => time = picked);
+                    if (picked != null) {
+                      setSheetState(() => moveStart(() => time = picked));
+                    }
                   },
                 ),
               ),
             ],
           ),
+          const SizedBox(height: 6),
+          _DurationSwitch(
+            value: withEnd,
+            onChanged: (on) => setSheetState(() {
+              withEnd = on;
+              // Eingeschaltet beginnt die Dauer bei einer Stunde.
+              if (on) end = start().add(const Duration(hours: 1));
+            }),
+          ),
+          if (withEnd)
+            _SpanRow(
+              label: 'Bis',
+              dateKey: const ValueKey('appointment-end-date'),
+              timeKey: const ValueKey('appointment-end-time'),
+              day: dateOnly(end),
+              minute: end.hour * 60 + end.minute,
+              onDay: (d) => setSheetState(
+                () => end = DateTime(d.year, d.month, d.day, end.hour,
+                    end.minute),
+              ),
+              onMinute: (m) => setSheetState(
+                () => end = DateTime(end.year, end.month, end.day, 0, m),
+              ),
+            ),
           const SizedBox(height: 12),
           const SheetLabel('Erinnerung'),
           ReminderLeadPicker(

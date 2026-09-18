@@ -77,4 +77,87 @@ void main() {
     expect(find.text('Hat Zeit'), findsNothing);
     expect(find.text('Leise'), findsOneWidget);
   });
+
+  testWidgets('eine Aufgabe von gestern bis morgen steht heute, nicht als '
+      'ueberfaellig, mit ihrer Spanne', (tester) async {
+    final t = today();
+    final yesterday = addCalendarDays(t, -1);
+    await pumpTasks(tester, [
+      Task(
+        id: '1',
+        title: 'Umzug',
+        startDate: yesterday,
+        spanDays: 2,
+        startMinute: 12 * 60,
+        endMinute: 18 * 60,
+      ),
+    ]);
+
+    double y(String label) => tester.getTopLeft(find.text(label)).dy;
+
+    expect(find.text('Heute'), findsOneWidget);
+    expect(y('Heute'), lessThan(y('Umzug')));
+    // Gestern begonnen heisst nicht liegengeblieben: sie laeuft noch.
+    expect(find.textContaining('offen seit'), findsNothing);
+    expect(
+      find.text(formatSpan(
+        DateTime(yesterday.year, yesterday.month, yesterday.day, 12),
+        DateTime(t.year, t.month, t.day + 1, 18),
+      )),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('erst nach ihrem letzten Tag ist sie ueberfaellig',
+      (tester) async {
+    final t = today();
+    await pumpTasks(tester, [
+      Task(
+        id: '1',
+        title: 'Umzug',
+        startDate: addCalendarDays(t, -3),
+        spanDays: 2,
+      ),
+    ]);
+
+    // Ohne Uhrzeit nur die Tage; "offen seit" nennt den letzten Tag.
+    expect(
+      find.text('${formatDate(addCalendarDays(t, -3))} – '
+          '${formatDate(addCalendarDays(t, -1))}'),
+      findsOneWidget,
+    );
+    expect(
+      find.text('offen seit ${formatDate(addCalendarDays(t, -1))}'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('Demnaechst und Wiederkehrend nennen die Dauer', (tester) async {
+    final t = today();
+    await pumpTasks(tester, [
+      Task(
+        id: '1',
+        title: 'Urlaub',
+        startDate: addCalendarDays(t, 5),
+        spanDays: 3,
+      ),
+      Task(
+        id: '2',
+        title: 'Dienst',
+        startDate: t,
+        recurrence: RecurrenceType.weekly,
+        weekdays: {1},
+        spanDays: 2,
+        startMinute: 8 * 60,
+        endMinute: 16 * 60,
+      ),
+    ]);
+
+    expect(
+      find.text('${formatDate(addCalendarDays(t, 5))} – '
+          '${formatDate(addCalendarDays(t, 8))}'),
+      findsOneWidget,
+    );
+    expect(find.text('Jeden Montag · 3 Tage'), findsOneWidget);
+  });
 }

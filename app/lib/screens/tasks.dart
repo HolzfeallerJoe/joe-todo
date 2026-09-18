@@ -65,8 +65,16 @@ class TasksScreen extends StatelessWidget {
               const SectionTitle('Demnächst'),
               _TaskCard(
                 children: [
+                  // Mit Dauer steht die ganze Spanne da – "ab dem 14." allein
+                  // verschwiege, wie lange sie einen beschaeftigt.
                   for (final task in upcoming)
-                    _DatedTaskRow(task: task, label: formatDate(task.startDate)),
+                    _DatedTaskRow(
+                      task: task,
+                      label: task.spanDays > 0
+                          ? '${formatDate(task.startDate)} – '
+                              '${formatDate(task.lastDay)}'
+                          : formatDate(task.startDate),
+                    ),
                 ],
               ),
             ],
@@ -75,7 +83,12 @@ class TasksScreen extends StatelessWidget {
               _TaskCard(
                 children: [
                   for (final task in recurring)
-                    _DatedTaskRow(task: task, label: task.recurrenceLabel),
+                    _DatedTaskRow(
+                      task: task,
+                      label: task.spanDays > 0
+                          ? '${task.recurrenceLabel} · ${task.spanDays + 1} Tage'
+                          : task.recurrenceLabel,
+                    ),
                 ],
               ),
             ],
@@ -156,9 +169,15 @@ class _DatedTaskRow extends StatelessWidget {
               size: 16,
             ),
             const SizedBox(width: 6),
-            Text(
-              label,
-              style: TextStyle(color: theme.inkSoft, fontSize: 13),
+            // Flexibel: eine Spanne ("14. September – 17. September") ist zu
+            // lang fuer einen festen Platz und bricht sonst nicht um, sondern
+            // laeuft ueber den Rand.
+            Flexible(
+              child: Text(
+                label,
+                textAlign: TextAlign.right,
+                style: TextStyle(color: theme.inkSoft, fontSize: 13),
+              ),
             ),
           ],
         ),
