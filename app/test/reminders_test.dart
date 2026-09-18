@@ -186,6 +186,49 @@ void main() {
       expect(reminders.single.body, 'Aufgabe für heute');
     });
 
+    test('eine Aufgabe mit Dauer erinnert nur am ersten Tag', () {
+      // Mo 14.9. bis Do 17.9.2026, Erinnerung 09:00; geplant wird am
+      // Sonntag davor.
+      final reminders = pendingReminders(
+        tasks: [
+          Task(
+            id: 't1',
+            title: 'Messe',
+            startDate: DateTime(2026, 9, 14),
+            spanDays: 3,
+            startMinute: 12 * 60,
+            endMinute: 18 * 60,
+            reminderMinuteOfDay: 9 * 60,
+          ),
+        ],
+        appointments: const [],
+        from: DateTime(2026, 9, 13, 10),
+      );
+      expect(reminders, hasLength(1));
+      expect(reminders.single.when, DateTime(2026, 9, 14, 9));
+    });
+
+    test('wiederkehrend mit Dauer: eine Erinnerung je Wiederholung', () {
+      final reminders = pendingReminders(
+        tasks: [
+          Task(
+            id: 't1',
+            title: 'Wochenaufgabe',
+            recurrence: RecurrenceType.weekly,
+            weekdays: {1},
+            startDate: DateTime(2026, 9, 14),
+            spanDays: 3,
+            reminderMinuteOfDay: 9 * 60,
+          ),
+        ],
+        appointments: const [],
+        from: DateTime(2026, 9, 13, 10),
+        horizonDays: 14,
+      );
+      expect(reminders.map((r) => r.when),
+          [DateTime(2026, 9, 14, 9), DateTime(2026, 9, 21, 9)]);
+    });
+
     test('ohne Uhrzeit keine Erinnerung', () {
       expect(
         plan(tasks: [task(start: heute.add(const Duration(days: 1)))]),

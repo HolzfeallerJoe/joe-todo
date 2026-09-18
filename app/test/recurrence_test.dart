@@ -1,11 +1,16 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:joe_todo/models.dart';
 import 'package:joe_todo/util.dart';
 
-/// Die Wiederholungslogik: Wochenskala, jaehrlich, alle X Tage und das
-/// Umschreiben alter Bestaende.
+/// Die Wiederholungslogik: Wochenskala, jaehrlich, alle X Tage, die Dauer
+/// von Aufgaben und Terminen und das Umschreiben alter Bestaende.
 void main() {
+  // toggleTask speichert nebenbei; ohne Attrappe liefe das ins Leere.
+  TestWidgetsFlutterBinding.ensureInitialized();
+  SharedPreferences.setMockInitialValues({});
+
   Task weekly(Set<int> days, DateTime start) => Task(
         id: 'w',
         title: 'x',
@@ -153,6 +158,252 @@ void main() {
       expect(weekly({5, 1, 3}, start).recurrenceLabel, 'Mo, Mi, Fr');
       expect(weekly({1, 2, 3, 4}, start).recurrenceLabel, 'Mo, Di, Mi, Do');
       expect(weekly({5, 6, 7}, start).recurrenceLabel, 'Fr, Sa, So');
+    });
+  });
+
+  group('Dauer', () {
+    // 14.9.2026 ist ein Montag.
+    final montag = DateTime(2026, 9, 14);
+
+    test('einmalig Mo bis Do: an jedem Tag faellig, einmal abgehakt', () {
+      final t = Task(
+        id: 'd',
+        title: 'x',
+        startDate: montag,
+        spanDays: 3,
+        startMinute: 12 * 60,
+        endMinute: 18 * 60,
+      );
+      expect(t.hasDuration, isTrue);
+      expect(t.occursOn(DateTime(2026, 9, 13)), isFalse); // So
+      for (var i = 0; i <= 3; i++) {
+        expect(t.occursOn(addCalendarDays(montag, i)), isTrue, reason: '+$i');
+        expect(t.occurrenceStartFor(addCalendarDays(montag, i)), montag);
+      }
+      expect(t.occursOn(DateTime(2026, 9, 18)), isFalse); // Fr
+      expect(t.lastDay, DateTime(2026, 9, 17));
+      // Nur am ersten Tag beginnt sie.
+      expect(t.startsOn(montag), isTrue);
+      expect(t.startsOn(DateTime(2026, 9, 15)), isFalse);
+
+      final state = AppState()..tasks = [t];
+      state.toggleTask(t, DateTime(2026, 9, 16)); // am Mittwoch abgehakt
+      for (var i = 0; i <= 3; i++) {
+        expect(t.isCompletedOn(addCalendarDays(montag, i)), isTrue);
+      }
+    });
+
+    test('Beginn und Ende einer Wiederholung', () {
+      final t = Task(
+        id: 'd',
+        title: 'x',
+        startDate: montag,
+        spanDays: 3,
+        startMinute: 12 * 60,
+        endMinute: 18 * 60,
+      );
+      final span = t.spanOf(montag);
+      expect(span.start, DateTime(2026, 9, 14, 12));
+      expect(span.end, DateTime(2026, 9, 17, 18));
+
+      // Ohne Uhrzeit: Mitternacht bis Mitternacht nach dem letzten Tag.
+      final ohne = Task(id: 'o', title: 'x', startDate: montag, spanDays: 1);
+      expect(ohne.hasDuration, isTrue);
+      expect(ohne.spanOf(montag).start, montag);
+      expect(ohne.spanOf(montag).end, DateTime(2026, 9, 16));
+      expect(Task(id: 'k', title: 'x', startDate: montag).hasDuration, isFalse);
+    });
+
+    test('woechentlich Mo mit drei Tagen Dauer: Haken gilt je Woche', () {
+      final t = Task(
+        id: 'w',
+        title: 'x',
+        recurrence: RecurrenceType.weekly,
+        weekdays: {1},
+        startDate: montag,
+        spanDays: 3,
+      );
+      final naechsterMo = DateTime(2026, 9, 21);
+      final naechsterMi = DateTime(2026, 9, 23);
+      expect(t.occurrenceStartFor(naechsterMi), naechsterMo);
+      expect(t.occurrenceStartFor(DateTime(2026, 9, 25)), isNull); // Fr
+
+      final state = AppState()..tasks = [t];
+      state.toggleTask(t, naechsterMi);
+      expect(t.completedDates, {dateKey(naechsterMo)});
+      for (var i = 0; i <= 3; i++) {
+        expect(t.isCompletedOn(addCalendarDays(naechsterMo, i)), isTrue);
+        // Die Woche davor und die danach bleiben offen.
+        expect(t.isCompletedOn(addCalendarDays(montag, i)), isFalse);
+        expect(t.isCompletedOn(addCalendarDays(naechsterMo, 7 + i)), isFalse);
+      }
+      // Zuruecknehmen geht an jedem Tag der Spanne.
+      state.toggleTask(t, DateTime(2026, 9, 24));
+      expect(t.completedDates, isEmpty);
+    });
+
+    test('laengste Dauer ohne Ueberlappung', () {
+      int max(RecurrenceType r, {Set<int> days = const {}, int every = 2}) =>
+          Task.maxSpanDays(r, days, every);
+      expect(max(RecurrenceType.weekly, days: {1, 3}), 1);
+      expect(max(RecurrenceType.weekly, days: {1}), 6);
+      expect(max(RecurrenceType.weekly, days: {1, 7}), 0);
+      expect(max(RecurrenceType.weekly, days: allWeekdays), 0);
+      expect(max(RecurrenceType.everyXDays, every: 3), 2);
+      expect(max(RecurrenceType.monthly), 27);
+      expect(max(RecurrenceType.yearly), 364);
+      expect(max(RecurrenceType.none), 365);
+    });
+
+    test('ueber die Sommerzeit bleibt jeder Tag richtig', () {
+      // 29.3.2026: Umstellung. Alle 4 Tage ab 28.3., zwei Tage Dauer.
+      final t = Task(
+        id: 's',
+        title: 'x',
+        recurrence: RecurrenceType.everyXDays,
+        intervalDays: 4,
+        startDate: DateTime(2026, 3, 28),
+        spanDays: 1,
+      );
+      expect(t.occursOn(DateTime(2026, 3, 28)), isTrue);
+      expect(t.occursOn(DateTime(2026, 3, 29)), isTrue);
+      expect(t.occursOn(DateTime(2026, 3, 30)), isFalse);
+      expect(t.occursOn(DateTime(2026, 3, 31)), isFalse);
+      expect(t.occursOn(DateTime(2026, 4, 1)), isTrue);
+      expect(t.occurrenceStartFor(DateTime(2026, 4, 2)), DateTime(2026, 4, 1));
+    });
+
+    group('Termin', () {
+      Appointment termin({DateTime? end}) => Appointment(
+            id: 'a',
+            title: 'x',
+            when: DateTime(2026, 9, 14, 12),
+            end: end,
+          );
+
+      test('14.9. 12:00 bis 17.9. 18:00 steht an allen vier Tagen', () {
+        final a = termin(end: DateTime(2026, 9, 17, 18));
+        expect(a.coversDay(DateTime(2026, 9, 13)), isFalse);
+        for (var i = 0; i <= 3; i++) {
+          expect(a.coversDay(addCalendarDays(montag, i)), isTrue);
+        }
+        expect(a.coversDay(DateTime(2026, 9, 18)), isFalse);
+        expect(a.lastDay, DateTime(2026, 9, 17));
+      });
+
+      test('ein Ende um Mitternacht gehoert nicht auf den Folgetag', () {
+        final a = termin(end: DateTime(2026, 9, 17));
+        expect(a.lastDay, DateTime(2026, 9, 16));
+        expect(a.coversDay(DateTime(2026, 9, 16)), isTrue);
+        expect(a.coversDay(DateTime(2026, 9, 17)), isFalse);
+      });
+
+      test('ein Ende vor oder am Start zaehlt nicht', () {
+        for (final end in [
+          DateTime(2026, 9, 14, 12),
+          DateTime(2026, 9, 13, 18),
+          null,
+        ]) {
+          final a = termin(end: end);
+          expect(a.lastDay, montag, reason: '$end');
+          expect(a.coversDay(montag), isTrue);
+          expect(a.coversDay(DateTime(2026, 9, 15)), isFalse);
+        }
+      });
+    });
+
+    test('JSON-Rundreise beider Klassen', () {
+      final t = Task(
+        id: 'd',
+        title: 'x',
+        recurrence: RecurrenceType.weekly,
+        weekdays: {1},
+        startDate: montag,
+        spanDays: 3,
+        startMinute: 12 * 60,
+        endMinute: 18 * 60,
+      );
+      final back = Task.fromJson(t.toJson());
+      expect(back.spanDays, 3);
+      expect(back.startMinute, 720);
+      expect(back.endMinute, 1080);
+
+      final a = Appointment(
+        id: 'a',
+        title: 'x',
+        when: DateTime(2026, 9, 14, 12),
+        end: DateTime(2026, 9, 17, 18),
+      );
+      expect(Appointment.fromJson(a.toJson()).end, DateTime(2026, 9, 17, 18));
+    });
+
+    test('ohne die neuen Schluessel laedt alles wie vorher', () {
+      final t = Task.fromJson({
+        'id': 'alt',
+        'title': 'Alt',
+        'recurrence': 'none',
+        'startDate': '2026-09-14',
+      });
+      expect(t.spanDays, 0);
+      expect(t.startMinute, isNull);
+      expect(t.endMinute, isNull);
+      expect(t.hasDuration, isFalse);
+      // Ohne Dauer schreibt eine Aufgabe auch keine Schluessel dafuer.
+      expect(t.toJson().keys,
+          isNot(anyElement(isIn(['spanDays', 'startMinute', 'endMinute']))));
+
+      final a = Appointment.fromJson({
+        'id': 'alt',
+        'title': 'Alt',
+        'when': '2026-09-14T12:00:00.000',
+      });
+      expect(a.end, isNull);
+      expect(a.toJson().containsKey('end'), isFalse);
+    });
+
+    test('unbrauchbare Werte heissen "keine Dauer"', () {
+      Task load(Map<String, dynamic> extra) => Task.fromJson({
+            'id': 'k',
+            'title': 'x',
+            'recurrence': 'none',
+            'startDate': '2026-09-14',
+            ...extra,
+          });
+      expect(load({'spanDays': -2}).spanDays, 0);
+      expect(load({'spanDays': 'drei'}).spanDays, 0);
+      // Eine Riesenzahl wird gedeckelt statt zur Endlosschleife.
+      expect(load({'spanDays': 1 << 40}).spanDays, Task.maxStoredSpanDays);
+      // Eine Uhrzeit allein sagt nichts – beide fallen weg.
+      final halb = load({'startMinute': 720});
+      expect(halb.startMinute, isNull);
+      expect(halb.endMinute, isNull);
+      final kaputt = load({'startMinute': 720, 'endMinute': 5000});
+      expect(kaputt.startMinute, isNull);
+      expect(kaputt.endMinute, isNull);
+
+      Appointment termin(Object? end) => Appointment.fromJson({
+            'id': 'a',
+            'title': 'x',
+            'when': '2026-09-14T12:00:00.000',
+            'end': end,
+          });
+      expect(termin('2026-09-13T12:00:00.000').end, isNull);
+      expect(termin('morgen').end, isNull);
+      expect(termin(42).end, isNull);
+    });
+  });
+
+  group('Formatierung', () {
+    test('Spannen', () {
+      expect(formatHm(DateTime(2026, 9, 14, 9, 5)), '09:05');
+      expect(
+        formatSpan(DateTime(2026, 9, 14, 12), DateTime(2026, 9, 14, 18)),
+        '12:00 – 18:00 Uhr',
+      );
+      expect(
+        formatSpan(DateTime(2026, 9, 14, 12), DateTime(2026, 9, 17, 18)),
+        'Mo, 14. Sep 12:00 – Do, 17. Sep 18:00',
+      );
     });
   });
 

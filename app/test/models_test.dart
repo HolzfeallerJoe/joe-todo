@@ -277,6 +277,103 @@ void main() {
     });
   });
 
+  group('Dauer', () {
+    test('eine laufende Aufgabe zaehlt heute und ist nicht ueberfaellig', () {
+      final t = today();
+      final state = stateWith(tasks: [
+        Task(
+          id: 'laeuft',
+          title: 'Von vorgestern bis morgen',
+          startDate: addCalendarDays(t, -2),
+          spanDays: 3,
+        ),
+        Task(
+          id: 'vorbei',
+          title: 'Bis gestern',
+          startDate: addCalendarDays(t, -3),
+          spanDays: 2,
+        ),
+      ]);
+      expect(state.openTodayCount(), 2);
+      expect(state.tasksDueToday().map((x) => x.id),
+          containsAll(['laeuft', 'vorbei']));
+      // Heute ist sie faellig, nicht liegengeblieben: occursOn stimmt.
+      expect(state.tasks.first.occursOn(t), isTrue);
+      expect(state.tasks.first.lastDay.isBefore(t), isFalse);
+      // Die andere ist nur noch ueberfaellig: gestern war ihr letzter Tag.
+      expect(state.tasks.last.occursOn(t), isFalse);
+      expect(state.tasks.last.lastDay.isBefore(t), isTrue);
+      expect(state.tasksForDay(t).map((x) => x.id), ['laeuft']);
+    });
+
+    test('eine leise Aufgabe mit Dauer bleibt erst nach dem letzten Tag liegen',
+        () {
+      final t = today();
+      final state = stateWith(tasks: [
+        Task(
+          id: 'laeuft',
+          title: 'Laeuft noch',
+          startDate: addCalendarDays(t, -1),
+          spanDays: 1,
+          priority: Priority.niedrig,
+        ),
+        Task(
+          id: 'vorbei',
+          title: 'Vorbei',
+          startDate: addCalendarDays(t, -2),
+          spanDays: 1,
+          priority: Priority.niedrig,
+        ),
+      ]);
+      expect(state.tasksDueToday().map((x) => x.id), ['laeuft']);
+      expect(state.lowLeftoverTasks().map((x) => x.id), ['vorbei']);
+      expect(state.openTodayCount(), 1);
+    });
+
+    test('ein Drei-Tages-Termin steht an jedem seiner Tage', () {
+      final start = DateTime(2026, 9, 14, 12);
+      final state = AppState()
+        ..appointments = [
+          Appointment(
+            id: 'lang',
+            title: 'Messe',
+            when: start,
+            end: DateTime(2026, 9, 16, 18),
+          ),
+          Appointment(id: 'kurz', title: 'Kaffee', when: DateTime(2026, 9, 15, 9)),
+        ];
+      expect(state.appointmentsForDay(DateTime(2026, 9, 13)), isEmpty);
+      expect(state.appointmentsForDay(DateTime(2026, 9, 14)).map((a) => a.id),
+          ['lang']);
+      // Sortiert nach Beginn: der lange hat am 14. begonnen.
+      expect(state.appointmentsForDay(DateTime(2026, 9, 15)).map((a) => a.id),
+          ['lang', 'kurz']);
+      expect(state.appointmentsForDay(DateTime(2026, 9, 16)).map((a) => a.id),
+          ['lang']);
+      expect(state.appointmentsForDay(DateTime(2026, 9, 17)), isEmpty);
+    });
+
+    test('ein laufender Termin ist nicht vergangen', () {
+      final t = today();
+      final state = AppState()
+        ..appointments = [
+          Appointment(
+            id: 'laeuft',
+            title: 'Seit gestern',
+            when: addCalendarDays(t, -1).add(const Duration(hours: 10)),
+            end: addCalendarDays(t, 1).add(const Duration(hours: 10)),
+          ),
+          Appointment(
+            id: 'vorbei',
+            title: 'Gestern',
+            when: addCalendarDays(t, -1).add(const Duration(hours: 10)),
+          ),
+        ];
+      expect(state.upcomingAppointments().map((a) => a.id), ['laeuft']);
+      expect(state.pastAppointments().map((a) => a.id), ['vorbei']);
+    });
+  });
+
   group('Notizen', () {
     test('Notiz haengt an ihrem Tag, nicht an der letzten Änderung', () {
       final day = DateTime(2026, 8, 3);

@@ -106,6 +106,16 @@ class Task {
   /// der Wochentag des Starts, wie in der Fassung vor der Wochenskala.
   Set<int> weekdays;
 
+  /// Wie viele Tage eine Wiederholung ueber ihren Starttag hinaus dauert
+  /// (0 = nur der Starttag). "Mo 12:00 bis Do 18:00" ist 3.
+  int spanDays;
+
+  /// Uhrzeiten der Dauer als Minuten seit Mitternacht; beide null heisst:
+  /// keine Uhrzeit (wie bisher). Es gibt sie nur zusammen – eine allein wird
+  /// beim Laden verworfen.
+  int? startMinute;
+  int? endMinute;
+
   Task({
     required this.id,
     required this.title,
@@ -116,9 +126,18 @@ class Task {
     this.priority = Priority.mittel,
     this.reminderMinuteOfDay,
     Set<int>? weekdays,
+    this.spanDays = 0,
+    this.startMinute,
+    this.endMinute,
     Set<String>? completedDates,
   })  : weekdays = _validWeekdays(weekdays, recurrence, startDate),
         completedDates = completedDates ?? {};
+
+  /// Die laengste Dauer, die beim Laden angenommen wird: ein Jahr. Mehr
+  /// bietet das Blatt nicht an ([maxSpanDays]), und [occurrenceStartFor]
+  /// schaut so viele Tage zurueck – eine kaputte Riesenzahl im Bestand
+  /// darf daraus keine Schleife ohne Ende machen.
+  static const maxStoredSpanDays = 365;
 
   /// Nur 1–7 zaehlen; eine woechentliche Aufgabe ohne gueltigen Tag bekommt
   /// den Wochentag ihres Starts.
@@ -173,14 +192,82 @@ class Task {
     }
   }
 
-  /// Ob die Aufgabe an [day] faellig ist (bei einer einmaligen: ihr Tag).
-  bool occursOn(DateTime day) => startsOn(day);
+  /// Ob die Aufgabe eine Dauer hat: mehrere Tage oder Uhrzeiten.
+  bool get hasDuration => spanDays > 0 || startMinute != null;
 
-  /// One-off tasks are done once and stay done; recurring tasks are completed
-  /// per occurrence day.
+  /// Der Starttag der Wiederholung, die [day] abdeckt – bei einer Aufgabe
+  /// "Mo bis Do" also fuer Mi der Montag. null: [day] liegt in keiner.
+  DateTime? occurrenceStartFor(DateTime day) {
+    final d = dateOnly(day);
+    if (recurrence == RecurrenceType.none) {
+      // Ohne Wiederholung genuegt ein Vergleich – keine Schleife.
+      final s = dateOnly(startDate);
+      return !d.isBefore(s) && !d.isAfter(lastDay) ? s : null;
+    }
+    // Die juengste Wiederholung gewinnt; ueberlappen duerfen sie nicht
+    // (siehe [maxSpanDays]).
+    for (var k = 0; k <= spanDays; k++) {
+      final candidate = addCalendarDays(d, -k);
+      if (startsOn(candidate)) return candidate;
+    }
+    return null;
+  }
+
+  /// Ob die Aufgabe an [day] faellig ist: an jedem Tag der Spanne einer
+  /// Wiederholung, nicht nur an ihrem Starttag.
+  bool occursOn(DateTime day) => occurrenceStartFor(day) != null;
+
+  /// Letzter Tag der ersten (bei einmaligen: der einzigen) Wiederholung.
+  /// Ueberfaellig ist eine einmalige Aufgabe erst danach.
+  DateTime get lastDay => addCalendarDays(dateOnly(startDate), spanDays);
+
+  /// Beginn und Ende der Wiederholung, die an [occurrenceStart] beginnt.
+  /// Ohne Uhrzeit beginnt sie um Mitternacht und endet um Mitternacht nach
+  /// ihrem letzten Tag (das Ende ist exklusiv, wie im Kalender).
+  ({DateTime start, DateTime end}) spanOf(DateTime occurrenceStart) {
+    final s = dateOnly(occurrenceStart);
+    final e = addCalendarDays(s, spanDays);
+    return (
+      start: DateTime(s.year, s.month, s.day, 0, startMinute ?? 0),
+      end: DateTime(e.year, e.month, e.day, 0, endMinute ?? 24 * 60),
+    );
+  }
+
+  /// Einmalige Aufgaben sind einmal erledigt und bleiben es; wiederkehrende
+  /// je Wiederholung – abgehakt wird am Starttag der Wiederholung, und das
+  /// gilt fuer jeden Tag ihrer Spanne.
   bool isCompletedOn(DateTime day) {
     if (!isRecurring) return completedDates.isNotEmpty;
-    return completedDates.contains(dateKey(day));
+    final start = occurrenceStartFor(day);
+    return start != null && completedDates.contains(dateKey(start));
+  }
+
+  /// Die laengste Dauer, bei der sich zwei Wiederholungen nicht ueberlappen
+  /// – sonst waere unklar, welche man abhakt. Das Blatt prueft dagegen.
+  static int maxSpanDays(
+          RecurrenceType r, Set<int> weekdays, int intervalDays) =>
+      switch (r) {
+        RecurrenceType.none => maxStoredSpanDays,
+        RecurrenceType.weekly => _smallestWeekdayGap(weekdays) - 1,
+        // Der kuerzeste Monat hat 28 Tage.
+        RecurrenceType.monthly => 27,
+        RecurrenceType.yearly => 364,
+        RecurrenceType.everyXDays => intervalDays < 2 ? 0 : intervalDays - 1,
+      };
+
+  /// Der kleinste Abstand zwischen zwei gewaehlten Wochentagen, ueber das
+  /// Wochenende hinweg gezaehlt (von So zurueck zu Mo). Ein Tag allein hat
+  /// den Abstand einer Woche.
+  static int _smallestWeekdayGap(Set<int> weekdays) {
+    final days = weekdays.where((d) => d >= 1 && d <= 7).toSet().toList()
+      ..sort();
+    if (days.length < 2) return 7;
+    var gap = 7 - days.last + days.first;
+    for (var i = 1; i < days.length; i++) {
+      final g = days[i] - days[i - 1];
+      if (g < gap) gap = g;
+    }
+    return gap;
   }
 
   String get recurrenceLabel {
@@ -222,6 +309,9 @@ class Task {
         'startDate': dateKey(startDate),
         if (recurrence == RecurrenceType.weekly)
           'weekdays': _weeklyDays.toList()..sort(),
+        if (spanDays > 0) 'spanDays': spanDays,
+        'startMinute': ?startMinute,
+        'endMinute': ?endMinute,
         'colorIndex': colorIndex,
         'priority': priority.name,
         'reminderMinuteOfDay': reminderMinuteOfDay,
@@ -234,6 +324,18 @@ class Task {
     // [RecurrenceType]): taeglich ist jetzt woechentlich an allen Tagen.
     final wasDaily = storedRecurrence == 'daily';
     final storedDays = json['weekdays'];
+    // Die Dauer: Unbrauchbares heisst "keine Dauer", kein Verlust. Die
+    // Uhrzeiten gibt es nur als Paar – ein Anfang ohne Ende sagt nichts.
+    final storedSpan = json['spanDays'];
+    final spanDays = storedSpan is int && storedSpan > 0
+        ? (storedSpan > maxStoredSpanDays ? maxStoredSpanDays : storedSpan)
+        : 0;
+    var startMinute = minuteOfDayFromJson(json['startMinute']);
+    var endMinute = minuteOfDayFromJson(json['endMinute']);
+    if (startMinute == null || endMinute == null) {
+      startMinute = null;
+      endMinute = null;
+    }
     return Task(
       id: json['id'] as String,
       title: json['title'] as String,
@@ -253,6 +355,9 @@ class Task {
           : storedDays is List
               ? storedDays.whereType<int>().toSet()
               : null,
+      spanDays: spanDays,
+      startMinute: startMinute,
+      endMinute: endMinute,
       completedDates: (json['completedDates'] as List<dynamic>? ?? []).cast<String>().toSet(),
     );
   }
@@ -269,10 +374,16 @@ class Appointment {
   /// keine Erinnerung.
   int? reminderLeadMinutes;
 
+  /// Ende des Termins, exklusiv wie im Kalender: bis 18:00 heisst, um 18:00
+  /// ist er vorbei; ein Ende um Mitternacht gehoert nicht mehr auf den
+  /// Folgetag. null = ein Zeitpunkt, wie bisher.
+  DateTime? end;
+
   Appointment({
     required this.id,
     required this.title,
     required this.when,
+    this.end,
     this.colorIndex = 4,
     this.priority = Priority.mittel,
     this.reminderLeadMinutes,
@@ -280,23 +391,46 @@ class Appointment {
 
   Color get color => taskPalette[colorIndex % taskPalette.length];
 
+  /// Der letzte Tag, den der Termin beruehrt. Ein Ende, das nicht nach dem
+  /// Start liegt, zaehlt nicht – dann ist er ein Zeitpunkt.
+  DateTime get lastDay {
+    final e = end;
+    if (e == null || !e.isAfter(when)) return dateOnly(when);
+    return dateOnly(e.subtract(const Duration(seconds: 1)));
+  }
+
+  /// Ob der Termin an [day] stattfindet – an jedem Tag seiner Spanne.
+  bool coversDay(DateTime day) {
+    final d = dateOnly(day);
+    return !d.isBefore(dateOnly(when)) && !d.isAfter(lastDay);
+  }
+
   Map<String, dynamic> toJson() => {
         'id': id,
         'title': title,
         'when': when.toIso8601String(),
+        'end': ?end?.toIso8601String(),
         'colorIndex': colorIndex,
         'priority': priority.name,
         'reminderLeadMinutes': reminderLeadMinutes,
       };
 
-  factory Appointment.fromJson(Map<String, dynamic> json) => Appointment(
-        id: json['id'] as String,
-        title: json['title'] as String,
-        when: DateTime.parse(json['when'] as String),
-        colorIndex: json['colorIndex'] as int? ?? 4,
-        priority: Priority.fromJson(json['priority']),
-        reminderLeadMinutes: leadMinutesFromJson(json['reminderLeadMinutes']),
-      );
+  factory Appointment.fromJson(Map<String, dynamic> json) {
+    final when = DateTime.parse(json['when'] as String);
+    // Ein unlesbares Ende oder eines vor dem Start kostet nur das Ende: der
+    // Termin bleibt als Zeitpunkt stehen.
+    final storedEnd = json['end'];
+    final end = storedEnd is String ? DateTime.tryParse(storedEnd) : null;
+    return Appointment(
+      id: json['id'] as String,
+      title: json['title'] as String,
+      when: when,
+      end: end != null && end.isAfter(when) ? end : null,
+      colorIndex: json['colorIndex'] as int? ?? 4,
+      priority: Priority.fromJson(json['priority']),
+      reminderLeadMinutes: leadMinutesFromJson(json['reminderLeadMinutes']),
+    );
+  }
 }
 
 /// Ob [task] an [day] nur noch liegen *bleibt*: Stufe 3, deren
@@ -683,7 +817,10 @@ class AppState extends ChangeNotifier {
         task.completedDates.clear();
       }
     } else {
-      final key = dateKey(day);
+      // Abgehakt wird die Wiederholung, nicht der Tag: der Schluessel ist
+      // ihr Starttag, so gilt der Haken an jedem Tag ihrer Spanne (und die
+      // Historie zeigt den Starttag).
+      final key = dateKey(task.occurrenceStartFor(day) ?? day);
       if (!task.completedDates.remove(key)) {
         task.completedDates.add(key);
       }
@@ -691,25 +828,24 @@ class AppState extends ChangeNotifier {
     _changed();
   }
 
-  /// Tasks shown on a calendar day: occurrences plus (for one-offs completed
-  /// on another day) the completion day.
+  /// Die Aufgaben eines Kalendertags: jede, die an ihm faellig ist – mit
+  /// Dauer an jedem Tag ihrer Spanne. Eine einmalige Aufgabe steht an ihren
+  /// eigenen Tagen, nicht am Tag, an dem sie abgehakt wurde.
   List<Task> tasksForDay(DateTime day) {
     final d = dateOnly(day);
-    return tasks.where((t) {
-      if (t.isRecurring) return t.occursOn(d);
-      return dateOnly(t.startDate) == d;
-    }).toList();
+    return tasks.where((t) => t.occursOn(d)).toList();
   }
 
   /// Everything that lands on today's plate: today's occurrences (open and
   /// done, so completed items stay visible) plus overdue one-offs.
+  /// Ueberfaellig ist eine einmalige Aufgabe erst nach ihrem letzten Tag.
   List<Task> _dueToday() {
     final t = today();
     return tasks.where((task) {
       if (task.occursOn(t)) return true;
       if (!task.isRecurring &&
           task.completedDates.isEmpty &&
-          dateOnly(task.startDate).isBefore(t)) {
+          task.lastDay.isBefore(t)) {
         return true;
       }
       return false;
@@ -817,9 +953,11 @@ class AppState extends ChangeNotifier {
     _changed();
   }
 
+  /// Termine ab heute. Ein mehrtaegiger, der schon begonnen hat, aber noch
+  /// laeuft, zaehlt mit: er ist nicht vergangen.
   List<Appointment> upcomingAppointments({int? limit}) {
     final t = today();
-    final list = appointments.where((a) => !a.when.isBefore(t)).toList()
+    final list = appointments.where((a) => !a.lastDay.isBefore(t)).toList()
       ..sort((a, b) => a.when.compareTo(b.when));
     if (limit != null && list.length > limit) return list.sublist(0, limit);
     return list;
@@ -827,14 +965,15 @@ class AppState extends ChangeNotifier {
 
   List<Appointment> pastAppointments() {
     final t = today();
-    return appointments.where((a) => a.when.isBefore(t)).toList()
+    return appointments.where((a) => a.lastDay.isBefore(t)).toList()
       ..sort((a, b) => b.when.compareTo(a.when));
   }
 
+  /// Die Termine eines Tages – ein mehrtaegiger an jedem Tag seiner Spanne.
   List<Appointment> appointmentsForDay(DateTime day) {
     final d = dateOnly(day);
     final list =
-        appointments.where((a) => dateOnly(a.when) == d).toList()
+        appointments.where((a) => a.coversDay(d)).toList()
           ..sort((a, b) => a.when.compareTo(b.when));
     return list;
   }

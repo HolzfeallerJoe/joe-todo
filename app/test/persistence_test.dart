@@ -198,6 +198,74 @@ void main() {
     expect(prefs.getString(AppState.rescueKey), isNull);
   });
 
+  test('die Dauer ueberlebt Speichern und Laden', () async {
+    SharedPreferences.setMockInitialValues(
+        {'joe_data_v1': jsonEncode(validData())});
+    final state = AppState();
+    await state.load();
+    state.addTask(Task(
+      id: 'dauer',
+      title: 'Mo bis Do',
+      startDate: DateTime(2026, 9, 14),
+      spanDays: 3,
+      startMinute: 12 * 60,
+      endMinute: 18 * 60,
+    ));
+    state.addAppointment(Appointment(
+      id: 'lang',
+      title: 'Messe',
+      when: DateTime(2026, 9, 14, 12),
+      end: DateTime(2026, 9, 17, 18),
+    ));
+    await pumpEventQueue();
+
+    final wieder = AppState();
+    await wieder.load();
+    final task = wieder.tasks.firstWhere((t) => t.id == 'dauer');
+    expect(task.spanDays, 3);
+    expect(task.startMinute, 720);
+    expect(task.endMinute, 1080);
+    final termin = wieder.appointments.firstWhere((a) => a.id == 'lang');
+    expect(termin.end, DateTime(2026, 9, 17, 18));
+  });
+
+  test('eine unbrauchbare Dauer kostet nur die Dauer', () async {
+    final data = validData()
+      ..['tasks'] = [
+        {
+          'id': 'minus',
+          'title': 'Negativ',
+          'recurrence': 'none',
+          'startDate': '2026-09-14',
+          'spanDays': -2,
+        },
+        {
+          'id': 'halb',
+          'title': 'Nur Anfang',
+          'recurrence': 'none',
+          'startDate': '2026-09-14',
+          'startMinute': 720,
+        },
+      ]
+      ..['appointments'] = [
+        {
+          'id': 'rueckwaerts',
+          'title': 'Ende vor Start',
+          'when': '2026-09-14T12:00:00.000',
+          'end': '2026-09-13T12:00:00.000',
+        },
+      ];
+    SharedPreferences.setMockInitialValues({'joe_data_v1': jsonEncode(data)});
+    final state = AppState();
+    await state.load();
+
+    expect(state.tasks, hasLength(2));
+    expect(state.tasks.every((t) => !t.hasDuration), isTrue);
+    expect(state.appointments.single.end, isNull);
+    final prefs = await SharedPreferences.getInstance();
+    expect(prefs.getString(AppState.rescueKey), isNull);
+  });
+
   test('Kalender-Ebenen: Standards und gespeicherte Werte', () async {
     // Ohne gespeicherte Schluessel: Feiertage und Mond an, Geraete-Kalender
     // aus (der braucht eine Berechtigung und wartet auf den Schalter).

@@ -194,12 +194,14 @@ List<Reminder> pendingReminders({
     final minute = task.reminderMinuteOfDay;
     if (minute == null) continue;
     var slot = 0;
-    // occursOn deckt beide Faelle ab: der einmalige Eintrag hat genau einen
-    // Termin (seinen Starttag), der wiederkehrende viele.
+    // startsOn deckt beide Faelle ab: der einmalige Eintrag hat genau einen
+    // Starttag, der wiederkehrende viele. Bewusst nicht occursOn: eine
+    // Aufgabe mit Dauer ist an jedem Tag ihrer Spanne faellig, erinnert wird
+    // aber nur am ersten – sonst kaeme bei "Mo bis Do" jeden Morgen dieselbe.
     for (var day = dateOnly(from);
         slot < perTask && !day.isAfter(horizon);
         day = nextCalendarDay(day)) {
-      if (!task.occursOn(day) || task.isCompletedOn(day)) continue;
+      if (!task.startsOn(day) || task.isCompletedOn(day)) continue;
       final when = timeOnCalendarDay(day, minute);
       if (!when.isAfter(from)) continue;
       out.add(

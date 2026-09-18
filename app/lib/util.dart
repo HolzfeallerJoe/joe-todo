@@ -53,6 +53,23 @@ String formatDateFull(DateTime d) =>
 String formatTime(DateTime d) =>
     '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')} Uhr';
 
+String _two(int n) => n.toString().padLeft(2, '0');
+
+/// "12:00"
+String formatHm(DateTime d) => '${_two(d.hour)}:${_two(d.minute)}';
+
+/// Eine Spanne fuer Listen und Blaetter:
+///   gleicher Tag -> "12:00 – 18:00 Uhr"
+///   sonst        -> "Mo, 14. Sep 12:00 – Do, 17. Sep 18:00"
+String formatSpan(DateTime start, DateTime end) {
+  if (dateOnly(start) == dateOnly(end)) {
+    return '${formatHm(start)} – ${formatHm(end)} Uhr';
+  }
+  String dayAndTime(DateTime d) => '${weekdayNamesShort[d.weekday - 1]}, '
+      '${d.day}. ${monthNamesShort[d.month - 1]} ${formatHm(d)}';
+  return '${dayAndTime(start)} – ${dayAndTime(end)}';
+}
+
 /// Relative day label: "Heute", "Morgen", otherwise "Mi, 30. Juli"
 String formatRelativeDay(DateTime d) {
   final t = today();
