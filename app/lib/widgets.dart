@@ -1052,11 +1052,15 @@ Future<T?> showJoeSheet<T>(
 /// Ein Blatt von unten, das nach einem einzelnen Text fragt – zum Beispiel
 /// nach dem Namen eines eigenen Symptoms. Gibt den Text zurueck, oder null,
 /// wenn abgebrochen wurde.
+///
+/// [emptyMessage] ist der Hinweis, wenn beim Speichern nichts im Feld steht.
+/// Nicht jeder Text ist ein Name – ein Einkaufs-Eintrag etwa nicht.
 Future<String?> showTextEntrySheet(
   BuildContext context, {
   required String title,
   required String hint,
   String initialText = '',
+  String emptyMessage = 'Bitte gib einen Namen ein.',
 }) {
   return showJoeSheet<String>(
     context,
@@ -1069,7 +1073,7 @@ Future<String?> showTextEntrySheet(
           onPressed: () {
             final text = controller.text.trim();
             if (text.isEmpty) {
-              JoeToast.error('Bitte gib einen Namen ein.');
+              JoeToast.error(emptyMessage);
               return;
             }
             Navigator.pop(sheetContext, text);

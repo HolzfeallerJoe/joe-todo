@@ -207,6 +207,7 @@ class _ShoppingRow extends StatelessWidget {
           title: 'Eintrag bearbeiten',
           hint: 'Was fehlt?',
           initialText: item.title,
+          emptyMessage: 'Bitte gib etwas ein.',
         );
         if (title != null) state.renameShoppingItem(item, title);
       },

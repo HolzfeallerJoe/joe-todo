@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:joe_todo/main.dart';
 import 'package:joe_todo/models.dart';
 import 'package:joe_todo/theme.dart';
+import 'package:joe_todo/toast.dart';
 import 'package:joe_todo/util.dart';
 
 /// Die Einkaufsliste auf dem Bildschirm: der Reiter, das Eingabefeld unten,
@@ -135,6 +136,28 @@ void main() {
 
       expect(state.shopping.single.title, 'Hafermilch');
       expect(find.text('Hafermilch'), findsOneWidget);
+    });
+
+    testWidgets('Bearbeiten mit leerem Feld: Hinweis ohne "Namen"',
+        (tester) async {
+      // Ein Einkaufs-Eintrag ist kein Name; das Blatt teilt es sich aber mit
+      // den eigenen Symptomen, die weiter nach einem Namen fragen.
+      final state = await pump(tester, items: [item('1', 'Milch')]);
+      await tap(tester, find.text('Einkaufsliste'));
+
+      await tester.longPress(find.text('Milch'));
+      await tester.pumpAndSettle();
+      await tap(tester, find.text('Bearbeiten'));
+      await tester.enterText(find.byType(TextField).last, '   ');
+      await tester.tap(find.text('Speichern'));
+      await tester.pump();
+
+      expect(find.text('Bitte gib etwas ein.'), findsOneWidget);
+      expect(find.text('Bitte gib einen Namen ein.'), findsNothing);
+      expect(find.text('Eintrag bearbeiten'), findsOneWidget);
+      expect(state.shopping.single.title, 'Milch');
+      await tester.pump(JoeToast.showDuration);
+      await tester.pumpAndSettle();
     });
 
     testWidgets('langer Druck: Loeschen fragt nach, dann ist er weg',
