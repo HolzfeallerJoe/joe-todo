@@ -356,6 +356,29 @@ void main() {
     expect(await geladen(null), 1.0);
   });
 
+  test('Einkaufsliste: Modus mit Standard, Rundreise und Unsinn', () async {
+    SharedPreferences.setMockInitialValues(
+        {'joe_data_v1': jsonEncode(validData())});
+    final state = AppState();
+    await state.load();
+    expect(state.shoppingMode, ShoppingListMode.tab, reason: 'Standard');
+    expect(state.shopping, isEmpty);
+
+    state.setShoppingMode(ShoppingListMode.perDay);
+    await pumpEventQueue();
+    final wieder = AppState();
+    await wieder.load();
+    expect(wieder.shoppingMode, ShoppingListMode.perDay);
+
+    final data = validData()..['shoppingMode'] = 'im Kuehlschrank';
+    SharedPreferences.setMockInitialValues({'joe_data_v1': jsonEncode(data)});
+    final unsinn = AppState();
+    await unsinn.load();
+    expect(unsinn.shoppingMode, ShoppingListMode.tab);
+    final prefs = await SharedPreferences.getInstance();
+    expect(prefs.getString(AppState.rescueKey), isNull);
+  });
+
   test('Kalender-Ebenen: Standards und gespeicherte Werte', () async {
     // Ohne gespeicherte Schluessel: Feiertage und Mond an, Geraete-Kalender
     // aus (der braucht eine Berechtigung und wartet auf den Schalter).

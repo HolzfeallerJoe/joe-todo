@@ -559,6 +559,67 @@ class HistoryEntry {
   HistoryEntry(this.day, this.task);
 }
 
+/// Wo die Einkaufsliste wohnt (Einstellungen).
+///
+/// Beide Modi teilen sich einen Speicher ([AppState.shopping]): Eintraege
+/// ohne Tag gehoeren zum Reiter, Eintraege mit Tag zur Liste dieses Tages.
+/// Umschalten loescht nichts, der andere Teil ist nur nicht zu sehen.
+enum ShoppingListMode {
+  /// Ein eigener Reiter auf der ersten Seite, eine Liste fuer alle Tage.
+  tab('Eigener Reiter', 'Eine Liste für alle Tage'),
+
+  /// In den Notizen, je Tag eine eigene Liste.
+  perDay('In den Notizen', 'Jeder Tag hat seine eigene Liste');
+
+  final String label;
+  final String description;
+  const ShoppingListMode(this.label, this.description);
+
+  static ShoppingListMode fromJson(Object? v) => ShoppingListMode.values
+      .firstWhere((m) => m.name == v, orElse: () => ShoppingListMode.tab);
+}
+
+/// Ein Eintrag der Einkaufsliste.
+class ShoppingItem {
+  final String id;
+  String title;
+  bool done;
+
+  /// Der Tag, an den der Eintrag gebunden ist; null = die Liste im Reiter.
+  final DateTime? day;
+
+  /// Wann er angelegt wurde – danach richtet sich die Reihenfolge.
+  final DateTime createdAt;
+
+  ShoppingItem({
+    required this.id,
+    required this.title,
+    this.done = false,
+    DateTime? day,
+    required this.createdAt,
+  }) : day = day == null ? null : dateOnly(day);
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'title': title,
+        'done': done,
+        'day': day == null ? null : dateKey(day!),
+        'createdAt': createdAt.toIso8601String(),
+      };
+
+  factory ShoppingItem.fromJson(Map<String, dynamic> json) {
+    final storedDay = json['day'];
+    return ShoppingItem(
+      id: json['id'] as String,
+      title: json['title'] as String,
+      // Ein falsch getypter Haken ist kein Grund, den Eintrag zu verlieren.
+      done: json['done'] == true,
+      day: storedDay == null ? null : parseDateKey(storedDay as String),
+      createdAt: DateTime.parse(json['createdAt'] as String),
+    );
+  }
+}
+
 class AppState extends ChangeNotifier {
   static const _storageKey = 'joe_data_v1';
 
@@ -576,6 +637,11 @@ class AppState extends ChangeNotifier {
 
   /// Selbst angelegte Symptome, zusaetzlich zu den zehn festen.
   List<Symptom> customSymptoms = [];
+
+  /// Die Einkaufsliste – die des Reiters und die der Tage in einem
+  /// (siehe [ShoppingListMode]).
+  List<ShoppingItem> shopping = [];
+  ShoppingListMode shoppingMode = ShoppingListMode.tab;
   int themeIndex = 0;
   bool showPet = true;
   String petId = defaultPetId;
@@ -677,6 +743,8 @@ class AppState extends ChangeNotifier {
         onLoss: loss);
     customSymptoms =
         _readList(data['customSymptoms'], Symptom.fromJson, onLoss: loss);
+    shopping = _readList(data['shopping'], ShoppingItem.fromJson, onLoss: loss);
+    shoppingMode = ShoppingListMode.fromJson(data['shoppingMode']);
     // Falsch getypte Einstellungen sind kein Verlust, nur ihr Standardwert.
     // 'showCat' ist der alte Schluessel aus der Zeit vor den Begleiterbildern.
     final storedTheme = data['themeIndex'];
@@ -717,7 +785,7 @@ class AppState extends ChangeNotifier {
 
     JoeLog.log('Geladen: ${tasks.length} Aufgaben, '
         '${appointments.length} Termine, ${notes.length} Notizen, '
-        '${wellbeing.length} Befinden');
+        '${wellbeing.length} Befinden, ${shopping.length} Einkauf');
     // Aus der Zeit, als das Befinden noch am Tag hing (siehe dort).
     adoptOrphanWellbeing();
     if (losses > 0) {
@@ -843,6 +911,8 @@ class AppState extends ChangeNotifier {
           'notes': notes.map((n) => n.toJson()).toList(),
           'wellbeing': wellbeing.map((w) => w.toJson()).toList(),
           'customSymptoms': customSymptoms.map((s) => s.toJson()).toList(),
+          'shopping': shopping.map((s) => s.toJson()).toList(),
+          'shoppingMode': shoppingMode.name,
           'themeIndex': themeIndex,
           'showPet': showPet,
           'petId': petId,
@@ -1226,6 +1296,71 @@ class AppState extends ChangeNotifier {
     }
     wellbeing.removeWhere((e) => e.isEmpty);
     JoeLog.log('Symptom geloescht ($symptomId)');
+    _changed();
+  }
+
+  // ---- Einkaufsliste ----
+
+  /// Die Eintraege einer Liste: [day] null = die im Reiter, sonst die dieses
+  /// Tages. Offene zuerst, darin aelteste oben (neue landen unten, nahe am
+  /// Eingabefeld); danach die abgehakten.
+  List<ShoppingItem> shoppingItemsFor(DateTime? day) {
+    final d = day == null ? null : dateOnly(day);
+    // Die Stelle in der Liste bricht einen Gleichstand der Zeit: zwei
+    // schnell hintereinander getippte Eintraege koennen dieselbe haben, und
+    // List.sort ist nicht stabil.
+    final indexed = [
+      for (var i = 0; i < shopping.length; i++)
+        if (shopping[i].day == d) (i, shopping[i]),
+    ]..sort((a, b) {
+        final done = (a.$2.done ? 1 : 0) - (b.$2.done ? 1 : 0);
+        if (done != 0) return done;
+        final time = a.$2.createdAt.compareTo(b.$2.createdAt);
+        if (time != 0) return time;
+        return a.$1 - b.$1;
+      });
+    return [for (final (_, item) in indexed) item];
+  }
+
+  /// Legt einen Eintrag an und gibt ihn zurueck; ein leerer Titel legt
+  /// nichts an (null).
+  ShoppingItem? addShoppingItem(String title, {DateTime? day}) {
+    final trimmed = title.trim();
+    if (trimmed.isEmpty) return null;
+    final item = ShoppingItem(
+      id: nextId(),
+      title: trimmed,
+      day: day,
+      createdAt: DateTime.now(),
+    );
+    JoeLog.log('Einkauf angelegt (${item.id})');
+    shopping.add(item);
+    _changed();
+    return item;
+  }
+
+  void toggleShoppingItem(ShoppingItem item) {
+    item.done = !item.done;
+    _changed();
+  }
+
+  /// Ein leerer Titel aendert nichts – geloescht wird nur ueber
+  /// [deleteShoppingItem], mit Rueckfrage.
+  void renameShoppingItem(ShoppingItem item, String title) {
+    final trimmed = title.trim();
+    if (trimmed.isEmpty) return;
+    item.title = trimmed;
+    _changed();
+  }
+
+  void deleteShoppingItem(ShoppingItem item) {
+    JoeLog.log('Einkauf geloescht (${item.id})');
+    shopping.removeWhere((s) => s.id == item.id);
+    _changed();
+  }
+
+  void setShoppingMode(ShoppingListMode mode) {
+    shoppingMode = mode;
     _changed();
   }
 

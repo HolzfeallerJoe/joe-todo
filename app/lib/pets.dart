@@ -217,7 +217,14 @@ enum PetPage {
     PetSpot.contentTopRight,
     PetSpot.contentTopLeft,
     PetSpot.bottomLeft,
-  ]);
+  ]),
+
+  /// Die Einkaufsliste: unten steht das Eingabefeld, dort sitzt niemand.
+  ///
+  /// Neue Seiten kommen ans Ende: [PetPlacement.spotOn] mischt den Index
+  /// in den Startwert, ein Eintrag weiter vorn verschoebe die Plaetze
+  /// aller Seiten dahinter.
+  shopping([PetSpot.contentTopRight, PetSpot.contentTopLeft]);
 
   final List<PetSpot> spots;
 

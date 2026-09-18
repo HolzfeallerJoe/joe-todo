@@ -169,9 +169,16 @@ void main() {
         );
       }
       // Neben dem Plus sitzt nur, wo es ein Plus gibt.
-      for (final page in [PetPage.calendar, PetPage.noteEdit, PetPage.history]) {
+      for (final page in [
+        PetPage.calendar,
+        PetPage.noteEdit,
+        PetPage.history,
+        PetPage.shopping,
+      ]) {
         expect(page.spots, isNot(contains(PetSpot.besideFab)), reason: '$page');
       }
+      // Auf der Einkaufsliste steht unten das Eingabefeld: nur oben.
+      expect(PetPage.shopping.spots.every((s) => s.isTop), isTrue);
       // Und auf dem Dashboard, wo die Reiter bis unten reichen, darf er
       // auch unten stehen.
       expect(PetPage.dashboard.spots, contains(PetSpot.bottomLeft));
