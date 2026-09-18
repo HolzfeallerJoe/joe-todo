@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../agenda.dart';
 import '../models.dart';
-import '../util.dart';
 import '../widgets.dart';
 
 class AppointmentsScreen extends StatelessWidget {
@@ -100,8 +100,10 @@ class _AppointmentCard extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 2),
+                    // Mit Dauer steht die Spanne da; ein laufender Termin
+                    // ueber mehrere Tage nennt seine Tage selbst.
                     Text(
-                      '${formatRelativeDay(appointment.when)} · ${formatTime(appointment.when)}',
+                      appointmentListLabel(appointment),
                       style: TextStyle(color: theme.inkSoft, fontSize: 13),
                     ),
                   ],

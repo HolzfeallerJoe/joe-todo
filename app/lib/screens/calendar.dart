@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../agenda.dart';
 import '../almanac.dart';
 import '../device_calendar.dart';
 import '../models.dart';
@@ -277,7 +278,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                     ],
                     [
                       for (final a in dayAppointments)
-                        _AppointmentRow(appointment: a),
+                        _AppointmentRow(appointment: a, day: _selected),
                       // Geraete-Termine stehen bei den Terminen, aber nach
                       // den eigenen: was man selbst eingetragen hat, zuerst.
                       for (final e in dayDeviceEvents)
@@ -334,7 +335,12 @@ List<Widget> _spacedGroups(Widget gap, List<List<Widget>> groups) {
 /// Ein Termin in der Tageskarte.
 class _AppointmentRow extends StatelessWidget {
   final Appointment appointment;
-  const _AppointmentRow({required this.appointment});
+
+  /// Der angezeigte Tag: ein Termin mit Dauer steht an jedem Tag seiner
+  /// Spanne, aber nur am ersten mit seiner Uhrzeit – danach "ganztägig" bzw.
+  /// am Endtag "bis 18:00", wie auf dem Dashboard.
+  final DateTime day;
+  const _AppointmentRow({required this.appointment, required this.day});
 
   @override
   Widget build(BuildContext context) {
@@ -350,7 +356,7 @@ class _AppointmentRow extends StatelessWidget {
             Icon(Icons.schedule, size: 18, color: appointment.color),
             const SizedBox(width: 10),
             Text(
-              formatTime(appointment.when),
+              appointmentDayLabel(appointment, day),
               style: TextStyle(
                 color: theme.inkSoft,
                 fontWeight: FontWeight.w600,

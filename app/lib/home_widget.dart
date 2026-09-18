@@ -63,13 +63,16 @@ String _hex(int argb) => '#${argb.toRadixString(16).padLeft(8, '0')}';
 /// Offene zuerst, danach nach Prioritaet, und den Gleichstand bricht der
 /// Titel: `List.sort` ist nicht stabil, sonst wackelte die Reihenfolge von
 /// Schnappschuss zu Schnappschuss.
+///
+/// Liegengeblieben ist eine Aufgabe mit Dauer erst nach ihrem **letzten**
+/// Tag – wie im Dashboard (`AppState._dueToday`).
 List<Task> widgetTasksForDay(AppState state, DateTime day) {
   final d = dateOnly(day);
   final list = state.tasks.where((task) {
     if (task.occursOn(d)) return true;
     return !task.isRecurring &&
         task.completedDates.isEmpty &&
-        dateOnly(task.startDate).isBefore(d);
+        task.lastDay.isBefore(d);
   }).toList();
   list.sort((a, b) {
     final done = (a.isCompletedOn(d) ? 1 : 0) - (b.isCompletedOn(d) ? 1 : 0);
@@ -153,7 +156,12 @@ Map<String, dynamic> buildWidgetSnapshot(AppState state, {DateTime? now}) {
           {
             'title': a.title,
             'color': _hex(a.color.toARGB32()),
-            'minute': a.when.hour * 60 + a.when.minute,
+            // Die Uhrzeit nur am Starttag. An den Folgetagen eines Termins
+            // mit Dauer stuende sonst die Startzeit von gestern da; -1 heisst
+            // fuer Kotlin "ohne Uhrzeit" (JoeWidgetText.time).
+            'minute': dateOnly(a.when) == d
+                ? a.when.hour * 60 + a.when.minute
+                : -1,
           },
       ],
       'appointmentCount': appointments.length,
