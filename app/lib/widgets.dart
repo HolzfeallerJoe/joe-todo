@@ -1146,8 +1146,8 @@ void showAppointmentOptions(BuildContext context, Appointment appointment) {
   );
 }
 
-/// The 20 warm colors as dots. At this count the dots are deliberately small
-/// so the whole palette stays on two rows inside an input sheet.
+/// The 25 warm colors as dots. At this count the dots are deliberately small
+/// so the whole palette stays on a few rows inside an input sheet.
 class ColorDotPicker extends StatelessWidget {
   final int selected;
   final ValueChanged<int> onChanged;
@@ -1409,7 +1409,7 @@ class WeekdayPicker extends StatelessWidget {
 
 /// Shared chrome for the input sheets: drag handle, title, and a body that
 /// scrolls inside a height cap instead of pushing the save button off-screen
-/// once the keyboard, the date row and 20 color dots are all in play.
+/// once the keyboard, the date row and 25 color dots are all in play.
 class SheetFrame extends StatelessWidget {
   final String title;
   final List<Widget> children;
@@ -2206,14 +2206,71 @@ Future<void> showTaskSheet(
           ),
           const SizedBox(height: 14),
           const SheetLabel('Farbe'),
-          ColorDotPicker(
-            selected: colorIndex,
-            onChanged: (i) => setSheetState(() => colorIndex = i),
+          // Geben die Einstellungen der Stufe eine Farbe vor, sieht man die
+          // eigene gerade nirgends. Waehlbar bleibt sie trotzdem – sie gilt
+          // wieder, sobald dort "Keine Farbe" steht –, aber blass, damit
+          // klar ist, dass sie im Moment nicht zu sehen ist.
+          if (PriorityColors.of(priority) case final index?)
+            _PriorityColorNotice(priority: priority, colorIndex: index),
+          Opacity(
+            opacity: PriorityColors.of(priority) == null ? 1 : 0.45,
+            child: ColorDotPicker(
+              selected: colorIndex,
+              onChanged: (i) => setSheetState(() => colorIndex = i),
+            ),
           ),
         ],
       ),
     ),
   );
+}
+
+/// Der Hinweis im Aufgabenblatt, dass die Aufgabe in der Farbe ihrer
+/// Prioritaet erscheint und nicht in der eigenen (siehe [Task.color]).
+class _PriorityColorNotice extends StatelessWidget {
+  final Priority priority;
+  final int colorIndex;
+
+  const _PriorityColorNotice({
+    required this.priority,
+    required this.colorIndex,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = joeThemeOf(context);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        children: [
+          Container(
+            width: 12,
+            height: 12,
+            decoration: BoxDecoration(
+              color: taskPalette[colorIndex % taskPalette.length],
+              shape: BoxShape.circle,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text.rich(
+              TextSpan(
+                children: [
+                  const TextSpan(text: 'Wird in der Farbe der Priorität '),
+                  TextSpan(
+                    text: priority.label,
+                    style: const TextStyle(fontStyle: FontStyle.italic),
+                  ),
+                  const TextSpan(text: ' angezeigt (Einstellungen).'),
+                ],
+              ),
+              style: TextStyle(color: theme.inkSoft, fontSize: 12),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 /// Bottom sheet for creating or editing an appointment.

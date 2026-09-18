@@ -201,6 +201,57 @@ void main() {
     });
   });
 
+  group('Prioritaetsfarbe', () {
+    setUp(PriorityColors.reset);
+    tearDown(PriorityColors.reset);
+
+    Finder notice() =>
+        find.textContaining('Wird in der Farbe der Priorität');
+
+    double pickerOpacity(WidgetTester tester) => tester
+        .widget<Opacity>(find
+            .ancestor(
+              of: find.byType(ColorDotPicker),
+              matching: find.byType(Opacity),
+            )
+            .first)
+        .opacity;
+
+    testWidgets('Hoch mit Vorgabe: Hinweis, eigene Farbe blass',
+        (tester) async {
+      PriorityColors.use({Priority.hoch: 20});
+      await pumpTasksScreen(tester);
+      await openTaskSheet(tester);
+
+      // Neu ist Mittel – ohne Vorgabe, also kein Hinweis.
+      expect(notice(), findsNothing);
+      expect(pickerOpacity(tester), 1);
+
+      await tapAndSettle(tester, find.text('Hoch'));
+      expect(notice(), findsOneWidget);
+      expect(find.textContaining('Priorität Hoch angezeigt'), findsOneWidget);
+      expect(pickerOpacity(tester), 0.45);
+
+      // Wechselt man die Stufe, verschwindet er sofort wieder.
+      await tapAndSettle(tester, find.text('Mittel'));
+      expect(notice(), findsNothing);
+    });
+
+    testWidgets('die eigene Farbe bleibt waehlbar', (tester) async {
+      PriorityColors.use({Priority.hoch: 20});
+      final state = await pumpTasksScreen(tester);
+      await openTaskSheet(tester);
+
+      await tapAndSettle(tester, find.text('Hoch'));
+      await tapAndSettle(tester, find.bySemanticsLabel('Farbe Himmel'));
+      await saveAs(tester, 'Steuer');
+
+      final task = state.tasks.single;
+      expect(task.colorIndex, 21);
+      expect(task.color, taskPalette[20]);
+    });
+  });
+
   group('Dauer', () {
     final monday = DateTime(2026, 9, 14);
 
