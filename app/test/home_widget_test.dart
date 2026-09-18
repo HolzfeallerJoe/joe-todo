@@ -166,6 +166,28 @@ void main() {
       expect((day['appointments'] as List).single['minute'], 15 * 60 + 30);
     });
 
+    test('ein Termin mit Dauer traegt die Uhrzeit nur am Starttag', () {
+      // Sonst stuende an den Folgetagen die Startzeit von gestern im Widget.
+      final snapshot = snapshotOf(
+        stateWith(
+          appointments: [
+            Appointment(
+              id: 'a1',
+              title: 'Messe',
+              when: heute.add(const Duration(hours: 12)),
+              end: heute.add(const Duration(days: 2, hours: 18)),
+            ),
+          ],
+        ),
+      );
+      for (final (offset, minute) in [(0, 12 * 60), (1, -1), (2, -1)]) {
+        final day = dayOf(snapshot, heute.add(Duration(days: offset)))!;
+        expect((day['appointments'] as List).single['minute'], minute,
+            reason: 'Tag +$offset');
+      }
+      expect(dayOf(snapshot, heute.add(const Duration(days: 3))), isNull);
+    });
+
     test('merkt sich Notizen', () {
       final snapshot = snapshotOf(
         stateWith(
@@ -288,6 +310,32 @@ void main() {
         )['over'],
         isFalse,
       );
+    });
+
+    test('eine Aufgabe mit Dauer ist erst nach ihrem letzten Tag mitgeschleppt',
+        () {
+      // Von gestern bis morgen: heute und morgen ist sie faellig, nicht
+      // liegengeblieben; erst danach wird sie weitergetragen.
+      final snapshot = snapshotOf(
+        stateWith(
+          tasks: [
+            Task(
+              id: 't1',
+              title: 'Umzug',
+              startDate: heute.subtract(const Duration(days: 1)),
+              spanDays: 2,
+            ),
+          ],
+        ),
+      );
+      Map<String, dynamic> umzug(int offset) =>
+          ((dayOf(snapshot, heute.add(Duration(days: offset)))!['tasks']
+                  as List)
+              .single as Map<String, dynamic>);
+      expect(umzug(0)['over'], isFalse);
+      expect(umzug(1)['over'], isFalse);
+      expect(umzug(2)['over'], isTrue);
+      expect(umzug(5)['over'], isTrue);
     });
 
     test(

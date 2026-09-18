@@ -135,6 +135,60 @@ void main() {
     expect(clock.bottom, lessThanOrEqualTo(noteBadge.top + 1));
   });
 
+  group('Termin ueber drei Tage', () {
+    // 22.1. 12:00 bis 24.1. 18:00.
+    final messe = Appointment(
+      id: 'm',
+      title: 'Messe',
+      when: DateTime(2026, 1, 22, 12),
+      end: DateTime(2026, 1, 24, 18),
+    );
+
+    Finder clockIn(String day) => find.descendant(
+          of: find
+              .ancestor(
+                of: find.descendant(
+                  of: find.byType(GridView),
+                  matching: find.text(day),
+                ),
+                matching: find.byType(Column),
+              )
+              .first,
+          matching: find.byIcon(Icons.schedule),
+        );
+
+    testWidgets('traegt an jedem seiner Tage eine Uhr', (tester) async {
+      await pumpCalendar(tester, DateTime(2026, 1, 31),
+          appointments: [messe]);
+
+      for (final day in ['22', '23', '24']) {
+        expect(clockIn(day), findsOneWidget, reason: 'Tag $day');
+      }
+      expect(clockIn('21'), findsNothing);
+      expect(clockIn('25'), findsNothing);
+    });
+
+    testWidgets('Tagesdetail: Uhrzeit, ganztaegig, "bis …"', (tester) async {
+      // Am Starttag die Uhrzeit, danach nicht mehr die von vorgestern.
+      await pumpCalendar(tester, DateTime(2026, 1, 22),
+          appointments: [messe]);
+      for (final (day, label) in [
+        ('22', '12:00 Uhr'),
+        ('23', 'ganztägig'),
+        ('24', 'bis 18:00'),
+      ]) {
+        await tester.tap(find.descendant(
+          of: find.byType(GridView),
+          matching: find.text(day),
+        ));
+        await tester.pumpAndSettle();
+        expect(find.text('$day. Januar 2026'), findsOneWidget);
+        expect(find.text('Messe'), findsOneWidget, reason: 'Tag $day');
+        expect(find.text(label), findsOneWidget, reason: 'Tag $day');
+      }
+    });
+  });
+
   testWidgets('ohne Termin bleibt die Uhr weg', (tester) async {
     await pumpCalendar(
       tester,

@@ -3,7 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:joe_todo/agenda.dart';
+import 'package:joe_todo/device_calendar.dart' show deviceEventTimeLabel;
 import 'package:joe_todo/models.dart';
+import 'package:joe_todo/util.dart';
 
 /// Die Terminliste des Dashboards mischt zwei Quellen, die nichts
 /// voneinander wissen: die eigenen Termine und die aus den Kalendern des
@@ -66,9 +68,12 @@ void main() {
         t,
         appointments: [own('eigen-9', t.add(const Duration(hours: 9)))],
         deviceEvents: [
+          // Lokale Mitternacht, nicht UTC: so liefert das Plugin ganztaegige
+          // Termine (utcToLocalMidnight in device_calendar_plus_android,
+          // siehe eventCoversDay).
           device('feiertag',
-              start: t.toUtc(),
-              end: t.add(const Duration(days: 1)).toUtc(),
+              start: t,
+              end: DateTime(2026, 8, 24),
               allDay: true),
         ],
         deviceColor: fallback,
@@ -144,6 +149,131 @@ void main() {
       );
 
       expect(entries.map((e) => e.title), ['heute']);
+    });
+  });
+
+  group('Termine mit Dauer', () {
+    // Mo 14.9. 12:00 bis Do 17.9. 18:00 – das Beispiel aus der Anforderung.
+    final start = DateTime(2026, 9, 14, 12);
+    final ende = DateTime(2026, 9, 17, 18);
+    Appointment lang() => Appointment(
+          id: 'lang',
+          title: 'Messe',
+          when: start,
+          end: ende,
+        );
+
+    List<AgendaEntry> amTag(int day, {List<Appointment>? appointments}) =>
+        agendaForDay(
+          DateTime(2026, 9, day),
+          appointments: appointments ?? [lang()],
+          deviceColor: fallback,
+        );
+
+    test('steht an jedem Tag: Uhrzeit, ganztaegig, "bis …"', () {
+      expect(amTag(13), isEmpty);
+      expect(agendaTimeLabel(amTag(14).single), '12:00 Uhr');
+      expect(agendaTimeLabel(amTag(15).single), 'ganztägig');
+      expect(agendaTimeLabel(amTag(16).single), 'ganztägig');
+      expect(agendaTimeLabel(amTag(17).single), 'bis 18:00');
+      expect(amTag(18), isEmpty);
+    });
+
+    test('der Endtag steht vorn, weil er vor dem Tag begonnen hat', () {
+      final entries = amTag(17, appointments: [
+        Appointment(id: 'frueh', title: 'Frueh', when: DateTime(2026, 9, 17, 8)),
+        lang(),
+      ]);
+      expect(entries.map((e) => e.title), ['Messe', 'Frueh']);
+      expect(entries.first.continued, isTrue);
+      expect(entries.first.until, ende);
+      expect(entries.first.allDay, isFalse);
+    });
+
+    test('ein Ende um Mitternacht gehoert nicht mehr auf den Folgetag', () {
+      final bisMitternacht = Appointment(
+        id: 'm',
+        title: 'Nachtschicht',
+        when: DateTime(2026, 9, 14, 20),
+        end: DateTime(2026, 9, 16),
+      );
+      // Der 15. ist sein letzter Tag – und den hat er ganz.
+      expect(
+        agendaTimeLabel(amTag(15, appointments: [bisMitternacht]).single),
+        'ganztägig',
+      );
+      expect(amTag(16, appointments: [bisMitternacht]), isEmpty);
+    });
+
+    test('am selben Tag: kurz im Dashboard, ganz in der Spanne', () {
+      final kurz = Appointment(
+        id: 'k',
+        title: 'Mittag',
+        when: DateTime(2026, 9, 14, 12),
+        end: DateTime(2026, 9, 14, 14),
+      );
+      expect(agendaTimeLabel(amTag(14, appointments: [kurz]).single),
+          '12:00 Uhr');
+      expect(appointmentRangeLabel(kurz), '12:00 – 14:00 Uhr');
+    });
+
+    test('die Spanne nennt ueber mehrere Tage beide Tage', () {
+      expect(
+        appointmentRangeLabel(lang()),
+        'Mo, 14. Sep 12:00 – Do, 17. Sep 18:00',
+      );
+      expect(
+        appointmentRangeLabel(
+          Appointment(id: 'p', title: 'Punkt', when: DateTime(2026, 9, 14, 9)),
+        ),
+        '09:00 Uhr',
+      );
+    });
+
+    test('appointmentDayLabel redet wie das Dashboard', () {
+      for (final day in [14, 15, 16, 17]) {
+        expect(
+          appointmentDayLabel(lang(), DateTime(2026, 9, day, 10, 30)),
+          agendaTimeLabel(amTag(day).single),
+          reason: 'Tag $day',
+        );
+      }
+    });
+
+    test('Terminliste: relativer Tag nur ohne mehrere Tage', () {
+      final heute = today();
+      final kurz = Appointment(
+        id: 'k',
+        title: 'Mittag',
+        when: heute.add(const Duration(hours: 12)),
+        end: heute.add(const Duration(hours: 14)),
+      );
+      expect(appointmentListLabel(kurz), 'Heute · 12:00 – 14:00 Uhr');
+      final punkt = Appointment(
+        id: 'p',
+        title: 'Punkt',
+        when: heute.add(const Duration(hours: 9)),
+      );
+      expect(appointmentListLabel(punkt), 'Heute · 09:00 Uhr');
+      expect(appointmentListLabel(lang()), appointmentRangeLabel(lang()));
+    });
+
+    test('Geraete-Termine: Dashboard und Kalender sagen dasselbe', () {
+      // 13.8. 18:00 bis 15.8. 09:00. Die beiden Beschriftungen stehen in
+      // zwei Dateien; auseinanderlaufen duerfen sie nicht.
+      final e = device('umzug',
+          start: DateTime(2026, 8, 13, 18), end: DateTime(2026, 8, 15, 9));
+      for (final day in [13, 14, 15]) {
+        final d = DateTime(2026, 8, day);
+        final entry = agendaForDay(
+          d,
+          appointments: const [],
+          deviceEvents: [e],
+          deviceColor: fallback,
+        ).single;
+        expect(agendaTimeLabel(entry), deviceEventTimeLabel(e, d),
+            reason: 'Tag $day');
+      }
     });
   });
 }

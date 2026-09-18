@@ -22,6 +22,14 @@ class AgendaEntry {
   /// Ohne eigene Uhrzeit an diesem Tag: "ganztägig" statt "14:30 Uhr".
   final bool allDay;
 
+  /// Der Termin hat vor diesem Tag begonnen – hier laeuft er nur weiter.
+  final bool continued;
+
+  /// Wann der Termin an diesem Tag endet; null, wenn er nicht an diesem Tag
+  /// endet (oder gar kein Ende hat). Am Endtag eines mehrtaegigen Termins
+  /// wird daraus "bis 18:00".
+  final DateTime? until;
+
   /// Nur eigene Termine haben eine Prioritaet.
   final Priority? priority;
 
@@ -33,6 +41,8 @@ class AgendaEntry {
     required this.title,
     required this.color,
     this.allDay = false,
+    this.continued = false,
+    this.until,
     this.priority,
     this.appointment,
   });
@@ -44,6 +54,8 @@ class AgendaEntry {
 /// danach nach Uhrzeit, und bei gleicher Zeit die eigenen vor denen des
 /// Geraets – was man selbst eingetragen hat, steht vorn (so haelt es auch
 /// das Tagesdetail im Kalender).
+///
+/// Ein eigener Termin mit Dauer steht an jedem Tag seiner Spanne.
 ///
 /// [deviceEvents] sind die Termine, die diesen Tag beruehren; der Aufrufer
 /// holt sie aus `DeviceCalendarFeed.eventsForDay`. Die Funktion selbst kennt
@@ -57,14 +69,7 @@ List<AgendaEntry> agendaForDay(
   final d = dateOnly(day);
   final entries = <AgendaEntry>[
     for (final a in appointments)
-      if (dateOnly(a.when) == d)
-        AgendaEntry(
-          when: a.when,
-          title: a.title,
-          color: a.color,
-          priority: a.priority,
-          appointment: a,
-        ),
+      if (a.coversDay(d)) _ownEntry(a, d),
     for (final e in deviceEvents)
       _deviceEntry(e, d, deviceColor),
   ];
@@ -78,20 +83,88 @@ List<AgendaEntry> agendaForDay(
   return entries;
 }
 
+/// Ein eigener Termin an [day] (einem Tag seiner Spanne):
+///   Starttag  -> mit seiner Uhrzeit
+///   Mitteltag -> ganztaegig
+///   Endtag    -> "bis 18:00"
+/// Endet er um Mitternacht, ist der Tag davor sein letzter und steht ganz
+/// als "ganztägig" da – das Ende ist exklusiv (siehe [Appointment.end]).
+AgendaEntry _ownEntry(Appointment a, DateTime day) {
+  final end = a.end;
+  final until =
+      end != null && end.isAfter(a.when) && _endsWithTimeOn(end, day)
+          ? end
+          : null;
+  final continued = dateOnly(a.when) != day;
+  return AgendaEntry(
+    // Folgetage stehen auf dem Tagesbeginn, wie die des Geraets.
+    when: continued ? day : a.when,
+    title: a.title,
+    color: a.color,
+    allDay: continued && until == null,
+    continued: continued,
+    until: until,
+    priority: a.priority,
+    appointment: a,
+  );
+}
+
+/// Ob ein Termin mit dem (exklusiven) Ende [end] an [day] zu einer Uhrzeit
+/// endet. Ein Ende genau um Mitternacht zaehlt nicht: dann gehoert [day]
+/// schon nicht mehr zum Termin.
+bool _endsWithTimeOn(DateTime end, DateTime day) =>
+    dateOnly(end) == day && end.isAfter(day);
+
 AgendaEntry _deviceEntry(Event event, DateTime day, Color fallback) {
   final start = event.startDate.toLocal();
   // Ein mehrtaegiger Termin faengt an seinen Folgetagen nicht noch einmal an:
   // dort ist er den ganzen Tag da, und die Uhrzeit von vorgestern waere
-  // schlicht falsch.
+  // schlicht falsch. Auch sein Endtag heisst hier noch "ganztägig" – genau
+  // wie im Tagesdetail des Kalenders (deviceEventTimeLabel); beide reden
+  // dieselbe Sprache und stellen nur gemeinsam um.
   final allDay = event.isAllDay || dateOnly(start) != day;
   return AgendaEntry(
     when: allDay ? day : start,
     title: event.title,
     color: event.color ?? fallback,
     allDay: allDay,
+    continued: dateOnly(start).isBefore(day),
   );
 }
 
-/// Die Zeile rechts an einem Eintrag: "14:30 Uhr" bzw. "ganztägig".
-String agendaTimeLabel(AgendaEntry entry) =>
-    entry.allDay ? 'ganztägig' : formatTime(entry.when);
+/// Die Zeile rechts an einem Eintrag: "14:30 Uhr", "ganztägig" bzw. am
+/// Endtag eines mehrtaegigen Termins "bis 18:00". Alle drei sind kurz genug
+/// fuer die schmale Zeitspalte des Dashboards.
+String agendaTimeLabel(AgendaEntry entry) {
+  if (entry.allDay) return 'ganztägig';
+  final until = entry.until;
+  if (entry.continued && until != null) return 'bis ${formatHm(until)}';
+  return formatTime(entry.when);
+}
+
+/// Wie [agendaTimeLabel], aber fuer einen eigenen Termin an [day] – die
+/// Tageszeile im Kalender.
+String appointmentDayLabel(Appointment a, DateTime day) =>
+    agendaTimeLabel(_ownEntry(a, dateOnly(day)));
+
+/// Die ganze Spanne eines eigenen Termins, fuer Tagesdetail und Terminliste:
+/// "12:00 Uhr", "12:00 – 14:00 Uhr", "Mo, 14. Sep 12:00 – Do, 17. Sep 18:00".
+String appointmentRangeLabel(Appointment a) {
+  final end = a.end;
+  if (end == null || !end.isAfter(a.when)) return formatTime(a.when);
+  return formatSpan(a.when, end);
+}
+
+/// Die Unterzeile einer Karte im Reiter "Termine": "Heute · 12:00 Uhr",
+/// "Morgen · 12:00 – 14:00 Uhr". Ein Termin ueber mehrere Tage nennt seine
+/// Tage schon in der Spanne; "Heute" davor waere doppelt.
+String appointmentListLabel(Appointment a) {
+  final end = a.end;
+  final range = appointmentRangeLabel(a);
+  // Dieselbe Grenze wie in formatSpan: sobald das Ende auf einem anderen
+  // Datum liegt, traegt die Spanne beide Tage.
+  if (end != null && end.isAfter(a.when) && dateOnly(end) != dateOnly(a.when)) {
+    return range;
+  }
+  return '${formatRelativeDay(a.when)} · $range';
+}
