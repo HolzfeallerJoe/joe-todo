@@ -102,4 +102,89 @@ void main() {
       semantics.dispose();
     });
   });
+
+  group('Prioritaetsfarben', () {
+    // Die Tabelle ist statisch; ein Test darf dem naechsten keine Farbe
+    // hinterlassen.
+    tearDown(PriorityColors.reset);
+
+    /// Die Zeile der Stufe [p] in der Karte "Prioritaeten".
+    Finder row(Priority p) => find.ancestor(
+          of: find.text('Stufe ${p.level} · ${p.label}'),
+          matching: find.byType(ListTile),
+        );
+
+    /// Was die Zeile der Stufe [p] rechts nennt.
+    Finder rowShows(Priority p, String text) =>
+        find.descendant(of: row(p), matching: find.text(text));
+
+    Finder inSheet(Finder finder) =>
+        find.descendant(of: find.byType(BottomSheet), matching: finder);
+
+    testWidgets('drei Stufen, anfangs ohne Farbe', (tester) async {
+      await pumpSettings(tester);
+
+      expect(find.text('Prioritäten'), findsOneWidget);
+      for (final p in Priority.values) {
+        expect(rowShows(p, 'Keine Farbe'), findsOneWidget);
+      }
+    });
+
+    testWidgets('Hoch bekommt Mint und gibt es wieder ab', (tester) async {
+      final state = await pumpSettings(tester);
+
+      await tester.tap(row(Priority.hoch));
+      await tester.pumpAndSettle();
+      expect(inSheet(find.text('Farbe für Hoch')), findsOneWidget);
+      expect(
+        tester.getSemantics(inSheet(find.text('Keine Farbe'))),
+        isSemantics(isSelected: true, isButton: true),
+      );
+      // Alle 25 Farben stehen zur Wahl.
+      for (final name in taskPaletteNames) {
+        expect(inSheet(find.bySemanticsLabel('Farbe $name')), findsOneWidget);
+      }
+
+      await tester.tap(inSheet(find.bySemanticsLabel('Farbe Mint')));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(BottomSheet), findsNothing);
+      expect(state.priorityColors[Priority.hoch], 20);
+      expect(PriorityColors.of(Priority.hoch), 20);
+      expect(rowShows(Priority.hoch, 'Mint'), findsOneWidget);
+      expect(rowShows(Priority.mittel, 'Keine Farbe'), findsOneWidget);
+
+      // Wieder oeffnen: jetzt ist Mint markiert, "Keine Farbe" nimmt sie weg.
+      await tester.tap(row(Priority.hoch));
+      await tester.pumpAndSettle();
+      expect(
+        tester.getSemantics(inSheet(find.bySemanticsLabel('Farbe Mint'))),
+        isSemantics(isSelected: true),
+      );
+
+      await tester.tap(inSheet(find.text('Keine Farbe')));
+      await tester.pumpAndSettle();
+
+      expect(state.priorityColors.containsKey(Priority.hoch), isFalse);
+      expect(PriorityColors.of(Priority.hoch), isNull);
+      expect(rowShows(Priority.hoch, 'Keine Farbe'), findsOneWidget);
+    });
+
+    testWidgets('die Punkte im Blatt sind gross genug fuer den Finger',
+        (tester) async {
+      await pumpSettings(tester);
+
+      await tester.tap(row(Priority.niedrig));
+      await tester.pumpAndSettle();
+
+      Rect dot(int i) => tester.getRect(
+          inSheet(find.bySemanticsLabel('Farbe ${taskPaletteNames[i]}')));
+      final first = dot(0);
+      final sixth = dot(5);
+      expect(first.width, greaterThanOrEqualTo(40));
+      // Fuenf je Reihe: der sechste beginnt die zweite Reihe.
+      expect(sixth.left, moreOrLessEquals(first.left, epsilon: 0.5));
+      expect(sixth.top, greaterThan(first.bottom));
+    });
+  });
 }

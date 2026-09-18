@@ -62,6 +62,25 @@ class SettingsScreen extends StatelessWidget {
                 ),
               ),
             ),
+            const SectionTitle('Prioritäten'),
+            _TileCard(
+              padding: const EdgeInsets.fromLTRB(14, 4, 14, 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  for (final p in Priority.values)
+                    _PriorityColorRow(priority: p, theme: theme),
+                  const SizedBox(height: 4),
+                  // Die Regel in einem Satz, sonst fragt man sich, warum
+                  // nach "Keine Farbe" wieder bunte Aufgaben dastehen.
+                  Text(
+                    'Keine Farbe: Aufgaben zeigen ihre eigene Farbe aus dem '
+                    'Aufgabenblatt. Termine behalten immer ihre eigene.',
+                    style: TextStyle(color: theme.inkSoft, fontSize: 13),
+                  ),
+                ],
+              ),
+            ),
             const SectionTitle('Begleiter'),
             _TileCard(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
@@ -696,6 +715,238 @@ class _TileCard extends StatelessWidget {
         type: MaterialType.transparency,
         borderRadius: BorderRadius.circular(16),
         child: child,
+      ),
+    );
+  }
+}
+
+/// Eine Zeile unter "Prioritaeten": die Stufe links, rechts die Farbe, die
+/// die Einstellung ihr gibt – oder "Keine Farbe". Ein Tipp oeffnet die
+/// Auswahl.
+class _PriorityColorRow extends StatelessWidget {
+  final Priority priority;
+  final JoeTheme theme;
+
+  const _PriorityColorRow({required this.priority, required this.theme});
+
+  @override
+  Widget build(BuildContext context) {
+    final state = AppScope.of(context);
+    final index = state.priorityColors[priority];
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      title: Text(
+        'Stufe ${priority.level} · ${priority.label}',
+        style: TextStyle(color: theme.ink, fontSize: 16),
+      ),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (index != null) ...[
+            _ColorDot(color: taskPalette[index], size: 16),
+            const SizedBox(width: 8),
+          ],
+          Text(
+            index == null ? 'Keine Farbe' : taskPaletteNames[index],
+            style: TextStyle(
+              color: index == null ? theme.inkSoft : theme.ink,
+              fontSize: 14,
+            ),
+          ),
+          const SizedBox(width: 4),
+          Icon(Icons.chevron_right, color: theme.ink),
+        ],
+      ),
+      onTap: () => showJoeSheet(
+        context,
+        expand: true,
+        builder: (_) => _PriorityColorSheet(
+          state: state,
+          priority: priority,
+          theme: theme,
+        ),
+      ),
+    );
+  }
+}
+
+/// Ein gefuellter Farbpunkt mit feinem Rand – der Rand haelt helle Farben
+/// wie Mint auf hellem Papier sichtbar.
+class _ColorDot extends StatelessWidget {
+  final Color color;
+  final double size;
+
+  const _ColorDot({required this.color, required this.size});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: color,
+        shape: BoxShape.circle,
+        border: Border.all(color: const Color(0x33513A1F)),
+      ),
+    );
+  }
+}
+
+/// Das Blatt "Farbe fuer Hoch": oben "Keine Farbe", darunter die ganze
+/// Palette. Ein Tipp setzt die Farbe und schliesst das Blatt – es gibt nur
+/// eine Wahl zu treffen, ein Speichern-Knopf waere ein Tipp zu viel.
+class _PriorityColorSheet extends StatelessWidget {
+  final AppState state;
+  final Priority priority;
+  final JoeTheme theme;
+
+  const _PriorityColorSheet({
+    required this.state,
+    required this.priority,
+    required this.theme,
+  });
+
+  /// Der [ColorDotPicker] ist fuers enge Aufgabenblatt gebaut: Punkte zu
+  /// 28 px mit 8 px Abstand, so viele je Reihe, wie Platz ist. Hier ist
+  /// Platz, und die Wahl gilt fuer viele Aufgaben auf einmal – also
+  /// derselbe Waehler, auf genau fuenf Punkte Breite gestellt (5 × 5 bei 25
+  /// Farben) und so weit vergroessert, dass jeder Punkt 44 px misst, eine
+  /// volle Fingerkuppe. FittedBox skaliert auch die Tippflaechen mit.
+  static const _pickerDot = 28.0;
+  static const _pickerGap = 8.0;
+  static const _perRow = 5;
+  static const _dotSize = 44.0;
+  static const _pickerWidth = _perRow * _pickerDot + (_perRow - 1) * _pickerGap;
+
+  void _pick(BuildContext context, int? index) {
+    state.setPriorityColor(priority, index);
+    Navigator.pop(context);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final selected = state.priorityColors[priority];
+    return SafeArea(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.only(bottom: 20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              margin: const EdgeInsets.only(top: 10, bottom: 6),
+              decoration: BoxDecoration(
+                color: theme.inkSoft.withValues(alpha: 0.4),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 6, 20, 4),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'Farbe für ${priority.label}',
+                  style: TextStyle(
+                    color: theme.ink,
+                    fontSize: 17,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'Gilt für alle Aufgaben dieser Stufe, auch die schon '
+                  'angelegten.',
+                  style: TextStyle(color: theme.inkSoft, fontSize: 13),
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              child: _NoColorOption(
+                theme: theme,
+                selected: selected == null,
+                onTap: () => _pick(context, null),
+              ),
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: _pickerWidth * _dotSize / _pickerDot,
+              child: FittedBox(
+                child: SizedBox(
+                  width: _pickerWidth,
+                  child: ColorDotPicker(
+                    // -1 trifft keinen Punkt: bei "Keine Farbe" ist keiner
+                    // markiert.
+                    selected: selected ?? -1,
+                    onChanged: (i) => _pick(context, i),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// "Keine Farbe" als eigene Zeile ueber der Palette: ein leerer,
+/// durchgestrichener Kreis plus Text, markiert wie der gewaehlte Begleiter.
+class _NoColorOption extends StatelessWidget {
+  final JoeTheme theme;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _NoColorOption({
+    required this.theme,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      selected: selected,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+          decoration: BoxDecoration(
+            color: selected ? theme.accent.withValues(alpha: 0.14) : null,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: selected
+                  ? theme.accent
+                  : theme.inkSoft.withValues(alpha: 0.3),
+              width: selected ? 2 : 1,
+            ),
+          ),
+          child: Row(
+            children: [
+              Icon(Icons.block, color: theme.inkSoft, size: 28),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'Keine Farbe',
+                  style: TextStyle(
+                    color: selected ? theme.accent : theme.ink,
+                    fontSize: 16,
+                    fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                  ),
+                ),
+              ),
+              if (selected) Icon(Icons.check, color: theme.accent),
+            ],
+          ),
+        ),
       ),
     );
   }
