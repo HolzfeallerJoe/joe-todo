@@ -6,24 +6,34 @@ Dashboard, Kalender, wiederkehrenden Aufgaben, Notizen und Historie.
 ## Features
 
 - **Dashboard** – **eine** Heute-Karte für alles von heute. Oben das Datum,
-  darunter beide Zahlen des Tages in einem Satz („3 offene Aufgaben und 2
-  Termine heute"), dann zwei Ausklappmenüs: „Heute abhaken" zum Abhaken und
-  „Heutige Termine" zum Nachsehen. Aufgaben und Termine beantworten dieselbe
+  darunter beide Zahlen des Tages in zwei Zeilen, die Zahlen rechtsbündig
+  untereinander („3 offene Aufgaben" / „2 Termine heute"), damit man sie auf
+  einen Blick vergleicht – auch bei „12" über „3". Die Wortspalte ist
+  flexibel (`TodayHeadline` ist eine `Table`), bei großer Systemschrift
+  bricht ein Wort also in seiner Zeile um, statt über den Kartenrand zu
+  laufen. Vorgelesen wird es als ein Satz mit „und" („3 offene Aufgaben und
+  2 Termine heute"): zwei Zeilen ohne Bindewort klängen abgehackt, und die
+  Maestro-Flows prüfen genau diesen Satz. Dann zwei Ausklappmenüs: „Heute
+  abhaken" zum Abhaken und „Heutige Termine" zum Nachsehen. Aufgaben und Termine beantworten dieselbe
   Frage – was ist heute? –, also teilen sie sich eine Karte und eine
   Kopfzeile; zwei Karten liessen den Tag in zwei Hälften zerfallen und sagten
   zweimal „heute". Beide Menüs klappen für sich und merken sich ihren Stand
   (`todayExpanded`, `appointmentsExpanded`). Darunter die Ordner-Reiter zu
   allen Bereichen (Layout nach der Referenz aus `requirements/`), in der
-  Reihenfolge Aufgaben, Termine, Kalender, Notizen, Historie, Einstellungen.
+  Reihenfolge Aufgaben, Termine, Kalender, Notizen, Einkaufsliste,
+  Historie, Einstellungen – die Einkaufsliste nur im Modus „Eigener Reiter"
+  (siehe unten).
   Die Terminliste zeigt beide Quellen in einer Reihe – die eigenen Termine
   und die aus den Kalendern des Geräts (siehe unten); gerechnet wird das in
   `lib/agenda.dart`, plugin-frei und damit prüfbar. Sie zeigt **heute**, das
   schon Vergangene eingeschlossen: die Zahl darüber und die Liste darunter
   sollen dasselbe meinen. Was später kommt, steht im Reiter „Termine" und im
-  Kalender.
+  Kalender. Ein Termin mit Dauer steht an jedem Tag seiner Spanne darin
+  (siehe „Termine").
 - **Prioritäten** – drei Stufen für Aufgaben und Termine. Stufe 3
-  („Niedrig") ist die leise, und die Grenze ist ihr **Fälligkeitstag**: an
-  ihm ist sie eine Aufgabe wie jede andere — sie steht unter „Heute abhaken"
+  („Niedrig") ist die leise, und die Grenze ist ihr **Fälligkeitstag** – bei
+  einer Aufgabe mit Dauer ihr letzter Tag: bis dahin ist sie eine Aufgabe
+  wie jede andere — sie steht unter „Heute abhaken"
   und zählt in „x offene Aufgaben heute". Erst danach fällt sie aus der Zahl
   heraus und wandert in den Block „Hat Zeit", neuste zuerst und mit
   „offen seit …". Sie sollte an ihrem Tag erledigt sein, muss aber nicht —
@@ -35,10 +45,63 @@ Dashboard, Kalender, wiederkehrenden Aufgaben, Notizen und Historie.
   einem Bildschirm, die sich widersprechen, wären das Schlimmste hier.
   Liegenbleiben kann übrigens nur eine einmalige Aufgabe: eine
   wiederkehrende ist an einem Tag entweder fällig oder gar nicht dabei.
+  Überfällig heißt überall „nach dem letzten Tag" (`Task.lastDay`): eine
+  Aufgabe von Montag bis Donnerstag ist am Mittwoch fällig, nicht
+  überfällig – im Dashboard, im Aufgaben-Reiter samt „offen seit …" in der
+  Aufgabenzeile und in den Startbildschirm-Widgets.
+
+  **Prioritätsfarben:** In den Einstellungen bekommt jede Stufe eine der 25
+  Farben oder „Keine Farbe" (Standard für alle drei, nach dem Update sieht
+  also alles aus wie vorher). Der Abschnitt „Prioritäten" steht direkt unter
+  „Design"; ein Tipp auf eine Stufe öffnet ein Blatt mit „Keine Farbe" oben
+  und darunter der Palette als 5×5-Raster – derselbe `ColorDotPicker` wie
+  im Aufgabenblatt, nur mit fingergroßen Punkten, denn die Wahl gilt für
+  viele Aufgaben auf einmal. Ein Hinweis unter den Stufen sagt, dass Termine
+  ihre Farbe behalten. Gibt die Einstellung der gewählten Stufe eine Farbe
+  vor, sagt das Aufgabenblatt es unter „Farbe" („Wird in der Farbe der
+  Priorität *Hoch* angezeigt (Einstellungen)."); die eigene Farbe wird
+  blass, bleibt aber wählbar – sie gilt wieder, sobald die Stufe auf „Keine
+  Farbe" steht. Die Farbe wirkt **beim Anzeigen**: wer „Hoch"
+  auf Mint stellt, sieht jede Hoch-Aufgabe mint, auch die schon
+  angelegten – in Listen, Dashboard, Kalender und Startbildschirm-Widget.
+  Die eigene Farbe der Aufgabe wird dabei nie überschrieben; „Keine Farbe"
+  bringt sie überall zurück. In die Aufgabe kopiert beim Anlegen wäre das
+  nicht umkehrbar, und alte Aufgaben blieben bunt gemischt. Das gilt nur für
+  **Aufgaben**, Termine behalten ihre eigene Farbe. Umgesetzt ist es in
+  `Task.color`, das die wirksame Farbe liefert (`ownColor` ist die aus dem
+  Blatt); die Tabelle dahinter hält `PriorityColors` statisch, aus demselben
+  Grund wie `PetPlacement`: `Task.color` wird an vielen Stellen ohne
+  `BuildContext` gelesen (Kalender, Listen, Widget-Schnappschuss), und jede
+  soll dieselbe Farbe sehen. Gesetzt wird sie nur vom `AppState`, beim Laden
+  und in `setPriorityColor`.
 - **Aufgaben** – eigener Reiter mit allen Aufgaben nach Heute, Hat Zeit,
   Demnächst, Wiederkehrend und Erledigt; abgehakt bleibt eine Aufgabe in
   ihrem Block stehen, damit sich ein wiederkehrender Haken zurücknehmen
   lässt.
+
+  **Dauer:** Aufgaben und Termine können eine Dauer haben („Mo 12:00 bis
+  Do 18:00"), der Schalter „Dauer" im Blatt macht sie an; aus ist der
+  Normalfall. Eine einmalige Aufgabe bekommt „Von" und „Bis" mit Datum und
+  Uhrzeit (eingeschaltet 12:00 bis 18:00 am selben Tag); verschiebt man den
+  Anfang, wandert das Ende mit, die Dauer bleibt. Länger als ein Jahr geht
+  nicht. Bei einer wiederkehrenden gäbe es ein Enddatum nur für die erste
+  Wiederholung, deshalb zählt dort ein Tageszähler ab jedem
+  Wiederholungstag („am selben Tag", „+1 Tag", „+3 Tage", mit Start- und
+  Enduhrzeit). Jede Wiederholung bekommt dieselbe Dauer, und zwei dürfen
+  sich nicht überlappen – sonst wäre unklar, welche man abhakt: der Zähler
+  stoppt vor der nächsten Wiederholung (`Task.maxSpanDays`, bei Mo+Mi also
+  bei „+1 Tag") und sagt darunter, warum; wer die Wiederholung danach
+  verkürzt, bekommt beim Speichern einen Toast. Ein Ende vor dem Anfang
+  lehnt das Blatt ebenso ab.
+
+  Eine Aufgabe mit Dauer ist an **jedem** Tag ihrer Spanne fällig: sie steht
+  unter „Heute abhaken", zählt in „x offene Aufgaben" und hat im Kalender an
+  jedem Tag ihren Punkt. Abgehakt wird sie **einmal**, dann ist sie an allen
+  Tagen erledigt – eine wiederkehrende einmal je Wiederholung. Die
+  Aufgabenzeile nennt die Spanne („12:00 – 18:00 Uhr" bzw. „Mo, 14. Sep
+  12:00 – Do, 17. Sep 18:00"), „Demnächst" die Tage, „Wiederkehrend" die
+  Länge („Mo, Mi · 2 Tage"). Die Erinnerung kommt nur am **ersten** Tag der
+  Spanne, sonst käme bei „Mo bis Do" jeden Morgen dieselbe.
 - **Kalender** – Monatsansicht; jeder Tag trägt drei Reihen untereinander:
 
   1. die **Punkte** der Aufgaben, in ihrer Farbe (erledigte bleiben sichtbar,
@@ -51,6 +114,10 @@ Dashboard, Kalender, wiederkehrenden Aufgaben, Notizen und Historie.
   ihnen zu unterscheiden — ob an einem Tag ein Termin liegt, ist aber das
   Erste, was man wissen will. Tagesdetail darunter, mit einem Plus, das nach
   Aufgabe oder Termin fragt, und einem Knopf für eine Notiz an diesem Tag.
+  Aufgaben und Termine mit Dauer stehen an jedem Tag ihrer Spanne, mit
+  Punkt bzw. Uhr; im Tagesdetail trägt ein mehrtägiger Termin am Starttag
+  seine Uhrzeit, an den Mitteltagen „ganztägig" und am Endtag „bis 18:00"
+  (`appointmentDayLabel` in `lib/agenda.dart`).
 - **Feiertage & Mondphasen** – beides rechnet die App selbst aus
   (`lib/almanac.dart`: Gauß-Osterformel bzw. Meeus-Mondalgorithmus), kein
   Netz, keine Berechtigung. Feiertage tragen einen Stern links des „N",
@@ -71,14 +138,49 @@ Dashboard, Kalender, wiederkehrenden Aufgaben, Notizen und Historie.
   unter „Heutige Termine", dort mit dem Kalender-Zeichen statt des
   Farbpunkts: sie sind reine Anzeige, gepflegt werden sie in der App, aus
   der sie kommen. Ein
-  mehrtägiger Termin fängt an seinen Folgetagen nicht neu an – er steht dort
-  als „ganztägig", nicht mit der Uhrzeit von vorgestern. Damit landet alles, was
+  mehrtägiger Termin fängt an seinen Folgetagen nicht neu an – im Dashboard
+  wie im Tagesdetail des Kalenders steht er an den Mitteltagen als
+  „ganztägig", nicht mit der Uhrzeit von vorgestern, und am Endtag mit
+  „bis 09:00", genau wie ein eigener Termin mit Dauer
+  (`deviceEventTimeLabel` und `_deviceEntry` reden dieselbe Sprache). Ein
+  Ende genau um Mitternacht belegt den Folgetag nicht. Ganztägige Termine
+  kommen vom Plugin (`device_calendar_plus` 0.8.0 /
+  `device_calendar_plus_android` 0.7.1) schon als **lokale** Mitternacht –
+  es rechnet die UTC-Mitternacht des Calendar Providers selbst um – und
+  werden in `eventCoversDay` nur noch nach Datum einsortiert. Eine zweite
+  UTC-Umrechnung hatte sie in jeder Zeitzone östlich von UTC auf den Vortag
+  geschoben und zwei Tage belegen lassen; bei einem Plugin-Update ist das
+  die Stelle zum Nachsehen. Die CI läuft unter UTC und hätte den Fehler nie
+  gezeigt, die Tests bauen Ganztagstermine deshalb so, wie das Plugin sie
+  liefert (lokal), und der Nachweis läuft auf dem Entwicklerrechner
+  (Europe/Berlin; Dart ignoriert unter Windows die Variable `TZ`). Damit
+  landet alles, was
   die Google-Kalender-App synchronisiert – Gmail-Termine, abonnierte
   Kalender –, ohne dass Joe selbst ins Netz spricht. Standard: aus; der
   Schalter in den Einstellungen fragt die Kalender-Berechtigung an, ein
   Untermenü darunter wählt, welche der Kalender überhaupt gezeigt werden
   (siehe „Daten & Sicherheit").
-- **Wiederkehrende Aufgaben** – täglich, wöchentlich, monatlich, alle X Tage.
+- **Wiederkehrende Aufgaben** – im Aufgabenblatt die Chips Einmalig,
+  Monatlich, Jährlich und Alle X Tage, darunter eine Wochenskala Mo–So
+  (`WeekdayPicker`) für einen oder mehrere Wochentage. Genau eins ist aktiv:
+  ein Chip leert die Skala, ein Tag auf der Skala nimmt dem Chip die
+  Markierung, und wer den letzten Tag abwählt, ist wieder bei „Einmalig" –
+  keine Tage markiert heißt keine Wochenwiederholung. „Täglich" ist keine
+  eigene Art mehr, sondern alle sieben Tage markiert; zwei Wege zum selben
+  Ergebnis hätten nur gefragt, welcher gilt. Die Beschriftung sagt dann
+  „Täglich", bei Mo–Fr „Werktags", bei Sa+So „Am Wochenende", bei einem Tag
+  „Jeden Montag", sonst die Kurznamen („Mo, Mi, Fr"). Bei Monatlich und
+  Jährlich steht unter den Chips, an welchem Tag („am 14. jedes Monats",
+  „jedes Jahr am 14. März"). Jährlich am 29. Februar heißt in Jahren ohne
+  Schalttag: am 28.; monatlich am 31. lässt die Monate ohne 31. aus. „Alle
+  X Tage" beginnt bei 2 – jeden Tag deckt die Wochenskala ab – und zählt in
+  **Kalendertagen**, nicht in Stunden: über die Sommerzeit-Umstellung im
+  März fehlt zwischen zwei Mitternächten eine Stunde, und die alte Rechnung
+  (`Duration.inDays`) verschob die Reihe dadurch bis zum Herbst um einen
+  Tag (`calendarDaysBetween` in `lib/util.dart`). Aufgaben aus der Fassung
+  davor laufen weiter wie gewohnt: „täglich" wird beim Laden zu
+  „wöchentlich an allen Tagen", „wöchentlich" ohne Tage behält den
+  Wochentag seines Starts.
 - **Notizen** – einfache Liste + Editor, ohne Untermenüs; speichert beim
   Zurückgehen automatisch. Jede Notiz hängt an einem Tag (Standard: der Tag,
   an dem sie entsteht), der im Editor umgestellt werden kann. Der Editor
@@ -89,7 +191,9 @@ Dashboard, Kalender, wiederkehrenden Aufgaben, Notizen und Historie.
   Stelle, sobald die Liste wuchs – ein Tipp auf „Weiterer Eintrag" landete
   dann auf der Zeile darüber, und die Vorlesehilfe hätte danebengezielt.
   Ein Test in `wellbeing_test.dart` hält fest, dass dort keine zweite
-  Scroll-Liste zurückkommt.
+  Scroll-Liste zurückkommt. Steht die Einkaufsliste auf „In den Notizen",
+  trägt die Seite oben den Umschalter „Notizen | Einkaufsliste" (siehe
+  unten).
 - **Befinden** – wie es einem geht: eine Stimmung (Sehr gut, Gut, Okay,
   Naja, Schlecht) und darunter Symptome, jedes mit einer Fünf-Punkte-Skala.
   Zehn stehen fest (Kopfschmerzen, Rückenschmerzen, Gelenkschmerzen,
@@ -128,9 +232,54 @@ Dashboard, Kalender, wiederkehrenden Aufgaben, Notizen und Historie.
   Karte wie überall, die dazusagt, in wie vielen Einträgen Werte daran
   hängen. Die gehen mit: sie gehörten zu einem Namen, den es nicht mehr
   gibt, und wären nirgends mehr zu sehen.
-- **Historie** – alle erledigten Aufgaben, nach Tag gruppiert.
-- **Termine** – mit Datum, Uhrzeit, Priorität und Farbe.
-- **Bearbeiten & Löschen** – für Aufgaben, Termine, Notizen und Befinden derselbe
+- **Einkaufsliste** – eine Checkliste, deren Ort sich in den Einstellungen
+  umschalten lässt:
+
+  1. **Eigener Reiter** (Standard): ein Reiter „Einkaufsliste" zwischen
+     „Notizen" und „Historie", dahinter **eine** Liste für alle Tage.
+  2. **In den Notizen**: der Reiter verschwindet, die Notizen-Seite bekommt
+     oben den Umschalter „Notizen | Einkaufsliste", und jeder Tag hat seine
+     eigene Liste. Sie zeigt zuerst **heute**, mit ‹ Datum › zum
+     Weiterblättern; ein Tipp aufs Datum öffnet den Datumsdialog. Die
+     Notizen öffnen immer mit „Notizen", der Umschalter merkt sich nichts.
+     Im Modus „Eigener Reiter" sieht die Notizen-Seite genau aus wie vorher.
+
+  Beide Modi teilen sich einen Speicher: Einträge ohne Tag gehören zum
+  Reiter, Einträge mit Tag zur Liste dieses Tages. Umschalten löscht also
+  nichts, der andere Teil ist nur nicht zu sehen, bis man zurückschaltet.
+  Hinzugefügt wird über ein Eingabefeld **am unteren Rand**, dort ist der
+  Daumen, die Tastatur schiebt es mit hoch, und neue Einträge landen genau
+  darüber, unten bei den offenen – dort, wo der Blick beim Tippen gerade
+  ist. Enter legt an, leert das Feld und **behält den Fokus**, damit man
+  mehrere Dinge hintereinander tippt, ohne dass die Tastatur zu- und
+  aufgeht; ein leeres Feld tut nichts. Deshalb gibt es dort auch keinen
+  Plus-Knopf, und der Begleiter sitzt auf dieser Seite nur oben
+  (`PetPage.shopping`). Ein Tipp hakt ab bzw. nimmt den Haken zurück;
+  abgehakte Einträge bleiben durchgestrichen unter den offenen stehen,
+  automatisch gelöscht wird nichts. Langes Drücken öffnet das bekannte Blatt
+  mit „Bearbeiten" und „Löschen". Im Kalender und in den
+  Startbildschirm-Widgets taucht die Liste nicht auf. Die Oberfläche steht
+  in `lib/screens/shopping.dart` (`ShoppingList` für beide Modi,
+  `ShoppingListScreen` für den Reiter).
+- **Historie** – alle erledigten Aufgaben, nach Tag gruppiert. Eine
+  wiederkehrende Aufgabe wird unter dem Starttag ihrer Wiederholung
+  abgehakt, und diesen Tag zeigt auch die Historie – bei „Mo bis Do",
+  abgehakt am Mittwoch, also den Montag.
+- **Termine** – mit Datum, Uhrzeit, Priorität und Farbe, auf Wunsch mit
+  Dauer: der Schalter „Dauer" im Terminblatt fügt ein „Bis" mit Datum und
+  Uhrzeit hinzu (eingeschaltet eine Stunde nach dem Start; verschiebt man
+  den Start, wandert das Ende mit). Ein neuer Termin bleibt ein Zeitpunkt.
+  Das Ende ist exklusiv wie in jedem Kalender: ein Termin bis Mitternacht
+  belegt den Folgetag nicht. Ein Termin mit Dauer steht an jedem Tag seiner
+  Spanne, beschriftet am Starttag mit der Uhrzeit, an den Mitteltagen mit
+  „ganztägig" und am Endtag mit „bis 18:00" – im Dashboard, im Kalender und
+  bei den Geräte-Terminen gleich. Die Unterzeile im Reiter „Termine" zeigt
+  die Spanne („Heute · 12:00 – 14:00 Uhr", über mehrere Tage „Mo, 14. Sep
+  12:00 – Do, 17. Sep 18:00"), und ein laufender Termin steht weiter oben
+  bei den kommenden, nicht bei den vergangenen. Die Erinnerung richtet sich
+  nach dem Start.
+- **Bearbeiten & Löschen** – für Aufgaben, Termine, Notizen, Befinden und
+  die Einkaufsliste derselbe
   Griff: langes Drücken öffnet überall dasselbe Blatt („Bearbeiten",
   „Löschen"), und zwar an jeder Stelle, an der der Eintrag steht – Liste,
   Dashboard und Kalender-Tagesdetail. Löschen fragt vorher über eine Karte,
@@ -143,7 +292,9 @@ Dashboard, Kalender, wiederkehrenden Aufgaben, Notizen und Historie.
   löschen wollte, musste sie erst öffnen.
 - **Erinnerungen** – wie im Google-Kalender: ein Termin bekommt einen
   Vorlauf („Zur Terminzeit" bis „1 Tag vorher"), eine Aufgabe eine Uhrzeit
-  am Fälligkeitstag – bei wiederkehrenden Aufgaben an jedem ihrer Tage.
+  am Fälligkeitstag – bei wiederkehrenden Aufgaben an jedem ihrer Tage, bei
+  einer Aufgabe mit Dauer nur am ersten Tag jeder Wiederholung
+  (`startsOn` statt `occursOn` in `pendingReminders`).
   Zugestellt wird lokal vom Telefon, nichts geht ins Netz. Neue Termine
   starten mit dem Standard-Vorlauf aus den Einstellungen (30 Minuten),
   neue Aufgaben ohne; ein Hauptschalter schaltet alles auf einmal ab. Ein
@@ -156,7 +307,9 @@ Dashboard, Kalender, wiederkehrenden Aufgaben, Notizen und Historie.
   (siehe unten). Alle vier lassen sich in beide Richtungen frei ziehen (2×3,
   2×4, 3×5 …) und wachsen dabei mit: mehr Zeilen, größere Schrift, größere
   Kalenderzellen. Bleibt unter den Aufgaben von heute Platz, füllt ihn
-  „Demnächst" mit den nächsten Tagen.
+  „Demnächst" mit den nächsten Tagen. Aufgaben und Termine mit Dauer stehen
+  dort an jedem Tag ihrer Spanne, ein Termin an seinen Folgetagen ohne
+  Uhrzeit.
 - **Meldungen** – Fehler und Bestätigungen erscheinen als Toast am oberen
   Rand (`lib/toast.dart`), drei Sekunden, mit Aktion länger; antippen oder
   nach oben wischen räumt sie weg. Bewusst ein Singleton statt einer
@@ -169,12 +322,21 @@ Dashboard, Kalender, wiederkehrenden Aufgaben, Notizen und Historie.
   Tintenfarbe frei auf den Hintergrund setzt, bekommt auf einem Foto Text,
   der praktisch verschwindet – die Leer-Hinweise von Notizen und Historie
   taten das auf dem Ozean-Design. Beide stehen jetzt auf einer Karte, wie
-  die von Aufgaben und Terminen; `legibility_test.dart` prüft das für jeden
+  die von Aufgaben und Terminen, und ebenso der der Einkaufsliste (in beiden
+  Modi); `legibility_test.dart` prüft das für jeden
   leeren Zustand und misst nebenbei den Kontrast von Tinte auf Papier für
-  alle 15 Designs.
+  alle 15 Designs. Für den leeren Kalendertag schaltet der Test Feiertage
+  und Mond ab – sonst hinge er vom heutigen Datum ab und schlüge an jedem
+  Feiertag und jeder Mondhauptphase fehl. Karten (`PaperCard`) tragen eine
+  durchsichtige Material-Schicht über dem Papier: ohne sie malten
+  `ListTile` und Co. ihre Tintenwelle *unter* die Papierfarbe, und sie
+  bliebe unsichtbar.
 - **Design** – vier Notizbuch-Themen mit gemalten Texturen (Holz, Papier,
   Stoff, Aquarell) plus elf Foto-Hintergründe, wählbar über eine Klappliste in
-  den Einstellungen; 20 warme frei wählbare Farben pro Aufgabe/Termin. Die
+  den Einstellungen; 25 warme frei wählbare Farben pro Aufgabe/Termin,
+  darunter ein helles „Mint" – die frühere „Minze" heißt seitdem „Jade",
+  ihr Farbwert blieb. Gespeichert ist der Index in die Palette, neue Farben
+  werden deshalb nur hinten angehängt. Die
   Reiterfarben der Foto-Designs stehen in der Vorlage (siehe unten). Der
   Hintergrund läuft randlos hinter Status- und Navigationsleiste durch; die
   Systemsymbole richten sich nach dem Design (siehe unten).
@@ -222,17 +384,36 @@ Dashboard, Kalender, wiederkehrenden Aufgaben, Notizen und Historie.
   steht in `lib/pets.dart` zu jedem sein Seitenverhältnis: `petBox` gibt allen
   über das geometrische Mittel dieselbe gefühlte Größe, statt sie in eine
   feste Box zu zwingen, in der der Hai halb so groß wirkte wie das Lama.
+
+  Wie groß, stellt ein **Regler** in den Einstellungen ein: 60 % bis 160 %
+  in Zehnerschritten (`AppState.petScale`), und schon 100 % sind das
+  1,25-Fache der ersten Fassung (`_baseScale` in `lib/pets.dart`) – die
+  Tierchen waren auf großen Telefonen zu klein, um sie zu bemerken. Mit dem
+  Regler wachsen Maß und Deckel gleichermaßen, sonst hätte er bei Lama und
+  Hai kaum Wirkung. Darüber liegen harte Grenzen, die kein Regler
+  überschreitet: oben höchstens 200 px breit und 160 px hoch, unten 240 ×
+  200 px. `petBox` kennt die Bildschirmbreite nicht; die Werte sind so
+  gewählt, dass auf einem 360-dp-Telefon neben dem Plus-Knopf Platz bleibt
+  und das Lama oben nicht die halbe erste Karte verdeckt. Der Regler sitzt
+  unter der Begleiter-Auswahl und wirkt sofort – das Tierchen sitzt auch
+  auf der Einstellungsseite, man sieht beim Ziehen, was man bekommt. Die
+  Vorlesehilfe hört die Größe in Prozent, nicht den Anteil am Regelweg
+  (der bei 100 % „40 %" wäre).
+
   Die Auswahl öffnet sich als Blatt von unten: pro Gruppe (Aquarell,
   Axos, Dinos & Drachen, KalasStuff, Katzen, Obst, Weihnachten) ein
   aufklappbarer Abschnitt mit den Motiven als Bildraster, immer nur einer
-  offen. Ganz abschaltbar; dann ist auch die Auswahl gesperrt.
+  offen. Ganz abschaltbar; dann sind auch Auswahl und Größenregler
+  ausgegraut und gesperrt.
   Alles lokal gespeichert (shared_preferences).
 
 ## Struktur
 
 ```
 app/                  Flutter-Projekt (Android)
-  lib/models.dart     Datenmodell, Wiederholungslogik, Persistenz (AppState)
+  lib/models.dart     Datenmodell, Wiederholungs- und Dauerlogik,
+                      Prioritaetsfarben, Einkaufsliste, Persistenz (AppState)
+  lib/util.dart       Datum/Uhrzeit: Formate, Spannen, Kalendertage
   lib/almanac.dart    Feiertage (Gauß) + Mondphasen (Meeus), rein berechnet
   lib/device_calendar.dart  Geraete-Kalender als lesende Ebene (Plugin-Kapsel)
   lib/agenda.dart     Eigene + Geraete-Termine in einer Liste (rechnend)
@@ -250,10 +431,11 @@ app/                  Flutter-Projekt (Android)
                       + Plaetze je Seite (PetSpot, PetPage, PetPlacement)
   lib/widgets.dart    JoeScaffold (Hintergrund + Begleiter-Ebene), PaperCard,
                       Ordner-Reiter, Zaehler-Zeile + Ausklappmenue,
-                      Aufgaben-Zeile, Sheets, Loeschkarte
+                      Aufgaben-Zeile, Sheets (mit Wochenskala und Dauer),
+                      Farbwaehler, Loeschkarte
   lib/screens/        Dashboard, Aufgaben, Termine, Kalender, Notizen,
-                      Befinden (Kategorie in der Notiz), Historie,
-                      Einstellungen
+                      Befinden (Kategorie in der Notiz), Einkaufsliste
+                      (shopping.dart), Historie, Einstellungen
   assets/themes/      Hintergründe – Originale + ausgelieferte compressed/
   assets/pets/        Begleiter als WebP, ein Ordner je Gruppe
   test/               Unit-Tests (Wiederholung, Priorität, Notiz-Datum,
@@ -263,8 +445,16 @@ app/                  Flutter-Projekt (Android)
                       Terminliste aus beiden Quellen (agenda_test),
                       Loeschweg aller drei Arten (delete_test),
                       Lesbarkeit in leeren Zustaenden (legibility_test),
-                      Befinden in beiden Varianten (wellbeing_test)
-maestro/              Maestro-UI-Flows (01–09) + Screenshots in shots/
+                      Befinden in beiden Varianten (wellbeing_test),
+                      Wochenskala, Jaehrlich, Sommerzeit und Dauer
+                      (recurrence_test), Aufgaben- und Terminblatt
+                      (task_sheet_test), Einstellungen: Begleiter-Groesse,
+                      Prioritaetsfarben, Einkaufs-Modus (settings_test),
+                      Einkaufsliste als Modell (shopping_model_test) und
+                      in beiden Modi (shopping_test), Ganztags- und
+                      mehrtaegige Geraete-Termine (device_calendar_test)
+maestro/              Maestro-UI-Flows (01–10, 10 = Einkaufsliste im
+                      eigenen Reiter) + Screenshots in shots/
 requirements/         Original-Anforderungen (PDF + Layout-Referenzbild)
 ```
 
@@ -366,7 +556,8 @@ im Test nicht ueber eine Datei umstellen, die Tests setzen deshalb
 
 Zu jedem Foto-Hintergrund gehört im Themes-Ordner der Vorlage ein Blatt
 `<Name>Set.jpg`: links das Bild, rechts genau sechs beschriftete Farbfelder –
-so viele, wie es Reiter gibt. Diese sechs Werte sind die Reiterfarben, in der
+so viele, wie es Reiter gab, bevor die Einkaufsliste dazukam. Diese sechs
+Werte sind die Reiterfarben, in der
 Reihenfolge des Blattes. Die Blätter selbst liegen nicht im Repo (~4 MB je
 Blatt), ihre Werte hier:
 
@@ -393,6 +584,13 @@ tragen ein Farbprofil aus dem Corel-Export, ihre Rohwerte sind deutlich dunkler
 (`#D19D6D` liegt in der Datei als `8D4C18` vor). Ob die Beschriftung auf ihrer
 Fläche lesbar ist, entscheidet `JoeTheme.onTab`; `test/models_test.dart` prüft
 für jede Reiterfarbe 3:1.
+
+Der siebte Reiter, „Einkaufsliste", hat auf keinem Blatt ein Feld. Seine
+Farbe ist deshalb gemischt: `JoeTheme.shoppingTabColor` liegt genau in der
+Mitte der beiden Nachbarn, Reiter 4 (Notizen) und 5 (Historie). So passt sie
+zum Design und hebt sich trotzdem von beiden ab; `test/shopping_test.dart`
+prüft auch für sie 3:1. Liefert jemand echte Vorlagenfarben nach, kommen sie
+als siebter Wert dazu.
 
 Dass die Laschen sich farblich kaum vom Hintergrund abheben, ist so gewollt und
 kein Fehler: Die Farben stammen aus dem Foto, also gleichen sie ihm (auf Eisig
@@ -511,7 +709,13 @@ eine heute offene Aufgabe taucht deshalb an jedem kommenden Tag darin auf.
 Unter „Demnächst" darf nur stehen, was an dem Tag wirklich neu fällig ist.
 Jeder Eintrag bringt darum ein `over`-Kennzeichen mit, ob er an seinem Tag
 fällig ist oder nur mitgeschleppt wird; `test/home_widget_test.dart` hält das
-fest.
+fest. Eine Aufgabe mit Dauer ist an jedem Tag ihrer Spanne fällig und gilt
+erst nach ihrem letzten Tag als mitgeschleppt, wie im Dashboard. Ein Termin
+mit Dauer steht ebenfalls an jedem seiner Tage, trägt seine Uhrzeit aber nur
+am Starttag: an den Folgetagen schreibt der Schnappschuss `'minute': -1`, und
+Kotlin zeigt dann keine Uhrzeit (`JoeWidgetText.time`) – das Format bleibt
+dasselbe. Die Farbe einer Aufgabe ist die wirksame (`Task.color`), eine
+Prioritätsfarbe kommt also auch im Widget an.
 
 Drei Fallen, die es beim Bauen wirklich gab:
 
@@ -584,6 +788,11 @@ enthält es gar nicht. Was dagegen gilt: Androids Auto-Backup steht auf dem
 Standard (an) und sichert den ganzen Schlüssel in das Google-Konto des
 Geräts – das Befinden also mit. Wer das nicht will, schaltet das Backup für
 Joe in den Android-Einstellungen ab.
+
+Die **Einkaufsliste** liegt ebenfalls in `joe_data_v1` (`shopping`, dazu
+`shoppingMode`), die Liste des Reiters und die der Tage in einer Liste. Das
+Log nennt nur IDs und die Anzahl, nie einen Eintrag, und in den
+Widget-Schnappschuss kommt sie nicht.
 
 Für die Erinnerungen kommen POST_NOTIFICATIONS (ab Android 13 zur Laufzeit
 bestätigt), RECEIVE_BOOT_COMPLETED (Plan nach einem Neustart neu stellen) und
@@ -659,7 +868,21 @@ etwas verloren ging, wandert der komplette alte Bestand unter
 `joe_data_v1_rescue`, bevor der bereinigte gespeichert wird.
 `test/persistence_test.dart` hält das fest.
 
-Löschen fragt überall nach (Aufgabe, Termin, Notiz – `confirmDelete` in
+Was sich mit dem Datenmodell geändert hat, wird beim Laden umgeschrieben,
+nicht verworfen – und weil dabei nichts verloren geht, ohne Rettungskopie:
+eine Aufgabe „täglich" (`'daily'`) wird „wöchentlich an allen sieben Tagen",
+eine „wöchentliche" ohne Tage behält den Wochentag ihres Starts. Die Dauer
+einer Aufgabe (`spanDays`) wird beim Laden auf 365 Tage begrenzt
+(`Task.maxStoredSpanDays`): `occurrenceStartFor` schaut so viele Tage
+zurück, und eine kaputte Riesenzahl im Bestand darf daraus keine Schleife
+ohne Ende machen. Unbrauchbares heißt „keine Dauer": eine negative Zahl,
+nur eine der beiden Uhrzeiten oder ein Terminende vor dem Start kosten nur
+die Dauer, der Eintrag bleibt. Ebenso fallen falsch getypte neue
+Einstellungen auf ihren Standard – `petScale` wird auf 60–160 % geklemmt,
+eine Prioritätsfarbe außerhalb der Palette heißt „Keine Farbe", ein
+unbekannter Einkaufs-Modus „Eigener Reiter".
+
+Löschen fragt überall nach (Aufgabe, Termin, Notiz, Einkaufseintrag – `confirmDelete` in
 `widgets.dart`): es gibt kein Undo, ein verrutschter Tipper wäre sonst
 endgültig.
 
@@ -668,7 +891,8 @@ endgültig.
 `lib/log.dart` schreibt ein schlichtes App-Log (Zeitstempel je Zeile) nach
 `joe.log` im Support-Verzeichnis der App, mit einfacher Rotation ab 256 KB
 (`joe.log` → `joe.log.1`). Geloggt werden App-Start, Laden (samt
-Rettungsfall), Speicherfehler, Anlegen/Löschen sowie unbehandelte Fehler
+Rettungsfall; gezählt je Art, etwa „12 Aufgaben, … 5 Einkauf"),
+Speicherfehler, Anlegen/Löschen sowie unbehandelte Fehler
 (`FlutterError.onError`, `PlatformDispatcher.onError`) – **nur Ereignisse,
 Anzahlen und IDs, nie Titel oder Notiztexte**, denn „Logs teilen" in den
 Einstellungen reicht die Dateien per Share-Intent an Dritte weiter
