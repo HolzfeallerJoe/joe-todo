@@ -316,15 +316,24 @@ class PaperCard extends StatelessWidget {
   }
 }
 
-/// Die Kopfzeile der Heute-Karte: beide Zahlen des Tages in einem Satz.
+/// Die Kopfzeile der Heute-Karte: beide Zahlen des Tages in zwei Zeilen.
 ///
-/// "3 offene Aufgaben und 2 Termine heute" – Aufgaben und Termine
-/// beantworten dieselbe Frage, also stehen sie auch in einem Satz. Zwei
-/// getrennte Kopfzeilen sagten zweimal "heute" und liessen den Tag in zwei
-/// Haelften zerfallen.
+///     3 offene Aufgaben
+///     2 Termine heute
 ///
-/// Bewusst ein fließender Text und keine Spalten: er bricht bei grosser
-/// Systemschrift von selbst um, statt ueber den Kartenrand zu laufen.
+/// Aufgaben und Termine beantworten dieselbe Frage, also stehen sie in einer
+/// Kopfzeile – "heute" steht nur einmal, hinten: zwei Zeilen eines Gedankens,
+/// keine zwei Aussagen. Die Zahlen stehen als eigene Spalte rechtsbuendig
+/// untereinander (Ziffern gleicher Breite), damit man sie auf einen Blick
+/// vergleicht und die Woerter auf derselben Kante beginnen, auch bei "12"
+/// ueber "3".
+///
+/// Eine [Table] statt fester Zeilen, weil die Wortspalte flexibel ist: bei
+/// grosser Systemschrift bricht ein Wort innerhalb seiner Zeile um, statt
+/// ueber den Kartenrand zu laufen – der Grund fuer den frueheren Fliesstext.
+///
+/// Die Vorlesehilfe bekommt trotzdem den ganzen Satz mit "und": zwei Zeilen
+/// ohne Bindewort klaengen vorgelesen abgehackt.
 class TodayHeadline extends StatelessWidget {
   final int tasks;
   final int appointments;
@@ -343,6 +352,9 @@ class TodayHeadline extends StatelessWidget {
       fontSize: 30,
       height: 1.1,
       fontWeight: FontWeight.w800,
+      // Gleich breite Ziffern: sonst stuende eine "1" rechtsbuendig zwar
+      // an derselben Kante, wirkte aber schmaler als die "3" darunter.
+      fontFeatures: const [FontFeature.tabularFigures()],
     );
     final word = TextStyle(
       color: theme.ink,
@@ -351,28 +363,34 @@ class TodayHeadline extends StatelessWidget {
       fontWeight: FontWeight.w600,
     );
 
+    TableRow row(int count, String words) => TableRow(
+          children: [
+            Text('$count', style: number, textAlign: TextAlign.right),
+            Padding(
+              padding: const EdgeInsets.only(left: 8),
+              child: Text(words, style: word),
+            ),
+          ],
+        );
+
     return Semantics(
       container: true,
       label: '$tasks ${tasks == 1 ? 'offene Aufgabe' : 'offene Aufgaben'} '
           'und $appointments ${appointments == 1 ? 'Termin' : 'Termine'} heute',
       excludeSemantics: true,
-      child: Text.rich(
-        TextSpan(
-          children: [
-            TextSpan(text: '$tasks', style: number),
-            TextSpan(
-              text: tasks == 1 ? ' offene Aufgabe' : ' offene Aufgaben',
-              style: word,
-            ),
-            TextSpan(text: ' und ', style: word),
-            TextSpan(text: '$appointments', style: number),
-            TextSpan(
-              text: appointments == 1 ? ' Termin' : ' Termine',
-              style: word,
-            ),
-            TextSpan(text: ' heute', style: word),
-          ],
-        ),
+      child: Table(
+        columnWidths: const {
+          0: IntrinsicColumnWidth(),
+          1: FlexColumnWidth(),
+        },
+        // Grosse Zahl und kleineres Wort sitzen auf einer Grundlinie.
+        defaultVerticalAlignment: TableCellVerticalAlignment.baseline,
+        textBaseline: TextBaseline.alphabetic,
+        children: [
+          row(tasks, tasks == 1 ? 'offene Aufgabe' : 'offene Aufgaben'),
+          row(appointments,
+              appointments == 1 ? 'Termin heute' : 'Termine heute'),
+        ],
       ),
     );
   }

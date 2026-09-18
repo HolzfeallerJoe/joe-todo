@@ -58,11 +58,33 @@ bool takesTaps(WidgetTester tester, String label) => !tester
     .any((widget) => widget.ignoring);
 
 void main() {
-  /// Die Kopfzeile der Heute-Karte nennt beide Zahlen in einem Satz.
-  Finder headline(int tasks, int appointments) => find.text(
+  /// Die Kopfzeile der Heute-Karte steht in zwei Zeilen da, vorgelesen wird
+  /// sie aber als ein Satz – gesucht wird deshalb ueber die Vorlesehilfe.
+  Finder headline(int tasks, int appointments) => find.bySemanticsLabel(
         '$tasks ${tasks == 1 ? 'offene Aufgabe' : 'offene Aufgaben'} '
         'und $appointments ${appointments == 1 ? 'Termin' : 'Termine'} heute',
       );
+
+  /// Ein sichtbarer Text innerhalb der Kopfzeile – die Zahlen stehen auch in
+  /// den Ausklappmenues darunter.
+  Finder inHeadline(String text) => find.descendant(
+        of: find.byType(TodayHeadline),
+        matching: find.text(text),
+      );
+
+  List<Task> openTasks(int n) => [
+        for (var i = 0; i < n; i++)
+          Task(id: 't$i', title: 'Aufgabe $i', startDate: today()),
+      ];
+
+  List<Appointment> todayAppointments(int n) => [
+        for (var i = 0; i < n; i++)
+          Appointment(
+            id: 'a$i',
+            title: 'Termin $i',
+            when: today().add(Duration(hours: 9 + i)),
+          ),
+      ];
 
   testWidgets('Stufe 3 zaehlt am Faelligkeitstag mit', (tester) async {
     final t = today();
@@ -206,7 +228,7 @@ void main() {
     handle.dispose();
   });
 
-  testWidgets('die Kopfzeile nennt Aufgaben und Termine in einem Satz',
+  testWidgets('die Kopfzeile nennt Aufgaben und Termine in zwei Zeilen',
       (tester) async {
     final t = today();
     await pumpDashboard(
@@ -235,6 +257,96 @@ void main() {
     expect(find.text('Zahnarzt'), findsOneWidget);
     expect(find.text('Kaffee'), findsOneWidget);
     expect(find.text('Sport'), findsNothing);
+  });
+
+  testWidgets('die Zahlen der Kopfzeile stehen rechtsbuendig untereinander',
+      (tester) async {
+    await pumpDashboard(
+      tester,
+      tasks: openTasks(12),
+      appointments: todayAppointments(3),
+      height: 1600,
+    );
+
+    expect(headline(12, 3), findsOneWidget);
+    final twelve = tester.getTopRight(inHeadline('12'));
+    final three = tester.getTopRight(inHeadline('3'));
+    // Rechte Kanten buendig, "12" steht ueber "3".
+    expect(twelve.dx, moreOrLessEquals(three.dx, epsilon: 0.5));
+    expect(twelve.dy, lessThan(three.dy));
+    // Die Woerter beginnen auf derselben Kante.
+    expect(
+      tester.getTopLeft(inHeadline('offene Aufgaben')).dx,
+      moreOrLessEquals(
+        tester.getTopLeft(inHeadline('Termine heute')).dx,
+        epsilon: 0.5,
+      ),
+    );
+  });
+
+  testWidgets('die Kopfzeile zeigt kein "und" mehr, liest es aber vor',
+      (tester) async {
+    await pumpDashboard(
+      tester,
+      tasks: openTasks(1),
+      appointments: todayAppointments(1),
+    );
+
+    // Einzahl wie bisher.
+    expect(inHeadline('offene Aufgabe'), findsOneWidget);
+    expect(inHeadline('Termin heute'), findsOneWidget);
+    // Sichtbar steht nirgends in der Kopfzeile ein "und" …
+    expect(
+      find.descendant(
+        of: find.byType(TodayHeadline),
+        matching: find.textContaining(' und '),
+      ),
+      findsNothing,
+    );
+    expect(find.textContaining('offene Aufgabe und'), findsNothing);
+    // … vorgelesen wird es als ein Satz.
+    expect(headline(1, 1), findsOneWidget);
+  });
+
+  testWidgets('die Kopfzeile laeuft bei grosser Systemschrift nicht ueber',
+      (tester) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(360, 800);
+    addTearDown(tester.view.reset);
+    final state = AppState()..showPet = false;
+
+    await tester.pumpWidget(
+      AppScope(
+        state: state,
+        child: MaterialApp(
+          home: MediaQuery(
+            data: const MediaQueryData(
+              size: Size(360, 800),
+              textScaler: TextScaler.linear(2.0),
+            ),
+            child: Scaffold(
+              body: Padding(
+                padding: const EdgeInsets.all(34),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: const [
+                    TodayHeadline(tasks: 12, appointments: 3),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+    // Das Wort bricht innerhalb seiner Zeile um und bleibt in der Karte.
+    expect(
+      tester.getTopRight(inHeadline('offene Aufgaben')).dx,
+      lessThanOrEqualTo(360 - 34 + 0.5),
+    );
   });
 
   testWidgets('Aufgaben und Termine teilen sich eine Karte', (tester) async {
