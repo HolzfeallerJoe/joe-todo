@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:joe_todo/models.dart';
 import 'package:joe_todo/theme.dart';
@@ -374,6 +375,60 @@ void main() {
     });
   });
 
+  group('Prioritätsfarben', () {
+    setUp(() {
+      PriorityColors.reset();
+      // setPriorityColor speichert nebenbei.
+      SharedPreferences.setMockInitialValues({});
+    });
+    tearDown(PriorityColors.reset);
+
+    Task task(Priority p) => Task(
+          id: p.name,
+          title: p.label,
+          startDate: today(),
+          colorIndex: 3,
+          priority: p,
+        );
+
+    test('ohne Einstellung zeigt eine Aufgabe ihre eigene Farbe', () {
+      final t = task(Priority.hoch);
+      expect(t.color, t.ownColor);
+      expect(t.ownColor, taskPalette[3]);
+    });
+
+    test('die Stufe gibt die Farbe vor, die eigene bleibt stehen', () {
+      final hoch = task(Priority.hoch);
+      final mittel = task(Priority.mittel);
+      final state = AppState()..tasks = [hoch, mittel];
+      state.setPriorityColor(Priority.hoch, 20);
+
+      expect(state.priorityColors, {Priority.hoch: 20});
+      expect(PriorityColors.of(Priority.hoch), 20);
+      expect(hoch.color, taskPalette[20]);
+      expect(hoch.ownColor, taskPalette[3]);
+      expect(hoch.colorIndex, 3);
+      expect(mittel.color, taskPalette[3]);
+
+      // "Keine Farbe": wieder die eigene.
+      state.setPriorityColor(Priority.hoch, null);
+      expect(state.priorityColors, isEmpty);
+      expect(hoch.color, taskPalette[3]);
+    });
+
+    test('Termine behalten ihre Farbe', () {
+      PriorityColors.use({Priority.hoch: 20});
+      final a = Appointment(
+        id: 'a',
+        title: 'x',
+        when: DateTime(2026, 9, 14, 12),
+        colorIndex: 6,
+        priority: Priority.hoch,
+      );
+      expect(a.color, taskPalette[6]);
+    });
+  });
+
   group('Notizen', () {
     test('Notiz haengt an ihrem Tag, nicht an der letzten Änderung', () {
       final day = DateTime(2026, 8, 3);
@@ -415,12 +470,27 @@ void main() {
   });
 
   group('Farben und Reiter', () {
-    test('20 Farben, die ersten acht behalten ihren Index', () {
-      expect(taskPalette, hasLength(20));
-      expect(taskPaletteNames, hasLength(20));
-      expect(taskPalette[0], const Color(0xFFC0563B));
-      expect(taskPalette[7], const Color(0xFFC9A227));
-      expect(taskPalette.toSet(), hasLength(20));
+    test('25 Farben, die ersten zwanzig behalten Index und Wert', () {
+      // Gespeichert ist der Index – eine Farbe, die ihren Platz wechselt,
+      // faerbte jede alte Aufgabe um.
+      const frueher = [
+        Color(0xFFC0563B), Color(0xFFD98E32), Color(0xFF8A9A5B),
+        Color(0xFF4E937A), Color(0xFFB23A5E), Color(0xFF7A5C3E),
+        Color(0xFF5B7C99), Color(0xFFC9A227), Color(0xFFA34A22),
+        Color(0xFFE08A6A), Color(0xFFE07B39), Color(0xFFD9B382),
+        Color(0xFF6E7A3A), Color(0xFF5A8F4C), Color(0xFF7FBFA5),
+        Color(0xFF3A6E78), Color(0xFF3B4E70), Color(0xFF7B4B6E),
+        Color(0xFFC77F92), Color(0xFF8E7BB0),
+      ];
+      expect(taskPalette, hasLength(25));
+      expect(taskPaletteNames, hasLength(taskPalette.length));
+      expect(taskPalette.sublist(0, 20), frueher);
+      expect(taskPalette.toSet(), hasLength(25));
+      expect(taskPaletteNames.toSet(), hasLength(25));
+      expect(taskPaletteNames, contains('Mint'));
+      expect(taskPaletteNames[14], 'Jade');
+      expect(taskPalette[taskPaletteNames.indexOf('Mint')],
+          const Color(0xFF9FDFC4));
     });
 
     test('jedes Design hat eine Farbe je Reiter', () {

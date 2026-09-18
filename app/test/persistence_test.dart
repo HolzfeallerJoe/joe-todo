@@ -266,6 +266,58 @@ void main() {
     expect(prefs.getString(AppState.rescueKey), isNull);
   });
 
+  group('Prioritaetsfarben', () {
+    tearDown(PriorityColors.reset);
+
+    test('kommen nach Speichern und Laden zurueck', () async {
+      SharedPreferences.setMockInitialValues(
+          {'joe_data_v1': jsonEncode(validData())});
+      final state = AppState();
+      await state.load();
+      expect(state.priorityColors, isEmpty, reason: 'Standard: keine Farbe');
+
+      state.setPriorityColor(Priority.hoch, 20);
+      state.setPriorityColor(Priority.niedrig, 14);
+      await pumpEventQueue();
+      // Die Tabelle ist statisch – leeren, damit das Laden sie beweisen muss.
+      PriorityColors.reset();
+
+      final wieder = AppState();
+      await wieder.load();
+      expect(wieder.priorityColors, {Priority.hoch: 20, Priority.niedrig: 14});
+      expect(PriorityColors.of(Priority.hoch), 20);
+      expect(PriorityColors.of(Priority.mittel), isNull);
+    });
+
+    test('Unsinn heisst "keine Farbe", ohne Verlust', () async {
+      final data = validData()
+        ..['priorityColors'] = {'hoch': 99, 'egal': 3, 'mittel': 'x'};
+      SharedPreferences.setMockInitialValues({'joe_data_v1': jsonEncode(data)});
+      final state = AppState();
+      await state.load();
+
+      expect(state.priorityColors, isEmpty);
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getString(AppState.rescueKey), isNull);
+
+      // Kein Map-Typ: ebenso.
+      final liste = validData()..['priorityColors'] = [20];
+      SharedPreferences.setMockInitialValues(
+          {'joe_data_v1': jsonEncode(liste)});
+      final zweiter = AppState();
+      await zweiter.load();
+      expect(zweiter.priorityColors, isEmpty);
+    });
+
+    test('ein erster Start nimmt keine alten Farben mit', () async {
+      PriorityColors.use({Priority.hoch: 20});
+      SharedPreferences.setMockInitialValues({});
+      final state = AppState();
+      await state.load();
+      expect(PriorityColors.of(Priority.hoch), isNull);
+    });
+  });
+
   test('Kalender-Ebenen: Standards und gespeicherte Werte', () async {
     // Ohne gespeicherte Schluessel: Feiertage und Mond an, Geraete-Kalender
     // aus (der braucht eine Berechtigung und wartet auf den Schalter).

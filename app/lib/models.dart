@@ -15,10 +15,13 @@ import 'wellbeing.dart';
 // kennt, kennt es mit.
 export 'wellbeing.dart';
 
-/// Warm color palette for tasks and appointments.
+/// Warm color palette for tasks and appointments – 25 Farben.
 ///
 /// The first eight are the original palette and keep their index: a stored
 /// `colorIndex` points into this list, so new colors only ever get appended.
+/// Das gilt fuer jede Erweiterung: die fuenf seit der zweiten (Mint bis
+/// Schiefer) stehen hinten, und die fruehere "Minze" (14) heisst jetzt
+/// "Jade" – ihr Farbwert blieb, zwei Minzen waeren nur verwirrend.
 const taskPalette = [
   Color(0xFFC0563B), // Terrakotta
   Color(0xFFD98E32), // Bernstein
@@ -34,20 +37,26 @@ const taskPalette = [
   Color(0xFFD9B382), // Sand
   Color(0xFF6E7A3A), // Oliv
   Color(0xFF5A8F4C), // Farn
-  Color(0xFF7FBFA5), // Minze
+  Color(0xFF7FBFA5), // Jade (frueher "Minze")
   Color(0xFF3A6E78), // Petrol
   Color(0xFF3B4E70), // Nachtblau
   Color(0xFF7B4B6E), // Pflaume
   Color(0xFFC77F92), // Altrosa
   Color(0xFF8E7BB0), // Lavendel
+  Color(0xFF9FDFC4), // Mint
+  Color(0xFF86BEE0), // Himmel
+  Color(0xFFEE8A73), // Koralle
+  Color(0xFFB9A1D6), // Flieder
+  Color(0xFF66727F), // Schiefer
 ];
 
 const taskPaletteNames = [
   'Terrakotta', 'Bernstein', 'Salbei', 'Tanne',
   'Beere', 'Walnuss', 'Taubenblau', 'Senf',
   'Rost', 'Lachs', 'Kürbis', 'Sand',
-  'Oliv', 'Farn', 'Minze', 'Petrol',
+  'Oliv', 'Farn', 'Jade', 'Petrol',
   'Nachtblau', 'Pflaume', 'Altrosa', 'Lavendel',
+  'Mint', 'Himmel', 'Koralle', 'Flieder', 'Schiefer',
 ];
 
 /// Wie sich eine Aufgabe wiederholt.
@@ -83,6 +92,29 @@ enum Priority {
         (p) => p.name == value,
         orElse: () => Priority.mittel,
       );
+}
+
+/// Die Farben, die die Einstellungen den Prioritaeten der Aufgaben geben
+/// (Index in [taskPalette]). Fehlt eine Stufe, gilt "keine Farbe": die
+/// Aufgabe zeigt ihre eigene.
+///
+/// Statisch wie [PetPlacement]: [Task.color] wird an vielen Stellen ohne
+/// BuildContext gelesen (Kalender, Listen, Widget-Schnappschuss),
+/// und jede davon soll dieselbe Farbe sehen. Gesetzt wird sie nur vom
+/// [AppState] – beim Laden und in [AppState.setPriorityColor].
+class PriorityColors {
+  PriorityColors._();
+
+  static Map<Priority, int> _active = const {};
+
+  /// Der Palettenindex fuer [p]; null heisst "keine Farbe".
+  static int? of(Priority p) => _active[p];
+
+  static void use(Map<Priority, int> colors) =>
+      _active = Map.unmodifiable(colors);
+
+  /// Zurueck auf "keine Farbe" fuer alle Stufen – fuer Tests.
+  static void reset() => _active = const {};
 }
 
 class Task {
@@ -156,7 +188,17 @@ class Task {
   Set<int> get _weeklyDays =>
       weekdays.isEmpty ? {dateOnly(startDate).weekday} : weekdays;
 
-  Color get color => taskPalette[colorIndex % taskPalette.length];
+  /// Die Farbe, die im Aufgabenblatt gewaehlt wurde.
+  Color get ownColor => taskPalette[colorIndex % taskPalette.length];
+
+  /// Die Farbe, in der die Aufgabe erscheint: die ihrer Prioritaet, wenn die
+  /// Einstellungen eine vorgeben, sonst die eigene. Die eigene wird dabei
+  /// nie ueberschrieben – "Keine Farbe" in den Einstellungen bringt sie
+  /// zurueck.
+  Color get color {
+    final p = PriorityColors.of(priority);
+    return p == null ? ownColor : taskPalette[p % taskPalette.length];
+  }
 
   bool get isRecurring => recurrence != RecurrenceType.none;
 
@@ -577,6 +619,12 @@ class AppState extends ChangeNotifier {
   /// Uhrzeit, ein Alarm auf jeder neuen Aufgabe waere blosser Laerm.
   int? defaultAppointmentLead = 30;
 
+  /// Die Farben der Prioritaeten (Index in [taskPalette]); eine Stufe ohne
+  /// Eintrag hat "keine Farbe". Wirksam wird die Tabelle ueber
+  /// [PriorityColors] – geaendert wird sie nur mit [setPriorityColor],
+  /// sonst liefen beide auseinander.
+  Map<Priority, int> priorityColors = {};
+
   int _idCounter = 0;
 
   String nextId() =>
@@ -586,6 +634,9 @@ class AppState extends ChangeNotifier {
     final prefs = await SharedPreferences.getInstance();
     final raw = prefs.getString(_storageKey);
     if (raw == null) {
+      // Die Tabelle ist statisch: ohne das hier naehme ein zweiter
+      // AppState (in Tests) die Farben des ersten mit.
+      PriorityColors.use(const {});
       // Beispieldaten haengen am Schalter JOE_MOCK_DATA (siehe env.dart) und
       // sind ueberall aus: Joe faengt leer an. Gespeichert wird trotzdem,
       // sonst gilt jeder Start als der erste.
@@ -653,6 +704,8 @@ class AppState extends ChangeNotifier {
     defaultAppointmentLead = data.containsKey('defaultAppointmentLead')
         ? leadMinutesFromJson(data['defaultAppointmentLead'])
         : 30;
+    priorityColors = _readPriorityColors(data['priorityColors']);
+    PriorityColors.use(priorityColors);
 
     JoeLog.log('Geladen: ${tasks.length} Aufgaben, '
         '${appointments.length} Termine, ${notes.length} Notizen, '
@@ -685,6 +738,21 @@ class AppState extends ChangeNotifier {
         out.add(fromJson(item as Map<String, dynamic>));
       } catch (_) {
         onLoss();
+      }
+    }
+    return out;
+  }
+
+  /// Die Prioritaetsfarben aus dem Bestand: nur bekannte Stufen mit einem
+  /// Index, den es in der Palette gibt. Alles andere heisst "keine Farbe" –
+  /// eine Einstellung, kein Verlust.
+  static Map<Priority, int> _readPriorityColors(Object? raw) {
+    final out = <Priority, int>{};
+    if (raw is! Map) return out;
+    for (final p in Priority.values) {
+      final index = raw[p.name];
+      if (index is int && index >= 0 && index < taskPalette.length) {
+        out[p] = index;
       }
     }
     return out;
@@ -779,6 +847,9 @@ class AppState extends ChangeNotifier {
           'deviceCalendarIds': deviceCalendarIds?.toList(),
           'remindersEnabled': remindersEnabled,
           'defaultAppointmentLead': defaultAppointmentLead,
+          'priorityColors': {
+            for (final e in priorityColors.entries) e.key.name: e.value,
+          },
         }),
       );
     } catch (e) {
@@ -1216,6 +1287,21 @@ class AppState extends ChangeNotifier {
 
   void setDefaultAppointmentLead(int? minutes) {
     defaultAppointmentLead = minutes;
+    _changed();
+  }
+
+  /// Gibt der Stufe [p] eine Farbe (Index in [taskPalette]); null heisst
+  /// "keine Farbe", die Aufgaben zeigen wieder ihre eigene. Das Neuzeichnen
+  /// – auch des Startbildschirm-Widgets – loest [notifyListeners] aus.
+  void setPriorityColor(Priority p, int? index) {
+    final next = {...priorityColors};
+    if (index == null || index < 0 || index >= taskPalette.length) {
+      next.remove(p);
+    } else {
+      next[p] = index;
+    }
+    priorityColors = next;
+    PriorityColors.use(next);
     _changed();
   }
 
