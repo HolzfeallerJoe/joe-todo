@@ -1302,6 +1302,83 @@ class PriorityPicker extends StatelessWidget {
   }
 }
 
+/// Die Wochenskala im Aufgabenblatt: sieben runde Umschalter Mo bis So.
+/// Markierte Tage heissen "woechentlich an genau diesen Tagen", alle sieben
+/// heisst taeglich (siehe [allWeekdays]).
+///
+/// Dieselbe Formensprache wie [PriorityPicker]: gewaehlt ist gefuellt in der
+/// Akzentfarbe, offen nur ein zarter Rand.
+class WeekdayPicker extends StatelessWidget {
+  /// 1 = Montag wie bei [DateTime.weekday].
+  final Set<int> selected;
+  final ValueChanged<int> onToggle;
+
+  const WeekdayPicker({
+    super.key,
+    required this.selected,
+    required this.onToggle,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = joeThemeOf(context);
+    return Row(
+      children: [
+        for (var day = 1; day <= 7; day++)
+          Expanded(
+            child: Semantics(
+              label: weekdayNames[day - 1],
+              selected: selected.contains(day),
+              button: true,
+              excludeSemantics: true,
+              onTap: () => onToggle(day),
+              child: InkResponse(
+                onTap: () => onToggle(day),
+                radius: 24,
+                // Mindestens 40 px Tippflaeche – auf einem schmalen Telefon
+                // bleiben je Tag gut 45 px Breite, das reicht.
+                child: SizedBox(
+                  height: 44,
+                  child: Center(
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 150),
+                      width: 40,
+                      height: 40,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: selected.contains(day)
+                            ? theme.accent
+                            : Colors.transparent,
+                        border: Border.all(
+                          color: selected.contains(day)
+                              ? theme.accent
+                              : theme.inkSoft.withValues(alpha: 0.5),
+                        ),
+                      ),
+                      child: Text(
+                        weekdayNamesShort[day - 1],
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: selected.contains(day)
+                              ? FontWeight.w700
+                              : FontWeight.w500,
+                          color: selected.contains(day)
+                              ? theme.bestOn(theme.accent)
+                              : theme.ink,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
 /// Shared chrome for the input sheets: drag handle, title, and a body that
 /// scrolls inside a height cap instead of pushing the save button off-screen
 /// once the keyboard, the date row and 20 color dots are all in play.
@@ -1528,6 +1605,11 @@ Future<void> showTaskSheet(
   final state = AppScope.of(context);
   final theme = joeThemeOf(context);
   var recurrence = task?.recurrence ?? RecurrenceType.none;
+  // Genau eins ist aktiv: ein Chip (Einmalig, Monatlich, …) oder mindestens
+  // ein Tag der Wochenskala – dann ist die Aufgabe woechentlich.
+  var weekdays = task != null && task.recurrence == RecurrenceType.weekly
+      ? {...task.weekdays}
+      : <int>{};
   var intervalDays = task?.intervalDays ?? 2;
   var colorIndex = task?.colorIndex ?? 0;
   var priority = task?.priority ?? Priority.mittel;
@@ -1541,14 +1623,8 @@ Future<void> showTaskSheet(
       JoeToast.error('Bitte gib einen Titel ein.');
       return;
     }
-    // Bis das Blatt eine Wochenskala hat: "Woechentlich" heisst am
-    // Wochentag des Datums. Eine Aufgabe, die schon woechentlich war (auch
-    // eine umgeschriebene taegliche), behaelt ihre Tage.
-    final weekdays = recurrence != RecurrenceType.weekly
-        ? <int>{}
-        : task != null && task.recurrence == RecurrenceType.weekly
-            ? task.weekdays
-            : {date.weekday};
+    final days =
+        recurrence == RecurrenceType.weekly ? {...weekdays} : <int>{};
     if (task == null) {
       state.addTask(
         Task(
@@ -1560,13 +1636,13 @@ Future<void> showTaskSheet(
           colorIndex: colorIndex,
           priority: priority,
           reminderMinuteOfDay: reminderMinute,
-          weekdays: weekdays,
+          weekdays: days,
         ),
       );
     } else {
       task.title = title;
       task.recurrence = recurrence;
-      task.weekdays = weekdays;
+      task.weekdays = days;
       task.intervalDays = intervalDays;
       task.startDate = date;
       task.colorIndex = colorIndex;
@@ -1595,26 +1671,45 @@ Future<void> showTaskSheet(
           ),
           const SizedBox(height: 14),
           const SheetLabel('Wiederholung'),
+          // "Woechentlich" ist kein Chip: das macht die Wochenskala darunter.
+          // Ein Chip loescht die markierten Tage, ein Tag nimmt dem Chip die
+          // Markierung – so ist immer genau eine Wahl sichtbar.
           Wrap(
             spacing: 8,
             runSpacing: 4,
             children: [
-              for (final r in RecurrenceType.values)
+              for (final (r, label) in const [
+                (RecurrenceType.none, 'Einmalig'),
+                (RecurrenceType.monthly, 'Monatlich'),
+                (RecurrenceType.yearly, 'Jährlich'),
+                (RecurrenceType.everyXDays, 'Alle X Tage'),
+              ])
                 ChoiceChip(
-                  label: Text(switch (r) {
-                    RecurrenceType.none => 'Einmalig',
-                    RecurrenceType.weekly => 'Wöchentlich',
-                    RecurrenceType.monthly => 'Monatlich',
-                    RecurrenceType.yearly => 'Jährlich',
-                    RecurrenceType.everyXDays => 'Alle X Tage',
-                  }),
+                  label: Text(label),
                   selected: recurrence == r,
                   selectedColor: theme.accent.withValues(alpha: 0.25),
                   labelStyle: TextStyle(color: theme.ink),
-                  onSelected: (_) => setSheetState(() => recurrence = r),
+                  onSelected: (_) => setSheetState(() {
+                    recurrence = r;
+                    weekdays = {};
+                  }),
                 ),
             ],
           ),
+          if (recurrence == RecurrenceType.monthly ||
+              recurrence == RecurrenceType.yearly)
+            Padding(
+              padding: const EdgeInsets.only(top: 6, left: 4),
+              child: Text(
+                recurrence == RecurrenceType.monthly
+                    ? 'am ${date.day}. jedes Monats'
+                        // Wie im Modell: Monate ohne diesen Tag fallen aus.
+                        '${date.day > 28 ? ' (Monate ohne den ${date.day}. fallen aus)' : ''}'
+                    : 'jedes Jahr am ${formatDate(date)}'
+                        '${date.month == 2 && date.day == 29 ? ' (sonst am 28.)' : ''}',
+                style: TextStyle(color: theme.inkSoft, fontSize: 13),
+              ),
+            ),
           if (recurrence == RecurrenceType.everyXDays)
             Padding(
               padding: const EdgeInsets.only(top: 6),
@@ -1644,6 +1739,22 @@ Future<void> showTaskSheet(
                 ],
               ),
             ),
+          const SizedBox(height: 10),
+          const SheetLabel('Wöchentlich an'),
+          WeekdayPicker(
+            selected: recurrence == RecurrenceType.weekly ? weekdays : const {},
+            onToggle: (day) => setSheetState(() {
+              if (recurrence != RecurrenceType.weekly) {
+                recurrence = RecurrenceType.weekly;
+                weekdays = {day};
+              } else if (!weekdays.remove(day)) {
+                weekdays.add(day);
+              } else if (weekdays.isEmpty) {
+                // Kein Tag markiert heisst keine Wochenwiederholung.
+                recurrence = RecurrenceType.none;
+              }
+            }),
+          ),
           const SizedBox(height: 6),
           InkWell(
             onTap: () async {

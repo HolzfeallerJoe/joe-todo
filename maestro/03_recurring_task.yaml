@@ -1,5 +1,5 @@
 appId: dev.joe.joe_todo
-name: Wiederkehrende Aufgabe (alle X Tage) anlegen
+name: Wiederkehrende Aufgabe (alle X Tage und Wochenskala) anlegen
 ---
 - launchApp:
     clearState: true
@@ -12,3 +12,25 @@ name: Wiederkehrende Aufgabe (alle X Tage) anlegen
 - tapOn: "Speichern"
 - assertVisible: "(?s)Abfall rausbringen.*Alle 2 Tage.*"
 - takeScreenshot: shots/03_recurring
+# Zweiter Teil: woechentlich an Mo und Do ueber die Wochenskala.
+- tapOn: "Hinzufügen"
+- tapOn: "Neue Aufgabe"
+- inputText: "Sport"
+- hideKeyboard
+# Die Tage melden sich der Vorlesehilfe mit vollem Namen ("Montag"), der
+# Kurzname auf dem Kreis ist davon verdeckt.
+- tapOn: "Montag"
+- tapOn: "Donnerstag"
+- tapOn: "Speichern"
+# Im Dashboard steht "Sport" nur an einem Mo oder Do; der Aufgaben-Reiter
+# fuehrt sie unabhaengig vom heutigen Tag unter "Wiederkehrend".
+- scrollUntilVisible:
+    element: "Aufgaben"
+    direction: DOWN
+    centerElement: true
+- tapOn:
+    text: "Aufgaben"
+    retryTapIfNoChange: false
+- assertVisible: "(?s)Sport.*Mo, Do.*"
+- takeScreenshot: shots/03_recurring_weekdays
+- back
