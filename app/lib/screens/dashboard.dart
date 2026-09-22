@@ -66,7 +66,7 @@ class DashboardScreen extends StatelessWidget {
               onTap: () => _push(context, const NotesScreen()),
             ),
             // Die Einkaufsliste hat nur im Modus "Eigener Reiter" einen
-            // eigenen Reiter; sonst wohnt sie in den Notizen (je Tag).
+            // eigenen Reiter; sonst wohnt sie in den Notizen.
             if (state.shoppingMode == ShoppingListMode.tab)
               FolderTabButton(
                 icon: Icons.shopping_basket_outlined,

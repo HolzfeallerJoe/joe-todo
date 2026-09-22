@@ -561,22 +561,26 @@ class HistoryEntry {
 
 /// Wo die Einkaufsliste wohnt (Einstellungen).
 ///
-/// Beide Modi teilen sich einen Speicher ([AppState.shopping]): Eintraege
-/// ohne Tag gehoeren zum Reiter, Eintraege mit Tag zur Liste dieses Tages.
-/// Umschalten loescht nichts, der andere Teil ist nur nicht zu sehen.
+/// Es gibt genau eine Liste ([AppState.shopping]), sie haengt an keinem Tag.
+/// Der Modus bestimmt nur, wo sie zu sehen ist.
 enum ShoppingListMode {
-  /// Ein eigener Reiter auf der ersten Seite, eine Liste fuer alle Tage.
-  tab('Eigener Reiter', 'Eine Liste für alle Tage'),
+  /// Ein eigener Reiter auf der ersten Seite.
+  tab('Eigener Reiter', 'Die Liste hat einen eigenen Reiter'),
 
-  /// In den Notizen, je Tag eine eigene Liste.
-  perDay('In den Notizen', 'Jeder Tag hat seine eigene Liste');
+  /// In den Notizen, ueber den Umschalter "Notizen | Einkaufsliste".
+  notes('In den Notizen', 'Die Liste steht in den Notizen');
 
   final String label;
   final String description;
   const ShoppingListMode(this.label, this.description);
 
-  static ShoppingListMode fromJson(Object? v) => ShoppingListMode.values
-      .firstWhere((m) => m.name == v, orElse: () => ShoppingListMode.tab);
+  static ShoppingListMode fromJson(Object? v) {
+    // 'perDay' hiess der Notizen-Modus, als die Liste dort noch je Tag
+    // gefuehrt wurde (nur in Vorabstaenden von 1.2.0).
+    if (v == 'perDay') return ShoppingListMode.notes;
+    return ShoppingListMode.values
+        .firstWhere((m) => m.name == v, orElse: () => ShoppingListMode.tab);
+  }
 }
 
 /// Ein Eintrag der Einkaufsliste.
@@ -585,9 +589,6 @@ class ShoppingItem {
   String title;
   bool done;
 
-  /// Der Tag, an den der Eintrag gebunden ist; null = die Liste im Reiter.
-  final DateTime? day;
-
   /// Wann er angelegt wurde – danach richtet sich die Reihenfolge.
   final DateTime createdAt;
 
@@ -595,29 +596,25 @@ class ShoppingItem {
     required this.id,
     required this.title,
     this.done = false,
-    DateTime? day,
     required this.createdAt,
-  }) : day = day == null ? null : dateOnly(day);
+  });
 
   Map<String, dynamic> toJson() => {
         'id': id,
         'title': title,
         'done': done,
-        'day': day == null ? null : dateKey(day!),
         'createdAt': createdAt.toIso8601String(),
       };
 
-  factory ShoppingItem.fromJson(Map<String, dynamic> json) {
-    final storedDay = json['day'];
-    return ShoppingItem(
-      id: json['id'] as String,
-      title: json['title'] as String,
-      // Ein falsch getypter Haken ist kein Grund, den Eintrag zu verlieren.
-      done: json['done'] == true,
-      day: storedDay == null ? null : parseDateKey(storedDay as String),
-      createdAt: DateTime.parse(json['createdAt'] as String),
-    );
-  }
+  /// Ein altes Feld 'day' (Vorabstaende mit Liste je Tag) wird ueberlesen:
+  /// solche Eintraege landen in der einen Liste, verloren geht keiner.
+  factory ShoppingItem.fromJson(Map<String, dynamic> json) => ShoppingItem(
+        id: json['id'] as String,
+        title: json['title'] as String,
+        // Ein falsch getypter Haken ist kein Grund, den Eintrag zu verlieren.
+        done: json['done'] == true,
+        createdAt: DateTime.parse(json['createdAt'] as String),
+      );
 }
 
 class AppState extends ChangeNotifier {
@@ -638,8 +635,7 @@ class AppState extends ChangeNotifier {
   /// Selbst angelegte Symptome, zusaetzlich zu den zehn festen.
   List<Symptom> customSymptoms = [];
 
-  /// Die Einkaufsliste – die des Reiters und die der Tage in einem
-  /// (siehe [ShoppingListMode]).
+  /// Die Einkaufsliste – eine fuer alle Tage (siehe [ShoppingListMode]).
   List<ShoppingItem> shopping = [];
   ShoppingListMode shoppingMode = ShoppingListMode.tab;
   int themeIndex = 0;
@@ -1301,17 +1297,14 @@ class AppState extends ChangeNotifier {
 
   // ---- Einkaufsliste ----
 
-  /// Die Eintraege einer Liste: [day] null = die im Reiter, sonst die dieses
-  /// Tages. Offene zuerst, darin aelteste oben (neue landen unten, nahe am
-  /// Eingabefeld); danach die abgehakten.
-  List<ShoppingItem> shoppingItemsFor(DateTime? day) {
-    final d = day == null ? null : dateOnly(day);
+  /// Die Eintraege in Anzeigereihenfolge: offene zuerst, darin aelteste
+  /// oben (neue landen unten, nahe am Eingabefeld); danach die abgehakten.
+  List<ShoppingItem> get shoppingItems {
     // Die Stelle in der Liste bricht einen Gleichstand der Zeit: zwei
     // schnell hintereinander getippte Eintraege koennen dieselbe haben, und
     // List.sort ist nicht stabil.
     final indexed = [
-      for (var i = 0; i < shopping.length; i++)
-        if (shopping[i].day == d) (i, shopping[i]),
+      for (var i = 0; i < shopping.length; i++) (i, shopping[i]),
     ]..sort((a, b) {
         final done = (a.$2.done ? 1 : 0) - (b.$2.done ? 1 : 0);
         if (done != 0) return done;
@@ -1324,13 +1317,12 @@ class AppState extends ChangeNotifier {
 
   /// Legt einen Eintrag an und gibt ihn zurueck; ein leerer Titel legt
   /// nichts an (null).
-  ShoppingItem? addShoppingItem(String title, {DateTime? day}) {
+  ShoppingItem? addShoppingItem(String title) {
     final trimmed = title.trim();
     if (trimmed.isEmpty) return null;
     final item = ShoppingItem(
       id: nextId(),
       title: trimmed,
-      day: day,
       createdAt: DateTime.now(),
     );
     JoeLog.log('Einkauf angelegt (${item.id})');

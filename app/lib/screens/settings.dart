@@ -228,9 +228,8 @@ class SettingsScreen extends StatelessWidget {
               ),
             ),
             const SectionTitle('Einkaufsliste'),
-            // Umschalten loescht nichts: Eintraege des anderen Modus bleiben
-            // gespeichert und sind nur nicht zu sehen (siehe
-            // AppState.shoppingItemsFor).
+            // Umschalten aendert nur, wo die Liste steht – es ist in beiden
+            // Modi dieselbe (siehe AppState.shoppingItems).
             PaperCard(
               padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
               child: RadioGroup<ShoppingListMode>(

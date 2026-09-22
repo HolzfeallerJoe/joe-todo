@@ -3,9 +3,9 @@ import 'package:flutter/material.dart';
 import '../models.dart';
 import '../widgets.dart';
 
-/// Die Einkaufsliste als eigener Reiter (Modus [ShoppingListMode.tab]): eine
-/// Liste fuer alle Tage. Kein Plus-Knopf – der Weg zum Hinzufuegen ist das
-/// Eingabefeld am unteren Rand.
+/// Die Einkaufsliste als eigener Reiter (Modus [ShoppingListMode.tab]).
+/// Kein Plus-Knopf – der Weg zum Hinzufuegen ist das Eingabefeld am
+/// unteren Rand.
 class ShoppingListScreen extends StatelessWidget {
   const ShoppingListScreen({super.key});
 
@@ -14,31 +14,25 @@ class ShoppingListScreen extends StatelessWidget {
     return const JoeScaffold(
       page: PetPage.shopping,
       title: 'Einkaufsliste',
-      body: SafeArea(child: ShoppingList(day: null)),
+      body: SafeArea(child: ShoppingList()),
     );
   }
 }
 
 /// Eine Einkaufsliste: die Eintraege auf einer Karte, darunter die
-/// Eingabeleiste.
-///
-/// [day] null ist die Liste im Reiter, sonst die dieses Tages (Modus
-/// [ShoppingListMode.perDay], in den Notizen). Beide teilen sich den
-/// Speicher, siehe [AppState.shoppingItemsFor].
+/// Eingabeleiste. Im Reiter und in den Notizen ist es dieselbe Liste
+/// ([AppState.shoppingItems]), sie haengt an keinem Tag.
 ///
 /// Das Eingabefeld steht unten und nicht oben: dort ist der Daumen, die
 /// Tastatur schiebt es mit hoch, und neue Eintraege landen genau darueber –
 /// dort, wo der Blick beim Tippen gerade ist.
 class ShoppingList extends StatefulWidget {
-  final DateTime? day;
-
-  /// Was ueber der Karte mitscrollt – in den Notizen der Umschalter samt
-  /// Datumszeile. Es steht *in* der Liste und nicht darueber, damit der
-  /// Begleiter auf der obersten Karte sitzt und mit ihr wegscrollt (siehe
-  /// [petPadding]).
+  /// Was ueber der Karte mitscrollt – in den Notizen der Umschalter. Er
+  /// steht *in* der Liste und nicht darueber, damit der Begleiter auf der
+  /// obersten Karte sitzt und mit ihr wegscrollt (siehe [petPadding]).
   final List<Widget> header;
 
-  const ShoppingList({super.key, required this.day, this.header = const []});
+  const ShoppingList({super.key, this.header = const []});
 
   @override
   State<ShoppingList> createState() => _ShoppingListState();
@@ -62,7 +56,7 @@ class _ShoppingListState extends State<ShoppingList> {
 
   void _add() {
     final state = AppScope.of(context);
-    final item = state.addShoppingItem(_input.text, day: widget.day);
+    final item = state.addShoppingItem(_input.text);
     // Leere Eingabe tut nichts – auch das Feld bleibt, wie es ist.
     if (item == null) return;
     _input.clear();
@@ -85,7 +79,7 @@ class _ShoppingListState extends State<ShoppingList> {
   Widget build(BuildContext context) {
     final state = AppScope.of(context);
     final theme = joeThemeOf(context);
-    final items = state.shoppingItemsFor(widget.day);
+    final items = state.shoppingItems;
     const page = PetPage.shopping;
 
     return Column(

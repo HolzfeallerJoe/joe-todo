@@ -236,17 +236,14 @@ Dashboard, Kalender, wiederkehrenden Aufgaben, Notizen und Historie.
   umschalten lässt:
 
   1. **Eigener Reiter** (Standard): ein Reiter „Einkaufsliste" zwischen
-     „Notizen" und „Historie", dahinter **eine** Liste für alle Tage.
+     „Notizen" und „Historie".
   2. **In den Notizen**: der Reiter verschwindet, die Notizen-Seite bekommt
-     oben den Umschalter „Notizen | Einkaufsliste", und jeder Tag hat seine
-     eigene Liste. Sie zeigt zuerst **heute**, mit ‹ Datum › zum
-     Weiterblättern; ein Tipp aufs Datum öffnet den Datumsdialog. Die
-     Notizen öffnen immer mit „Notizen", der Umschalter merkt sich nichts.
-     Im Modus „Eigener Reiter" sieht die Notizen-Seite genau aus wie vorher.
+     oben den Umschalter „Notizen | Einkaufsliste". Die Notizen öffnen immer
+     mit „Notizen", der Umschalter merkt sich nichts. Im Modus „Eigener
+     Reiter" sieht die Notizen-Seite genau aus wie vorher.
 
-  Beide Modi teilen sich einen Speicher: Einträge ohne Tag gehören zum
-  Reiter, Einträge mit Tag zur Liste dieses Tages. Umschalten löscht also
-  nichts, der andere Teil ist nur nicht zu sehen, bis man zurückschaltet.
+  Es gibt genau **eine** Liste, und sie hängt an keinem Tag: Der Modus sagt
+  nur, wo sie steht. Umschalten ändert an den Einträgen also nichts.
   Hinzugefügt wird über ein Eingabefeld **am unteren Rand**, dort ist der
   Daumen, die Tastatur schiebt es mit hoch, und neue Einträge landen genau
   darüber, unten bei den offenen – dort, wo der Blick beim Tippen gerade
@@ -790,7 +787,7 @@ Geräts – das Befinden also mit. Wer das nicht will, schaltet das Backup für
 Joe in den Android-Einstellungen ab.
 
 Die **Einkaufsliste** liegt ebenfalls in `joe_data_v1` (`shopping`, dazu
-`shoppingMode`), die Liste des Reiters und die der Tage in einer Liste. Das
+`shoppingMode`) – eine Liste, in beiden Modi dieselbe. Das
 Log nennt nur IDs und die Anzahl, nie einen Eintrag, und in den
 Widget-Schnappschuss kommt sie nicht.
 
@@ -880,7 +877,10 @@ nur eine der beiden Uhrzeiten oder ein Terminende vor dem Start kosten nur
 die Dauer, der Eintrag bleibt. Ebenso fallen falsch getypte neue
 Einstellungen auf ihren Standard – `petScale` wird auf 60–160 % geklemmt,
 eine Prioritätsfarbe außerhalb der Palette heißt „Keine Farbe", ein
-unbekannter Einkaufs-Modus „Eigener Reiter".
+unbekannter Einkaufs-Modus „Eigener Reiter". Aus Vorabständen, in denen die
+Einkaufsliste in den Notizen noch je Tag geführt wurde, wird das Feld `day`
+eines Eintrags überlesen (er steht dann in der einen Liste) und der Modus
+`perDay` als „In den Notizen" gelesen.
 
 Löschen fragt überall nach (Aufgabe, Termin, Notiz, Einkaufseintrag – `confirmDelete` in
 `widgets.dart`): es gibt kein Undo, ein verrutschter Tipper wäre sonst

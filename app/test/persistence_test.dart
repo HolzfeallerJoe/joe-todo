@@ -364,11 +364,11 @@ void main() {
     expect(state.shoppingMode, ShoppingListMode.tab, reason: 'Standard');
     expect(state.shopping, isEmpty);
 
-    state.setShoppingMode(ShoppingListMode.perDay);
+    state.setShoppingMode(ShoppingListMode.notes);
     await pumpEventQueue();
     final wieder = AppState();
     await wieder.load();
-    expect(wieder.shoppingMode, ShoppingListMode.perDay);
+    expect(wieder.shoppingMode, ShoppingListMode.notes);
 
     final data = validData()..['shoppingMode'] = 'im Kuehlschrank';
     SharedPreferences.setMockInitialValues({'joe_data_v1': jsonEncode(data)});

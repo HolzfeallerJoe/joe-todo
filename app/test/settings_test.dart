@@ -214,18 +214,18 @@ void main() {
         (tester) async {
       final semantics = tester.ensureSemantics();
       final state = await pumpSettings(tester);
-      await ensureVisible(tester, option(ShoppingListMode.perDay));
+      await ensureVisible(tester, option(ShoppingListMode.notes));
 
-      expect(find.text('Eine Liste für alle Tage'), findsOneWidget);
-      expect(find.text('Jeder Tag hat seine eigene Liste'), findsOneWidget);
+      expect(find.text('Die Liste hat einen eigenen Reiter'), findsOneWidget);
+      expect(find.text('Die Liste steht in den Notizen'), findsOneWidget);
       expect(isChosen(tester, ShoppingListMode.tab), isTrue);
-      expect(isChosen(tester, ShoppingListMode.perDay), isFalse);
+      expect(isChosen(tester, ShoppingListMode.notes), isFalse);
 
-      await tester.tap(option(ShoppingListMode.perDay));
+      await tester.tap(option(ShoppingListMode.notes));
       await tester.pumpAndSettle();
 
-      expect(state.shoppingMode, ShoppingListMode.perDay);
-      expect(isChosen(tester, ShoppingListMode.perDay), isTrue);
+      expect(state.shoppingMode, ShoppingListMode.notes);
+      expect(isChosen(tester, ShoppingListMode.notes), isTrue);
       expect(isChosen(tester, ShoppingListMode.tab), isFalse);
 
       // Und zurueck – nichts daran ist eine Einbahnstrasse.
