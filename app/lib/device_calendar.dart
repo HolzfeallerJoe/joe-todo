@@ -258,8 +258,8 @@ bool eventCoversDay(Event event, DateTime day) {
   if (event.isAllDay) {
     // Der Calendar Provider legt ganztaegige Termine zwar auf
     // UTC-Mitternacht ab, das Plugin rechnet sie beim Lesen aber schon
-    // selbst auf lokale Mitternacht um (device_calendar_plus 0.8.0 /
-    // device_calendar_plus_android 0.7.1: `utcToLocalMidnight` in
+    // selbst auf lokale Mitternacht um (device_calendar_plus 0.8.1 /
+    // device_calendar_plus_android 0.7.2: `utcToLocalMidnight` in
     // EventsService.kt). Hier also nur noch das Datum ablesen – ein zweites
     // toUtc() schob den Termin in jeder Zeitzone oestlich von UTC auf den
     // Vortag und liess ihn zwei Tage belegen. Bei einem Plugin-Update pruefen,

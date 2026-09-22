@@ -144,8 +144,8 @@ Dashboard, Kalender, wiederkehrenden Aufgaben, Notizen und Historie.
   „bis 09:00", genau wie ein eigener Termin mit Dauer
   (`deviceEventTimeLabel` und `_deviceEntry` reden dieselbe Sprache). Ein
   Ende genau um Mitternacht belegt den Folgetag nicht. Ganztägige Termine
-  kommen vom Plugin (`device_calendar_plus` 0.8.0 /
-  `device_calendar_plus_android` 0.7.1) schon als **lokale** Mitternacht –
+  kommen vom Plugin (`device_calendar_plus` 0.8.1 /
+  `device_calendar_plus_android` 0.7.2) schon als **lokale** Mitternacht –
   es rechnet die UTC-Mitternacht des Calendar Providers selbst um – und
   werden in `eventCoversDay` nur noch nach Datum einsortiert. Eine zweite
   UTC-Umrechnung hatte sie in jeder Zeitzone östlich von UTC auf den Vortag
@@ -959,9 +959,13 @@ Maven Central. Zwei Dinge hängen daran, die man von aussen nicht sieht:
 Beim Bauen bleibt eine Warnung stehen, die nicht uns gehört:
 `device_calendar_plus_android` und `flutter_timezone` bringen noch ihr
 eigenes Kotlin-Gradle-Plugin mit. Beide sind auf der neuesten Fassung
-(0.8.0 bzw. 5.1.0); den Umstieg auf Built-in Kotlin müssen ihre Autoren
-machen. Heute ist es eine Warnung – „future versions of Flutter will fail to
-build" –, also im Blick behalten, wenn das nächste SDK-Upgrade ansteht.
+(0.7.2 bzw. 5.1.0); den Umstieg auf Built-in Kotlin müssen ihre Autoren
+machen. `flutter_timezone` ist schon vorbereitet und wendet `kotlin-android`
+nur an, solange `android.builtInKotlin` aus ist; `device_calendar_plus_android`
+wendet es unbedingt an. Den Schalter anzuschalten hilft also erst, wenn auch
+dort eine Fassung dafür da ist. Heute ist es eine Warnung – „future versions
+of Flutter will fail to build" –, also im Blick behalten, wenn das nächste
+SDK-Upgrade ansteht.
 
 `build-debug-apk.ps1` liefert dasselbe Artefakt wie „Build > Build APK(s)" in
 Android Studio: debuggable, signiert mit dem Android-Debug-Keystore, alle ABIs.
