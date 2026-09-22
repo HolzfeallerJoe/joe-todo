@@ -653,23 +653,25 @@ class FolderTabButton extends StatelessWidget {
               child: Row(
                 children: [
                   Icon(icon, color: onTab.withValues(alpha: 0.75), size: 26),
-                  const Spacer(),
-                  // Der lange Reiter "Notizen/Einkaufsliste" passt auf einem
-                  // schmalen Telefon nicht in einer Zeile: Statt umzubrechen
-                  // oder abgeschnitten zu werden, schrumpft die Schrift nur
-                  // so weit wie noetig. Kurze Beschriftungen bleiben bei 19.
-                  Flexible(
-                    child: FittedBox(
-                      fit: BoxFit.scaleDown,
-                      alignment: Alignment.centerRight,
-                      child: Text(
-                        label,
-                        maxLines: 1,
-                        style: TextStyle(
-                          color: onTab,
-                          fontSize: 19,
-                          fontWeight: FontWeight.w700,
-                        ),
+                  // Kein Spacer davor: Der teilte sich den freien Platz mit
+                  // dem Text (beide flexibel, je die Haelfte), und der lange
+                  // Reiter "Notizen/Einkaufsliste" wurde kleiner gesetzt,
+                  // obwohl daneben noch Platz frei war. Der Text nimmt jetzt
+                  // den ganzen Rest und steht darin rechts – jeder Reiter
+                  // traegt dieselbe Schriftgroesse, egal wie lang sein Name
+                  // ist, und die Symbole bleiben bei 26.
+                  Expanded(
+                    child: Text(
+                      label,
+                      maxLines: 1,
+                      // Nur die Notbremse bei sehr grosser Systemschrift:
+                      // lieber drei Punkte als ein abgeschnittenes Wort.
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.end,
+                      style: TextStyle(
+                        color: onTab,
+                        fontSize: 19,
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
                   ),

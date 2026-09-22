@@ -420,4 +420,33 @@ void main() {
     ];
     expect(tops, orderedEquals([...tops]..sort()));
   });
+
+  testWidgets('ein langer Reitername aendert nichts an Schrift und Symbolen',
+      (tester) async {
+    final state = await pumpDashboard(tester, height: 1600);
+    double fontOf(String label) =>
+        tester.widget<Text>(find.text(label)).style!.fontSize!;
+    List<double> iconSizes() => [
+          for (final icon in tester.widgetList<Icon>(find.descendant(
+            of: find.byType(FolderTabButton),
+            matching: find.byType(Icon),
+          )))
+            icon.size ?? 24,
+        ];
+
+    final vorher = fontOf('Aufgaben');
+    final symboleVorher = iconSizes();
+
+    state.setShoppingMode(ShoppingListMode.notes);
+    await tester.pumpAndSettle();
+
+    // Der lange Name wird nicht kleiner gesetzt als die kurzen – und die
+    // anderen Reiter merken von ihm ueberhaupt nichts.
+    expect(fontOf('Notizen/Einkaufsliste'), vorher);
+    expect(fontOf('Aufgaben'), vorher);
+    expect(fontOf('Historie'), vorher);
+    // Auch die Symbole bleiben, wie sie waren (der Einkaufs-Reiter faellt
+    // in diesem Modus weg, seine zwei Symbole also auch).
+    expect(iconSizes(), symboleVorher.sublist(2));
+  });
 }
