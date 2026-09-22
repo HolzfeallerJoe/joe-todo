@@ -654,12 +654,23 @@ class FolderTabButton extends StatelessWidget {
                 children: [
                   Icon(icon, color: onTab.withValues(alpha: 0.75), size: 26),
                   const Spacer(),
-                  Text(
-                    label,
-                    style: TextStyle(
-                      color: onTab,
-                      fontSize: 19,
-                      fontWeight: FontWeight.w700,
+                  // Der lange Reiter "Notizen/Einkaufsliste" passt auf einem
+                  // schmalen Telefon nicht in einer Zeile: Statt umzubrechen
+                  // oder abgeschnitten zu werden, schrumpft die Schrift nur
+                  // so weit wie noetig. Kurze Beschriftungen bleiben bei 19.
+                  Flexible(
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerRight,
+                      child: Text(
+                        label,
+                        maxLines: 1,
+                        style: TextStyle(
+                          color: onTab,
+                          fontSize: 19,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
                     ),
                   ),
                   const SizedBox(width: 6),

@@ -55,6 +55,7 @@ void main() {
     testWidgets('der Reiter steht zwischen Notizen und Historie',
         (tester) async {
       await pump(tester);
+      // Im Reiter-Modus heisst der Notizen-Reiter schlicht "Notizen".
       final notes = tester.getTopLeft(find.text('Notizen')).dy;
       final shopping = tester.getTopLeft(find.text('Einkaufsliste')).dy;
       final history = tester.getTopLeft(find.text('Historie')).dy;
@@ -190,8 +191,11 @@ void main() {
         (tester) async {
       await pumpInNotes(tester);
       expect(find.text('Einkaufsliste'), findsNothing);
+      // Der Reiter nennt die Einkaufsliste mit: sonst suchte man sie
+      // hinter einem Namen, der sie nicht nennt.
+      expect(find.text('Notizen'), findsNothing);
 
-      await tap(tester, find.text('Notizen'));
+      await tap(tester, find.text('Notizen/Einkaufsliste'));
       // Die Notizen oeffnen mit "Notizen": Liste und Stift wie gewohnt.
       expect(find.text('Einkaufsliste'), findsOneWidget);
       expect(find.textContaining('Noch keine Notizen'), findsOneWidget);
@@ -207,7 +211,7 @@ void main() {
         (tester) async {
       // Der Eintrag aus dem Reiter-Modus steht hier genauso.
       final state = await pumpInNotes(tester, items: [item('1', 'Milch')]);
-      await tap(tester, find.text('Notizen'));
+      await tap(tester, find.text('Notizen/Einkaufsliste'));
       await tap(tester, find.text('Einkaufsliste'));
       expect(find.text('Milch'), findsOneWidget);
       // Kein Datumsumschalter mehr: die Liste haengt an keinem Tag.
@@ -221,12 +225,12 @@ void main() {
 
     testWidgets('die Notizen oeffnen wieder mit "Notizen"', (tester) async {
       await pumpInNotes(tester);
-      await tap(tester, find.text('Notizen'));
+      await tap(tester, find.text('Notizen/Einkaufsliste'));
       await tap(tester, find.text('Einkaufsliste'));
       await tester.pageBack();
       await tester.pumpAndSettle();
 
-      await tap(tester, find.text('Notizen'));
+      await tap(tester, find.text('Notizen/Einkaufsliste'));
       expect(find.textContaining('Noch keine Notizen'), findsOneWidget);
     });
 
@@ -235,7 +239,7 @@ void main() {
         tester,
         items: [item('1', 'Milch')],
       );
-      await tap(tester, find.text('Notizen'));
+      await tap(tester, find.text('Notizen/Einkaufsliste'));
       await tap(tester, find.text('Einkaufsliste'));
       expect(find.text('Milch'), findsOneWidget);
       expect(state.shopping, hasLength(1));

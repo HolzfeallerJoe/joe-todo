@@ -61,7 +61,11 @@ class DashboardScreen extends StatelessWidget {
             ),
             FolderTabButton(
               icon: Icons.edit_note,
-              label: 'Notizen',
+              // Wohnt die Einkaufsliste in den Notizen, sagt es der Reiter:
+              // sonst suchte man sie hinter einem Namen, der sie nicht nennt.
+              label: state.shoppingMode == ShoppingListMode.tab
+                  ? 'Notizen'
+                  : 'Notizen/Einkaufsliste',
               color: theme.tabColors[3],
               onTap: () => _push(context, const NotesScreen()),
             ),

@@ -78,7 +78,8 @@ void main() {
       final state = await pump(tester);
       state.setShoppingMode(ShoppingListMode.notes);
       await tester.pumpAndSettle();
-      await open(tester, 'Notizen');
+      // In diesem Modus nennt der Reiter die Einkaufsliste mit.
+      await open(tester, 'Notizen/Einkaufsliste');
       await open(tester, 'Einkaufsliste');
       expectOnPaper(tester, find.textContaining('Noch nichts auf der Liste'));
     });
