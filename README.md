@@ -982,18 +982,15 @@ dem fertigen Build und sieht sonst wie ein Build-Fehler aus.
 
 ## CI
 
-`.github/workflows/joe-todo-apk.yml` (im Repo-Wurzelverzeichnis) baut bei
-jedem Push auf `main` und in jedem PR `flutter analyze`, `flutter test` und
-das Debug-APK und haengt das APK als Artefakt an den Lauf. Der Workflow ist
-per `paths`-Filter auf `software/joe-todo/**` beschraenkt, damit Aenderungen
-an den anderen Projekten im Repo ihn nicht ausloesen; die Konventionen dafuer
-stehen in `.github/workflows/README.md`. Die Flutter-Version ist dort fest
+`.github/workflows/joe-todo-apk.yml` baut bei jedem Push auf `main` und in
+jedem PR `flutter analyze`, `flutter test` und das Debug-APK und haengt das
+APK als Artefakt an den Lauf. Die Flutter-Version ist dort fest
 eingetragen (aktuell 3.47.1) und sollte mit der lokalen uebereinstimmen.
 
 Bei einem Push auf `main` landet das APK zusaetzlich als GitHub-Release unter
 dem Tag `joe-todo-v<version>` (Version aus `app/pubspec.yaml`, aktuell
-`1.2.0+6` → `joe-todo-v1.2.0+6`). Das Repo enthaelt mehrere Projekte mit einer
-gemeinsamen Release-Liste, darum steht der Projektname im Tag. Solange die
+`1.2.0+6` → `joe-todo-v1.2.0+6`). Der Projektname im Tag stammt aus der Zeit
+im Sammel-Repo AI_things und ist fuer durchgehende Tags geblieben. Solange die
 Version in `pubspec.yaml` unveraendert bleibt, wird dasselbe Release
 ueberschrieben und der Tag auf den neuen Commit gesetzt; fuer einen dauerhaft
 abgelegten Stand vorher die Version anheben – deshalb steht in

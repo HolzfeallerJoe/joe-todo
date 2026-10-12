@@ -1,6 +1,6 @@
 # AGENTS.md — joe-todo
 
-Was hier steht, gilt für alle Arbeiten in `software/joe-todo`. Wie die App
+Was hier steht, gilt für alle Arbeiten in diesem Repo. Wie die App
 gebaut ist, steht in [README.md](README.md).
 
 ## Vor jedem Push: Versionsnummer anheben

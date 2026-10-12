@@ -1,0 +1,250 @@
+# Debug-APK fuer joe-todo.
+name: joe-todo · Debug-APK
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  # Manuell ausloesbar, falls man das APK ohne Aenderung braucht.
+  workflow_dispatch:
+
+# write, weil der letzte Schritt ein Release samt Tag anlegt.
+permissions:
+  contents: write
+
+# Bei mehreren Pushes hintereinander zaehlt nur der letzte.
+concurrency:
+  group: joe-todo-apk-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Analyse, Tests, Debug-APK
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: app
+
+    steps:
+      - uses: actions/checkout@v5
+
+      # AGP 8.11 und Gradle 8.14 laufen auf JDK 17; app/build.gradle.kts
+      # kompiliert ohnehin gegen 17. ubuntu-24.04 hat Temurin 17 schon als
+      # Default, der Schritt kostet also nur Sekunden – er haelt die Version
+      # aber fest, falls GitHub das Standard-JDK des Images anhebt.
+      #
+      # Kein 'cache: gradle' mehr: dessen Schluessel haengt am Hash der
+      # *.gradle*-Dateien. Aendern die sich nicht, ist es ein exakter Treffer
+      # und die Action speichert gar nicht erst neu – ein Build-Cache koennte
+      # sich so nie fuellen. Das uebernimmt setup-gradle unten.
+      - name: JDK 17 einrichten
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      # Legt Init-Skripte im Gradle User Home ab und greift damit fuer "all
+      # Gradle executions on the runner, no matter how Gradle is invoked" –
+      # also auch fuer das Gradle, das 'flutter build apk' startet.
+      #
+      # Gegenueber setup-java: rollierende Cache-Schluessel (jeder Lauf
+      # schreibt zurueck, deshalb waechst der Build-Cache aus
+      # 'caches/build-cache-1' ueberhaupt erst an) und 'cache-cleanup', das
+      # per Default 'on-success' unbenutzte Dateien vor dem Speichern
+      # wegraeumt. Letzteres ist hier wichtig: das Repo lag mit den alten
+      # setup-java-Caches bei ~9 von 10 GB Cache-Budget.
+      #
+      # Geschrieben wird per Default nur von der Standard-Branch, PRs lesen
+      # nur – genau richtig.
+      - name: Gradle-Cache einrichten
+        uses: gradle/actions/setup-gradle@v6
+
+      # Feste Version statt 'stable', damit CI und Arbeitsplatz dasselbe
+      # bauen. Beim Hochziehen hier und lokal gemeinsam anheben.
+      - name: Flutter einrichten
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.47.1
+          channel: stable
+          cache: true
+
+      # Ohne diesen Schritt legt sich jeder Runner beim ersten Gradle-Lauf
+      # einen frischen Debug-Keystore an. Jede CI-APK traegt damit
+      # eine andere Signatur – nicht nur gegenueber lokalen Builds, sondern
+      # auch von einem CI-Lauf zum naechsten. Android verweigert jedes Update
+      # ueber eine Signaturgrenze hinweg ("App nicht installiert"), die App
+      # muesste also jedes Mal samt aller Daten deinstalliert werden. Der
+      # Keystore aus dem Secret ist derselbe, mit dem build-debug-apk.ps1
+      # lokal signiert; damit bleiben beide Wege untereinander updatefaehig.
+      #
+      # Kein echtes Geheimnis: das Passwort eines Debug-Keystores ist immer
+      # 'android'. Es liegt trotzdem als Secret, weil eine Schluesseldatei
+      # nichts im Repo zu suchen hat. Fehlt es – PR aus einem Fork, oder das
+      # Secret ist noch nicht angelegt –, baut der Lauf mit dem generierten
+      # Schluessel des Runners weiter, nur eben ohne Update-Pfad.
+      - name: Debug-Keystore einspielen
+        env:
+          DEBUG_KEYSTORE: ${{ secrets.JOE_TODO_DEBUG_KEYSTORE }}
+        run: |
+          if [ -z "$DEBUG_KEYSTORE" ]; then
+            echo "::warning::Secret JOE_TODO_DEBUG_KEYSTORE fehlt - der Runner erzeugt einen eigenen Debug-Keystore. Die APK laesst sich dann nicht ueber eine vorhandene Installation legen."
+            exit 0
+          fi
+          # 'tr -d' gegen Leerraum aus der Zwischenablage: ein angehaengtes
+          # \r\n oder ein Zeilenumbruch mitten im Wert laesst 'base64 -d'
+          # sonst mit "invalid input" abbrechen. In base64 selbst kommt
+          # Leerraum nicht vor, es geht also nichts verloren.
+          ks="$RUNNER_TEMP/debug.keystore"
+          printf '%s' "$DEBUG_KEYSTORE" | tr -d '[:space:]' | base64 -d > "$ks"
+          # Bricht ab, wenn die Datei kein brauchbarer Keystore ist. Besser
+          # hier als spaeter in einer APK, die niemand installieren kann.
+          keytool -list -v -keystore "$ks" \
+            -alias androiddebugkey -storepass android > "$RUNNER_TEMP/keystore.txt"
+
+          # Nicht nach $HOME/.android: AGP sucht den Debug-Keystore ueber
+          # ANDROID_USER_HOME / ANDROID_PREFS_ROOT / ANDROID_SDK_HOME und erst
+          # zuletzt in user.home. Auf dem Runner greift eine der vorderen
+          # Variablen -- eine Datei in $HOME/.android blieb unbenutzt, AGP
+          # erzeugte sich still einen eigenen Schluessel, und die APK war
+          # wieder nicht installierbar. android/app/build.gradle.kts liest
+          # deshalb JOE_DEBUG_KEYSTORE.
+          echo "JOE_DEBUG_KEYSTORE=$ks" >> "$GITHUB_ENV"
+
+          fp=$(grep -m1 'SHA256:' "$RUNNER_TEMP/keystore.txt" \
+               | sed 's/.*SHA256: *//' | tr -d ':' | tr 'A-Z' 'a-z')
+          echo "ERWARTETE_SIGNATUR=$fp" >> "$GITHUB_ENV"
+          echo "Erwartete Signatur: $fp"
+
+      - name: Abhaengigkeiten holen
+        run: flutter pub get
+
+      # --no-pub, weil der Schritt darueber schon aufgeloest hat; sonst prueft
+      # jeder der beiden die Abhaengigkeiten noch einmal nach.
+      - name: Analyse
+        run: flutter analyze --no-pub
+
+      - name: Unit-Tests
+        run: flutter test --no-pub
+
+      # Die Version steht nur in der pubspec, nicht im Git-Tag – also wird sie
+      # von dort gelesen und traegt danach Dateinamen, Tag und Release-Titel.
+      # Format ist 'version: 1.2.3+4' (build-name + build-number).
+      - name: Version aus pubspec lesen
+        id: version
+        run: |
+          version="$(sed -n 's/^version:[[:space:]]*//p' pubspec.yaml | head -n1 | tr -d '\r')"
+          if [ -z "$version" ]; then
+            echo "Keine 'version:'-Zeile in pubspec.yaml gefunden." >&2
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=joe-todo-v$version" >> "$GITHUB_OUTPUT"
+          echo "apk=joe-todo-v$version-debug.apk" >> "$GITHUB_OUTPUT"
+
+      # Debug statt Release: fuer Release fehlt ein eigener Signing-Key, der
+      # Standard waere der Debug-Keystore. Entspricht build-debug-apk.ps1.
+      #
+      # Die env-Dateien (app/env/, siehe lib/env.dart) sind nicht im Repo, sie
+      # duerfen Geheimnisse enthalten. Steht das Secret JOE_TODO_ENV bereit,
+      # wird daraus env/.env geschrieben und mit --dart-define-from-file in
+      # den Build gegeben; sonst baut derselbe Befehl ohne das Flag, also mit
+      # den Standardwerten aus lib/env.dart.
+      #
+      # Das 'sonst' ist kein Notnagel, sondern der Normalfall fuer PRs aus
+      # einem Fork: die bekommen keine Secrets, und daran soll kein Lauf
+      # scheitern. Die Datei selbst wandert nicht ins APK – nur die Werte, die
+      # der Kode auch liest.
+      - name: Debug-APK bauen
+        env:
+          ENV_DEV: ${{ secrets.JOE_TODO_ENV }}
+        run: |
+          if [ -n "$ENV_DEV" ]; then
+            printf '%s\n' "$ENV_DEV" > env/.env
+            echo "env/.env aus dem Secret JOE_TODO_ENV geschrieben"
+            flutter build apk --debug --dart-define-from-file=env/.env
+          else
+            echo "Kein Secret JOE_TODO_ENV gesetzt – Build mit den Standardwerten aus lib/env.dart"
+            flutter build apk --debug
+          fi
+
+      # Alle Flutter-Projekte bauen ein 'app-debug.apk' – heruntergeladen ist
+      # der Name nichtssagend. Ausserdem wird er unten zum Artefaktnamen.
+      - name: APK benennen
+        run: mv build/app/outputs/flutter-apk/app-debug.apk "build/app/outputs/flutter-apk/${{ steps.version.outputs.apk }}"
+
+      # Der Beweis ist die fertige Datei, nicht das Log: dass der Keystore
+      # eingespielt wurde, heisst noch lange nicht, dass der Build ihn genommen
+      # hat -- genau daran ist es beim ersten Anlauf gescheitert, und gemerkt
+      # hat man es erst auf dem Telefon, nach 150 MB Download. Ohne Secret
+      # (Fork-PR) gibt es nichts zu vergleichen, dann entfaellt der Schritt.
+      - name: Signatur der APK pruefen
+        if: env.ERWARTETE_SIGNATUR != ''
+        run: |
+          apksigner=$(ls -1 "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -n1)
+          ist=$("$apksigner" verify --print-certs \
+                  "build/app/outputs/flutter-apk/${{ steps.version.outputs.apk }}" \
+                | sed -n 's/.*SHA-256 digest: *//p' | head -n1)
+          echo "erwartet: $ERWARTETE_SIGNATUR"
+          echo "ist:      $ist"
+          if [ "$ist" != "$ERWARTETE_SIGNATUR" ]; then
+            echo "::error::APK traegt nicht die Signatur des Projekt-Keystores - sie liesse sich nicht ueber eine vorhandene Installation legen."
+            exit 1
+          fi
+          echo "Signatur stimmt."
+
+      # v7 wegen 'archive: false': damit landet die APK roh im Artefakt statt
+      # in einem ZIP, das man erst auspacken muesste. Dabei wird 'name'
+      # ignoriert, der Dateiname ist der Artefaktname – und es darf genau eine
+      # Datei sein, sonst bricht die Action ab.
+      # v7 laeuft ausserdem auf Node 24; bei upload-artifact kam die
+      # Laufzeitumstellung erst mit v6, v5 haengt noch an Node 20.
+      - name: APK hochladen
+        uses: actions/upload-artifact@v7
+        with:
+          path: app/build/app/outputs/flutter-apk/${{ steps.version.outputs.apk }}
+          archive: false
+          if-no-files-found: error
+          retention-days: 14
+
+      # Nur von main: aus einem PR-Build soll kein Release entstehen. Das
+      # Artefakt oben gibt es dort trotzdem.
+      #
+      # Der Tag traegt Projekt und Version ('joe-todo-v1.0.0+1') - ein Erbe aus
+      # der Zeit im Sammel-Repo AI_things, beibehalten, damit die Tags
+      # durchgehend gleich heissen. Solange die pubspec-Version gleich bleibt,
+      # zeigt derselbe Tag immer auf den letzten main-Commit – dafuer wird ein
+      # vorhandenes Release samt Tag geloescht und neu angelegt ('gh release
+      # edit --target' wuerde einen bestehenden Tag nicht verschieben). Fuer
+      # eine dauerhafte Version in pubspec.yaml die Versionsnummer anheben,
+      # dann entsteht ein neues Release neben dem alten.
+      #
+      # prerelease, weil es ein Debug-Build mit einem Debug-Keystore ist
+      # (Passwort 'android', oeffentlich bekannt) – nichts, was man verteilen
+      # sollte.
+      - name: Release veroeffentlichen
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
+          VERSION: ${{ steps.version.outputs.version }}
+          APK: ${{ steps.version.outputs.apk }}
+        run: |
+          # Heredoc statt '--notes "..."', weil die YAML-Einrueckung sonst in
+          # den Release-Text wandert und Markdown daraus Code-Bloecke macht.
+          cat > "$RUNNER_TEMP/notes.md" <<EOF
+          - Version: \`$VERSION\` (aus \`app/pubspec.yaml\`)
+          - Build: Debug, signiert mit dem Debug-Keystore des Projekts
+          - Commit: $GITHUB_SHA
+          - [Workflow-Lauf]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID)
+          EOF
+
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release delete "$TAG" --yes --cleanup-tag
+          fi
+          gh release create "$TAG" \
+            "build/app/outputs/flutter-apk/$APK" \
+            --title "joe-todo $VERSION (Debug)" \
+            --target "$GITHUB_SHA" \
+            --prerelease \
+            --notes-file "$RUNNER_TEMP/notes.md"
