@@ -1,0 +1,21 @@
+name: joe_sync_server
+description: >-
+  Sync-Server fuer geteilte Einkaufslisten von Joe. Speichert nur
+  verschluesselte Operationen und liefert die Webseite aus.
+publish_to: 'none'
+# Eigene Versionsnummer, unabhaengig von der App (G11).
+version: 0.1.0
+
+environment:
+  sdk: ^3.10.0
+
+dependencies:
+  joe_sync:
+    path: ../packages/joe_sync
+  shelf: ^1.4.2
+  shelf_router: ^1.1.4
+  sqlite3: ^3.7.1
+
+dev_dependencies:
+  lints: ^6.1.0
+  test: ^1.26.0

@@ -1,0 +1,39 @@
+# Sync-Server fuer Joe, als TrueNAS Custom App oder lokal zum Testen.
+#
+# Lokal:    docker compose -f server/compose.yaml up --build -d
+# Pruefen:  curl http://localhost:8080/health  (Port: JOE_SYNC_PORT)
+#
+# Auf TrueNAS: Repo auf den NAS holen, dann dasselbe; den Pfad unter
+# volumes auf ein eigenes Dataset legen (z. B. /mnt/tank/apps/joe-sync),
+# das dem Benutzer 568 gehoert. Siehe server/README.md.
+name: joe-sync
+
+services:
+  joe-sync:
+    build:
+      context: ..
+      dockerfile: server/Dockerfile
+    image: joe-sync:local
+    restart: unless-stopped
+    ports:
+      # Host-Port ueber JOE_SYNC_PORT, falls 8080 schon belegt ist:
+      #   JOE_SYNC_PORT=8787 docker compose -f server/compose.yaml up -d
+      - "${JOE_SYNC_PORT:-8080}:8080"
+    environment:
+      # Ohne Zugriff so viele Tage, dann wird eine Liste entteilt (G9).
+      JOE_RETENTION_DAYS: "365"
+      # Hinter Pangolin auf true: dann zaehlt die IP aus X-Real-IP /
+      # X-Forwarded-For fuer die Bremsen. Ohne Proxy auf false lassen,
+      # sonst kann jeder seine Adresse selbst angeben.
+      JOE_TRUST_PROXY: "false"
+      # SHA-256 der App-Signatur fuer Android App Links, mehrere mit Komma.
+      # Leer: keine App Links. Den Wert liefert
+      #   keytool -list -v -keystore debug.keystore -alias androiddebugkey -storepass android
+      JOE_ANDROID_FINGERPRINTS: ""
+    volumes:
+      # Lokal ein benanntes Volume; auf TrueNAS einen Host-Pfad eintragen:
+      #   - /mnt/tank/apps/joe-sync:/data
+      - joe-sync-data:/data
+
+volumes:
+  joe-sync-data:

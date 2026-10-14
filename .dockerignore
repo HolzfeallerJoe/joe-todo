@@ -1,0 +1,6 @@
+# Docker braucht nur packages/ und server/ (server/Dockerfile).
+*
+!packages/
+!server/
+**/.dart_tool
+**/build
