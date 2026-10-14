@@ -10,11 +10,13 @@ import 'log.dart';
 import 'models.dart';
 import 'pets.dart';
 import 'reminders.dart';
+import 'shared_lists.dart';
 import 'theme.dart';
 import 'toast.dart';
 import 'screens/appointments.dart';
 import 'screens/calendar.dart';
 import 'screens/dashboard.dart';
+import 'screens/shopping.dart';
 import 'screens/tasks.dart';
 
 /// Damit eine angetippte Erinnerung navigieren kann – die kommt vom System
@@ -68,12 +70,16 @@ Future<void> main() async {
     // letzten Starts stehen.
     JoeHomeWidgets.instance.schedule(state);
   });
+  // Geteilte Einkaufslisten: gleichen nur ab, solange eine offen ist.
+  SharedLists.instance.attach(state);
   JoeHomeWidgets.instance.onOpen = _openWidgetTarget;
   JoeHomeWidgets.instance.listen();
   unawaited(JoeHomeWidgets.instance.push(state));
   // Bewusst ohne await: nichts davon darf den Start aufhalten.
   unawaited(JoeReminders.instance.init().then((_) {
     JoeReminders.instance.tapHandler = _openReminder;
+    JoeReminders.instance.listTapHandler =
+        (listId) => _openShoppingList(state, listId);
     unawaited(JoeReminders.instance.checkDelivery(state.remindersEnabled));
     unawaited(JoeReminders.instance.sync(state));
   }));
@@ -92,6 +98,28 @@ void _openReminder(ReminderTarget target) {
       builder: (_) => CalendarScreen(initialDay: target.day),
     ),
   );
+}
+
+/// Ein angetippter Hinweis zu einer geteilten Liste (Konzept 6.6) oeffnet
+/// genau diese Liste – das Oeffnen gleicht ab und verlaengert das Teilen.
+void _openShoppingList(AppState state, String listId) {
+  void go() {
+    final navigator = navigatorKey.currentState;
+    if (navigator == null) return;
+    for (final list in state.shoppingLists) {
+      if (list.id == listId) state.selectShoppingList(list);
+    }
+    JoeLog.log('Hinweis zu geteilter Liste angetippt');
+    navigator.push(
+      MaterialPageRoute<void>(builder: (_) => const ShoppingListScreen()),
+    );
+  }
+
+  if (navigatorKey.currentState == null) {
+    WidgetsBinding.instance.addPostFrameCallback((_) => go());
+  } else {
+    go();
+  }
 }
 
 /// Ein angetipptes Widget fuehrt dorthin, wo das Angetippte auch in der App

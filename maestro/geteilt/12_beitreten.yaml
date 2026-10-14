@@ -1,0 +1,31 @@
+appId: dev.joe.joe_todo
+name: Geteilte Einkaufsliste - beitreten und abgleichen
+# Braucht einen Link auf eine geteilte Liste mit "Milch" (ohne Code), etwa
+# aus server/tool/smoke.dart --keep gegen http://localhost:8787, und
+# "adb reverse tcp:8787 tcp:8787", damit der Emulator localhost erreicht:
+#   maestro test -e LINK='http://localhost:8787/l/...#...' 12_beitreten.yaml
+---
+- launchApp:
+    clearState: true
+- scrollUntilVisible:
+    element: "Einkaufsliste"
+    direction: DOWN
+    centerElement: true
+- tapOn:
+    text: "Einkaufsliste"
+    retryTapIfNoChange: false
+# Ein geteilter Link statt eines Namens tritt der Liste bei.
+- tapOn: "Neue Liste"
+- inputText: ${LINK}
+- tapOn: "Speichern"
+- extendedWaitUntil:
+    visible: "Rauchtest"
+    timeout: 20000
+- assertVisible: "(?s).*Geteilt.*"
+- takeScreenshot: ../shots/12_geteilt_beigetreten
+# Eine Aenderung von hier geht hoch ...
+- tapOn: "Was fehlt?"
+- inputText: "Kaffee"
+- pressKey: Enter
+- hideKeyboard
+- assertVisible: "Kaffee"

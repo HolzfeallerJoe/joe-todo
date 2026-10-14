@@ -21,6 +21,7 @@ import io.flutter.plugin.common.MethodChannel
  */
 class MainActivity : FlutterActivity() {
     private var channel: MethodChannel? = null
+    private var expiryChannel: MethodChannel? = null
 
     /** Das Ziel, das noch niemand abgeholt hat. */
     private var pendingTarget: String? = null
@@ -57,6 +58,33 @@ class MainActivity : FlutterActivity() {
             }
         }
         this.channel = channel
+
+        // Hinweise vor dem Entteilen geteilter Listen, siehe SharedExpiry.
+        val expiry = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, EXPIRY_CHANNEL)
+        expiry.setMethodCallHandler { call, result ->
+            val key = call.argument<String>("key")
+            when {
+                key == null -> result.error("kein_schluessel", "key fehlt", null)
+                call.method == "schedule" -> {
+                    val title = call.argument<String>("title")
+                    val url = call.argument<String>("url")
+                    val token = call.argument<String>("token")
+                    val runAt = call.argument<Number>("runAt")?.toLong()
+                    if (title == null || url == null || token == null || runAt == null) {
+                        result.error("unvollstaendig", "title, url, token, runAt", null)
+                    } else {
+                        SharedExpiry.schedule(applicationContext, key, title, url, token, runAt)
+                        result.success(null)
+                    }
+                }
+                call.method == "cancel" -> {
+                    SharedExpiry.cancel(applicationContext, key)
+                    result.success(null)
+                }
+                else -> result.notImplemented()
+            }
+        }
+        expiryChannel = expiry
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -71,10 +99,13 @@ class MainActivity : FlutterActivity() {
     override fun cleanUpFlutterEngine(flutterEngine: FlutterEngine) {
         channel?.setMethodCallHandler(null)
         channel = null
+        expiryChannel?.setMethodCallHandler(null)
+        expiryChannel = null
         super.cleanUpFlutterEngine(flutterEngine)
     }
 
     companion object {
         private const val CHANNEL = "joe/home_widget"
+        private const val EXPIRY_CHANNEL = "joe/shared_expiry"
     }
 }

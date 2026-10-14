@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:joe_sync/joe_sync.dart' show ShareLink;
 import 'package:share_plus/share_plus.dart';
 
 import '../log.dart';
 import '../models.dart';
+import '../shared_lists.dart';
 import '../toast.dart';
 import '../widgets.dart';
+import 'shopping_shared.dart';
 
 /// Die Einkaufsliste als eigener Reiter (Modus [ShoppingListMode.tab]).
 /// Kein Plus-Knopf – der Weg zum Hinzufuegen ist das Eingabefeld am
@@ -51,11 +54,29 @@ class _ShoppingListViewState extends State<ShoppingListView> {
   final _newestKey = GlobalKey();
   String? _newestId;
 
+  /// Die Liste, deren Abgleich gerade laeuft (siehe [SharedLists.watch]).
+  String? _watchedId;
+
   @override
   void dispose() {
+    // Nur abmelden, was diese Ansicht angemeldet hat: im Reiter und in den
+    // Notizen kann kurz eine zweite stehen.
+    if (_watchedId != null) SharedLists.instance.watch(null);
     _input.dispose();
     _focus.dispose();
     super.dispose();
+  }
+
+  /// Eine geteilte Liste gleicht nur ab, solange sie zu sehen ist (G7).
+  void _watch(ShoppingList list) {
+    final id = list.isShared ? list.id : null;
+    if (id == _watchedId) return;
+    _watchedId = id;
+    // Nicht mitten im Bauen: watch() kann gleich abgleichen und melden.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      SharedLists.instance.watch(id == null ? null : list);
+    });
   }
 
   void _add() {
@@ -84,48 +105,61 @@ class _ShoppingListViewState extends State<ShoppingListView> {
     final state = AppScope.of(context);
     final theme = joeThemeOf(context);
     final items = state.shoppingItems;
+    final current = state.currentShoppingList;
     const page = PetPage.shopping;
+    _watch(current);
+
+    final list = ListView(
+      // Herunterziehen gleicht ab – auch bei einer kurzen Liste.
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding: petPadding(
+        context,
+        page,
+        const EdgeInsets.fromLTRB(16, 4, 16, 12),
+      ),
+      children: [
+        ...widget.header,
+        const _ListPicker(),
+        SharedStatusLine(key: ValueKey(current.id), list: current),
+        // Auch der leere Zustand steht auf Papier: frei auf dem
+        // Hintergrund waere er auf einem Foto-Design nicht zu lesen.
+        if (items.isEmpty)
+          PaperCard(
+            child: Text(
+              'Noch nichts auf der Liste. Unten eintippen und mit '
+              'Enter hinzufügen.',
+              style: TextStyle(color: theme.inkSoft, fontSize: 15),
+            ),
+          )
+        else
+          PaperCard(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            child: Column(
+              children: [
+                for (final item in items)
+                  _ShoppingRow(
+                    key: item.id == _newestId
+                        ? _newestKey
+                        : ValueKey(item.id),
+                    item: item,
+                    list: current,
+                  ),
+              ],
+            ),
+          ),
+      ],
+    );
 
     return Column(
       children: [
         Expanded(
-          child: ListView(
-            padding: petPadding(
-              context,
-              page,
-              const EdgeInsets.fromLTRB(16, 4, 16, 12),
-            ),
-            children: [
-              ...widget.header,
-              const _ListPicker(),
-              // Auch der leere Zustand steht auf Papier: frei auf dem
-              // Hintergrund waere er auf einem Foto-Design nicht zu lesen.
-              if (items.isEmpty)
-                PaperCard(
-                  child: Text(
-                    'Noch nichts auf der Liste. Unten eintippen und mit '
-                    'Enter hinzufügen.',
-                    style: TextStyle(color: theme.inkSoft, fontSize: 15),
-                  ),
+          child: current.isShared
+              ? RefreshIndicator(
+                  color: theme.accent,
+                  onRefresh: () => SharedLists.instance.syncList(current),
+                  child: list,
                 )
-              else
-                PaperCard(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  child: Column(
-                    children: [
-                      for (final item in items)
-                        _ShoppingRow(
-                          key: item.id == _newestId
-                              ? _newestKey
-                              : ValueKey(item.id),
-                          item: item,
-                        ),
-                    ],
-                  ),
-                ),
-            ],
-          ),
+              : list,
         ),
         _InputBar(controller: _input, focusNode: _focus, onAdd: _add),
       ],
@@ -143,26 +177,38 @@ class _ShoppingListViewState extends State<ShoppingListView> {
 class _ListPicker extends StatelessWidget {
   const _ListPicker();
 
+  /// Neue Liste – oder, wenn statt eines Namens ein geteilter Link
+  /// eingefuegt wird, beitreten (Konzept 6.2).
   Future<void> _add(BuildContext context) async {
     final state = AppScope.of(context);
     final name = await showTextEntrySheet(
       context,
       title: 'Neue Liste',
-      hint: 'Wie heißt die Liste?',
+      hint: 'Name – oder geteilten Link einfügen',
     );
-    if (name != null) state.addShoppingList(name);
+    if (name == null || !context.mounted) return;
+    final link = ShareLink.tryParse(name);
+    if (link != null) {
+      await joinSharedList(context, link);
+      return;
+    }
+    state.addShoppingList(name);
   }
 
   void _options(BuildContext context, ShoppingList list) {
     final state = AppScope.of(context);
     final count = list.items.length;
+    final share = list.share;
     showEntryOptions(
       context,
       deleteTitle: 'Liste löschen?',
-      subject: count == 0
-          ? list.name
-          : '${list.name} – '
-              '$count ${count == 1 ? 'Eintrag geht' : 'Einträge gehen'} mit.',
+      subject: [
+        count == 0
+            ? list.name
+            : '${list.name} – '
+                '$count ${count == 1 ? 'Eintrag geht' : 'Einträge gehen'} mit.',
+        if (share != null) 'Die anderen behalten sie.',
+      ].join(' '),
       onEdit: () async {
         final name = await showTextEntrySheet(
           context,
@@ -172,9 +218,27 @@ class _ListPicker extends StatelessWidget {
         );
         if (name != null) state.renameShoppingList(list, name);
       },
+      extra: [
+        if (share != null)
+          EntryAction(
+            icon: Icons.cloud_off_outlined,
+            label: 'Teilen verlassen',
+            onTap: () => confirmLeave(context, list),
+          ),
+        if (share != null && share.isOwner)
+          EntryAction(
+            icon: Icons.delete_sweep_outlined,
+            label: 'Für alle löschen',
+            destructive: true,
+            onTap: () => confirmDeleteForAll(context, list),
+          ),
+      ],
       // Die letzte Liste bleibt: irgendwohin muss das Eingabefeld schreiben.
       onDelete: state.shoppingLists.length > 1
-          ? () => state.deleteShoppingList(list)
+          ? () {
+              SharedLists.instance.forget(list);
+              state.deleteShoppingList(list);
+            }
           : null,
     );
   }
@@ -226,6 +290,10 @@ class _ListPicker extends StatelessWidget {
             child: GestureDetector(
               onLongPress: () => _options(context, list),
               child: ChoiceChip(
+                // Eine geteilte Liste traegt eine Wolke.
+                avatar: list.isShared
+                    ? Icon(Icons.cloud_outlined, size: 18, color: theme.ink)
+                    : null,
                 label: Text(list.name),
                 selected: list.id == current.id,
                 selectedColor: theme.accent.withValues(alpha: 0.25),
@@ -255,7 +323,11 @@ class _ListPicker extends StatelessWidget {
               builder: (buttonContext) => IconButton(
                 icon: Icon(Icons.share_outlined, color: theme.ink),
                 tooltip: 'Liste teilen',
-                onPressed: () => _share(buttonContext, current),
+                onPressed: () => showShareChooser(
+                  buttonContext,
+                  current,
+                  shareAsText: () => _share(buttonContext, current),
+                ),
               ),
             ),
           ],
@@ -323,8 +395,9 @@ class _InputBar extends StatelessWidget {
 /// bekannte Blatt mit Bearbeiten und Loeschen.
 class _ShoppingRow extends StatelessWidget {
   final ShoppingItem item;
+  final ShoppingList list;
 
-  const _ShoppingRow({super.key, required this.item});
+  const _ShoppingRow({super.key, required this.item, required this.list});
 
   void _options(BuildContext context) {
     final state = AppScope.of(context);
@@ -351,6 +424,11 @@ class _ShoppingRow extends StatelessWidget {
     final state = AppScope.of(context);
     final theme = joeThemeOf(context);
     final done = item.done;
+    final conflicts = list.share?.view.conflictsOf(item.id) ?? const [];
+    final mine = [
+      for (final c in conflicts)
+        if (c.device == state.syncDevice) c,
+    ];
     return Semantics(
       container: true,
       button: true,
@@ -396,6 +474,21 @@ class _ShoppingRow extends StatelessWidget {
                   ),
                 ),
               ),
+              // Konflikt (Konzept 5.4): wer ihn ausgeloest hat, klaert ihn
+              // hier; alle anderen sehen nur, dass etwas geklaert wird.
+              if (conflicts.isNotEmpty)
+                IconButton(
+                  icon: Icon(
+                    Icons.sync_problem,
+                    color: mine.isEmpty ? theme.inkSoft : theme.accent,
+                  ),
+                  tooltip: mine.isEmpty ? 'Wird gerade geklärt' : 'Klären',
+                  onPressed: mine.isEmpty
+                      ? () => JoeToast.info(
+                            'Jemand anderes klärt gerade, was hier gilt.',
+                          )
+                      : () => showConflictSheet(context, list, mine.first),
+                ),
             ],
           ),
         ),

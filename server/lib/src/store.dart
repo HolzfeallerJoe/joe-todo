@@ -209,6 +209,14 @@ class Store {
     return ids.length;
   }
 
+  /// Entteilt eine einzelne Liste, wie [expire] es taeglich fuer alle tut.
+  void expireOne(String id, DateTime now) {
+    _db.execute('BEGIN IMMEDIATE');
+    _db.execute('DELETE FROM ops WHERE list_id = ?', [id]);
+    _db.execute('UPDATE lists SET expired_at = ? WHERE id = ?', [_ms(now), id]);
+    _db.execute('COMMIT');
+  }
+
   /// Fuer /health und das Log: nur Anzahlen.
   ({int lists, int ops}) counts() {
     final lists =

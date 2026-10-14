@@ -77,6 +77,9 @@ kotlin {
 
 dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.5")
+    // Nachfrage beim Sync-Server kurz nach Ablauf einer geteilten Liste
+    // (SharedExpiry.kt, Konzept 6.6) - auch wenn Joe gerade nicht laeuft.
+    implementation("androidx.work:work-runtime:2.10.0")
     testImplementation("junit:junit:4.13.2")
 }
 

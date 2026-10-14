@@ -44,8 +44,11 @@ name: Einkaufsliste im eigenen Reiter
 - pressKey: Enter
 - hideKeyboard
 - assertVisible: "Schrauben"
-# Teilen oeffnet das Teilen-Blatt des Systems mit dem Text der Liste.
+# Teilen fragt erst: als Text oder gemeinsam bearbeiten. Als Text oeffnet
+# das Teilen-Blatt des Systems mit dem Text der Liste.
 - tapOn: "Liste teilen"
+- assertVisible: "(?s)Gemeinsam bearbeiten.*"
+- tapOn: "(?s)Als Text senden.*"
 - assertVisible: "(?s).*Schrauben.*"
 - takeScreenshot: shots/10_shopping_teilen
 - back

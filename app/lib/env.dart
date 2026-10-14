@@ -40,7 +40,20 @@ abstract final class JoeEnv {
   @visibleForTesting
   static bool? debugMockData;
 
+  /// Der Sync-Server fuer neu geteilte Einkaufslisten (Konzept 6.3), etwa
+  /// `https://sync.example.org`. Leer heisst: dieser Build teilt keine
+  /// Listen neu, beitreten geht trotzdem (die Adresse steht im Link).
+  /// Kein Geheimnis – sie steht in jedem geteilten Link.
+  static const _syncUrl = String.fromEnvironment('JOE_SYNC_URL');
+
+  static String get syncUrl => debugSyncUrl ?? _syncUrl;
+
+  /// Nur fuer Tests, wie [debugMockData].
+  @visibleForTesting
+  static String? debugSyncUrl;
+
   /// Fuer das Log beim Start – damit in einem eingeschickten Log steht, mit
   /// welchen Schaltern der Build lief.
-  static String get summary => 'Env: JOE_MOCK_DATA=$mockData';
+  static String get summary => 'Env: JOE_MOCK_DATA=$mockData, '
+      'JOE_SYNC_URL=${syncUrl.isEmpty ? '(leer)' : syncUrl}';
 }

@@ -492,3 +492,41 @@ Erledigt (14.10.2026): Pangolin öffentlich (V12), Image selbst auf TrueNAS
 - **Offenes Internet**: Der Server ist öffentlich erreichbar. Deshalb gibt es
   Grenzen und Bremsen (G10), keine Inhalte im Klartext und Logs ohne
   Geheimnisse.
+
+---
+
+## 12. Stand der Umsetzung (14.10.2026, Branch `feature/geteilte-einkaufslisten`)
+
+| Etappe | Stand |
+| --- | --- |
+| 1 Fundament | Fertig: `packages/joe_sync` mit Kryptografie (Testvektoren aus WebCrypto), Link, Operationen, `merge` (34 gemeinsame Fälle in `test/vectors/merge.json`) und dazu der Abgleich-Client (`SyncClient`, `ShareState`). |
+| 2 Server | Fertig: `server/` mit API, SQLite, Bremsen, Frist und täglichem Lauf, `assetlinks.json`, Dockerfile, `compose.yaml`, `tool/smoke.dart`. Lokal in Docker geprüft. **Offen:** Inbetriebnahme auf TrueNAS hinter Pangolin (macht der Benutzer, Anleitung in `server/README.md`). |
+| 3 Joe teilt | Fertig bis auf App Links: Teilen-Blatt (Text oder gemeinsam, mit Code), Beitreten per eingefügtem Link, Wolke am Chip, Statuszeile, Konflikt-Blatt, Verlassen, Für alle löschen, Abgleich nur bei offener Liste, beide Hinweise vor dem Entteilen, INTERNET, README. Auf dem Emulator gegen den Docker-Server geprüft (`maestro/geteilt/`). **Offen:** App Links, die die Sync-Domain brauchen (Intent-Filter mit `autoVerify` und Fingerabdruck in `JOE_ANDROID_FINGERPRINTS`). Version: Minor-Sprung beim Zusammenführen nach `main`, Rückfrage nach AGENTS.md. |
+| 4 Webseite | Fertig: `server/web/` mit Code-Abfrage, Liste, Konfliktfragen; JS gegen dieselben Testvektoren (`node --test`), in Chrome geprüft. |
+| 5 Später | Unverändert offen. |
+
+Abweichungen vom Text oben:
+
+- **`base` nennt Operations-IDs statt `seq`** (5.1). So kann eine Änderung
+  auf einer eigenen, noch nicht hochgeladenen Operation aufbauen. Die
+  Reihenfolge legt weiter allein die `seq` fest.
+- **Abhaken hält Löschen nicht auf** (5.4): Als „bearbeitet gegen gelöscht“
+  zählt nur ein geänderter Titel. Abhaken eines inzwischen gelöschten
+  Eintrags ist ebenfalls kein Konflikt.
+- **`item.restore` entfällt**: „Mit meiner Änderung behalten“ erledigt
+  `conflict.resolve` mit `keep: mine`.
+- **Ersteller-Token als Kopf `X-Joe-Owner`** (für `meta` und `DELETE`), das
+  Zugangstoken als `Authorization: Bearer`.
+- **Epoche und `head`**: Jede Antwort nennt die Epoche der Liste und ihre
+  höchste `seq`. Ändert sich die Epoche (Totalverlust, 6.4) oder hat der
+  Server weniger als das Gerät (altes Backup), baut das Gerät neu auf und
+  reicht nach, was dem Server fehlt.
+- **Frist sofort**: Der Server entteilt eine Liste schon beim ersten Zugriff
+  nach `expiresAt`, nicht erst im täglichen Lauf. Sonst holte ein Zugriff
+  kurz vor dem Lauf eine abgelaufene Liste zurück, und die Nachfrage aus
+  6.6 bekäme kein verlässliches `410 expired`.
+- **Nachfrage (6.6, Variante B)** läuft eine Stunde **nach** `expiresAt`,
+  nicht einen Tag davor. So meldet sie nur, was wirklich abgelaufen ist.
+  Sie läuft ganz in Kotlin (`SharedExpiry.kt`, WorkManager), ohne Dart im
+  Hintergrund.
+- **Debug-Builds** dürfen HTTP zu `10.0.2.2`/`localhost` (lokaler Server).

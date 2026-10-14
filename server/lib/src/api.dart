@@ -132,6 +132,20 @@ class SyncApi {
     }
   }
 
+  /// Die Liste, und ist ihre Frist schon um, gleich entteilt. Ohne das
+  /// hinge der Zeitpunkt am taeglichen Lauf, und ein Zugriff kurz davor
+  /// holte eine abgelaufene Liste zurueck. So bekommt die Nachfrage des
+  /// Erstellers (Konzept 6.6) ab `expiresAt` verlaesslich `410 expired`.
+  ListRecord? _lookup(String id) {
+    final list = store.list(id);
+    if (list == null || list.gone) return list;
+    final now = clock();
+    if (_expiresAt(list.lastAccess).isAfter(now)) return list;
+    store.expireOne(id, now);
+    log('Liste entteilt (Frist um)');
+    return store.list(id);
+  }
+
   /// Prueft Liste und Zugangstoken. Liefert entweder die Liste oder die
   /// Fehlerantwort.
   Future<(ListRecord?, Response?)> _authorize(
@@ -139,7 +153,7 @@ class SyncApi {
     String id,
   ) async {
     if (!isValidId(id)) return (null, _error(404, 'unknown'));
-    final list = store.list(id);
+    final list = _lookup(id);
     if (list == null) return (null, _error(404, 'unknown'));
     if (list.gone) return (null, _gone(list));
 
@@ -215,7 +229,7 @@ class SyncApi {
       return _error(401, 'unauthorized');
     }
     final now = clock();
-    final existing = store.list(id);
+    final existing = _lookup(id);
     if (existing != null) {
       if (existing.gone) return _gone(existing);
       if (existing.accessHash != accessHash ||
@@ -242,7 +256,7 @@ class SyncApi {
   /// Ersteller-Token zusaetzlich `expiresAt`. Zaehlt nicht als Zugriff.
   Future<Response> _meta(Request request, String id) async {
     if (!isValidId(id)) return _error(404, 'unknown');
-    final list = store.list(id);
+    final list = _lookup(id);
     if (list == null) return _error(404, 'unknown');
     if (list.gone) return _gone(list);
     final owner = await _hashOf(request.headers['x-joe-owner']);
@@ -311,7 +325,7 @@ class SyncApi {
 
   Future<Response> _delete(Request request, String id) async {
     if (!isValidId(id)) return _error(404, 'unknown');
-    final list = store.list(id);
+    final list = _lookup(id);
     if (list == null) return _error(404, 'unknown');
     if (list.gone) return _gone(list);
     final owner = await _hashOf(request.headers['x-joe-owner']);

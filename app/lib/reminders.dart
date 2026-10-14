@@ -7,6 +7,7 @@ import 'package:timezone/timezone.dart' as tz;
 
 import 'log.dart';
 import 'models.dart';
+import 'shared_expiry.dart';
 import 'toast.dart';
 import 'util.dart';
 
@@ -94,6 +95,15 @@ ReminderTarget? parseReminderPayload(String? payload) {
   }
 }
 
+/// Unter welchem Kanal eine Benachrichtigung steht. Getrennt, damit man in
+/// den System-Einstellungen das eine abschalten kann, ohne das andere.
+enum ReminderChannel {
+  reminders,
+
+  /// Hinweise vor dem Entteilen geteilter Listen (shared_expiry.dart).
+  sharedLists,
+}
+
 /// Eine geplante Benachrichtigung, fertig zum Einstellen.
 class Reminder {
   final int id;
@@ -103,6 +113,7 @@ class Reminder {
 
   /// Wohin das Antippen fuehrt – siehe [reminderPayload].
   final String payload;
+  final ReminderChannel channel;
 
   const Reminder({
     required this.id,
@@ -110,6 +121,7 @@ class Reminder {
     required this.body,
     required this.when,
     this.payload = '',
+    this.channel = ReminderChannel.reminders,
   });
 
   /// Zwei Plaene sind gleich, wenn jede Zeile gleich ist – daran erkennt
@@ -243,6 +255,13 @@ class JoeReminders {
   static const _channelName = 'Erinnerungen';
   static const _channelDescription = 'Erinnerungen an Aufgaben und Termine';
 
+  /// Derselbe Kanal, den der Kotlin-Teil fuer „wird nicht mehr geteilt“
+  /// benutzt (SharedExpiryWorker).
+  static const _sharedChannelId = 'joe_shared_lists';
+  static const _sharedChannelName = 'Geteilte Listen';
+  static const _sharedChannelDescription =
+      'Hinweise, bevor eine geteilte Einkaufsliste nicht mehr geteilt wird';
+
   final _plugin = fln.FlutterLocalNotificationsPlugin();
   bool _ready = false;
 
@@ -271,6 +290,10 @@ class JoeReminders {
   /// Wohin ein Antippen fuehrt. Setzt die App, sobald ihr Navigator steht.
   void Function(ReminderTarget)? onOpen;
   ReminderTarget? _pendingTarget;
+
+  /// Dasselbe fuer einen Hinweis zu einer geteilten Liste (ihre lokale ID).
+  void Function(String listId)? onOpenList;
+  String? _pendingList;
 
   /// Ob diese Plattform ueberhaupt im Voraus planen kann. Linux kennt kein
   /// `zonedSchedule` (das Plugin wirft dort `UnimplementedError`); dann wird
@@ -342,6 +365,17 @@ class JoeReminders {
     windows: fln.WindowsNotificationDetails(),
   );
 
+  static const _sharedDetails = fln.NotificationDetails(
+    android: fln.AndroidNotificationDetails(
+      _sharedChannelId,
+      _sharedChannelName,
+      channelDescription: _sharedChannelDescription,
+    ),
+    iOS: fln.DarwinNotificationDetails(),
+    macOS: fln.DarwinNotificationDetails(),
+    windows: fln.WindowsNotificationDetails(),
+  );
+
   /// Zeitzonen laden, den Kanal anlegen, Antippen verdrahten. Wird von
   /// main() vor dem ersten [sync] aufgerufen.
   Future<void> init() => _initFuture ??= _init();
@@ -375,6 +409,13 @@ class JoeReminders {
           _channelName,
           description: _channelDescription,
           importance: fln.Importance.high,
+        ),
+      );
+      await _android?.createNotificationChannel(
+        const fln.AndroidNotificationChannel(
+          _sharedChannelId,
+          _sharedChannelName,
+          description: _sharedChannelDescription,
         ),
       );
       await _refreshExactAllowed();
@@ -437,6 +478,16 @@ class JoeReminders {
   }
 
   void _handleTap(String? payload) {
+    final listId = parseSharedListPayload(payload);
+    if (listId != null) {
+      final open = onOpenList;
+      if (open == null) {
+        _pendingList = listId;
+      } else {
+        open(listId);
+      }
+      return;
+    }
     final target = parseReminderPayload(payload);
     if (target == null) return;
     final open = onOpen;
@@ -455,6 +506,14 @@ class JoeReminders {
     final pending = _pendingTarget;
     if (pending == null) return;
     _pendingTarget = null;
+    handler(pending);
+  }
+
+  set listTapHandler(void Function(String listId) handler) {
+    onOpenList = handler;
+    final pending = _pendingList;
+    if (pending == null) return;
+    _pendingList = null;
     handler(pending);
   }
 
@@ -608,13 +667,18 @@ class JoeReminders {
 
   Future<void> _syncNow(AppState state) async {
     if (!_ready) return;
-    final reminders = state.remindersEnabled
-        ? pendingReminders(
-            tasks: state.tasks,
-            appointments: state.appointments,
-            from: DateTime.now(),
-          )
-        : const <Reminder>[];
+    final now = DateTime.now();
+    final reminders = [
+      if (state.remindersEnabled)
+        ...pendingReminders(
+          tasks: state.tasks,
+          appointments: state.appointments,
+          from: now,
+        ),
+      // Haengt nicht am Hauptschalter: betrifft Daten, keine Termine
+      // (Konzept 6.6).
+      ...sharedExpiryReminders(state.shoppingLists, from: now),
+    ];
 
     // Bei einer Nummernkollision gewinnt der letzte – die Nummer kann nur
     // einmal beim System stehen.
@@ -658,7 +722,9 @@ class JoeReminders {
           body: r.body,
           payload: r.payload,
           scheduledDate: tz.TZDateTime.from(r.when, tz.local),
-          notificationDetails: _details,
+          notificationDetails: r.channel == ReminderChannel.sharedLists
+              ? _sharedDetails
+              : _details,
           androidScheduleMode: _exactAllowed
               ? fln.AndroidScheduleMode.exactAllowWhileIdle
               : fln.AndroidScheduleMode.inexactAllowWhileIdle,

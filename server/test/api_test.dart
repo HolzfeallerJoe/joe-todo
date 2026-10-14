@@ -325,6 +325,24 @@ void main() {
       expect(server.store.counts().ops, 0);
     });
 
+    test('ab expiresAt sofort 410 expired, ohne den taeglichen Lauf', () async {
+      server.advance(const Duration(days: 365));
+      final meta = await server.call(
+        'GET',
+        '/api/lists/${list.id}/meta',
+        headers: list.owner,
+      );
+      expect(meta.statusCode, 410);
+      expect((await body(meta))['reason'], 'expired');
+      // Ein spaeter Zugriff holt sie nicht zurueck.
+      final ops = await server.call(
+        'GET',
+        '/api/lists/${list.id}/ops',
+        headers: list.auth,
+      );
+      expect(ops.statusCode, 410);
+    });
+
     test('nach 12 Monaten ohne Zugriff entteilt; 410 expired', () async {
       await upload(list, [newId()]);
       server.advance(const Duration(days: 364));

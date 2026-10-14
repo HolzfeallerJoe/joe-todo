@@ -262,7 +262,7 @@ void main() {
     /// Legt ueber "Neue Liste" eine Liste namens [name] an.
     Future<void> addList(WidgetTester tester, String name) async {
       await tap(tester, find.text('Neue Liste'));
-      expect(find.text('Wie heißt die Liste?'), findsOneWidget);
+      expect(find.text('Name – oder geteilten Link einfügen'), findsOneWidget);
       await tester.enterText(find.byType(TextField).last, name);
       await tap(tester, find.text('Speichern'));
     }
@@ -373,7 +373,10 @@ void main() {
       await tap(tester, find.text('Einkaufsliste'));
       await tap(tester, find.text('Brot'));
 
+      // Erst die Wahl: als Text oder gemeinsam bearbeiten.
       await tap(tester, find.byTooltip('Liste teilen'));
+      expect(find.text('Gemeinsam bearbeiten'), findsOneWidget);
+      await tap(tester, find.text('Als Text senden'));
       expect(shared, hasLength(1));
       expect(shared.single['text'], 'Einkaufsliste\n- Milch');
       expect(shared.single['subject'], 'Einkaufsliste');
@@ -385,7 +388,8 @@ void main() {
       await pump(tester);
       await tap(tester, find.text('Einkaufsliste'));
 
-      await tester.tap(find.byTooltip('Liste teilen'));
+      await tap(tester, find.byTooltip('Liste teilen'));
+      await tester.tap(find.text('Als Text senden'));
       await tester.pump();
       expect(shared, isEmpty);
       expect(find.text('Auf der Liste fehlt gerade nichts.'), findsOneWidget);

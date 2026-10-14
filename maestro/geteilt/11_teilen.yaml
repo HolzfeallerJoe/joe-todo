@@ -1,0 +1,45 @@
+appId: dev.joe.joe_todo
+name: Geteilte Einkaufsliste - teilen (braucht den lokalen Sync-Server)
+# Vorher (siehe server/README.md):
+#   JOE_SYNC_PORT=8787 docker compose -f server/compose.yaml up --build -d
+# und Joe mit JOE_SYNC_URL=http://10.0.2.2:8787 in app/env/.env gebaut.
+---
+- launchApp:
+    clearState: true
+- scrollUntilVisible:
+    element: "Einkaufsliste"
+    direction: DOWN
+    centerElement: true
+- tapOn:
+    text: "Einkaufsliste"
+    retryTapIfNoChange: false
+- tapOn: "Was fehlt?"
+- inputText: "Milch"
+- pressKey: Enter
+- inputText: "Brot"
+- pressKey: Enter
+- hideKeyboard
+# Teilen: erst die Wahl, dann die Erklaerung mit dem Server und dem Code.
+- tapOn: "Liste teilen"
+- tapOn: "(?s)Gemeinsam bearbeiten.*"
+- assertVisible: "(?s).*auf 10.0.2.2 abgelegt.*"
+- assertVisible: "(?s)Zusätzlich Code verlangen.*"
+- takeScreenshot: ../shots/11_geteilt_blatt
+- tapOn: "(?s)Zusätzlich Code verlangen.*"
+- tapOn: "Link teilen"
+# Das Teilen-Blatt des Systems mit dem Link.
+- extendedWaitUntil:
+    visible: "(?s).*Gemeinsame Einkaufsliste.*"
+    timeout: 15000
+- takeScreenshot: ../shots/11_geteilt_link
+- back
+# Danach der Code, gross.
+- extendedWaitUntil:
+    visible: "Code der Liste"
+    timeout: 10000
+- takeScreenshot: ../shots/11_geteilt_code
+- tapOn: "Fertig"
+- extendedWaitUntil:
+    visible: "(?s).*Geteilt.*"
+    timeout: 10000
+- takeScreenshot: ../shots/11_geteilt_liste

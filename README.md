@@ -255,14 +255,36 @@ Dashboard, Kalender, wiederkehrenden Aufgaben, Notizen und Historie.
   Irgendwohin muss das Eingabefeld schreiben. Die eine Liste aus der Zeit vor
   mehreren Listen (bis 1.2.0) wird beim ersten Start zur Liste
   „Einkaufsliste", mit allen Einträgen.
-  Rechts auf der Karte sitzt **„Liste teilen"**: Es reicht die gezeigte
-  Liste als Text an das Teilen-Blatt des Systems weiter (Messenger, Mail),
-  oben der Name, darunter je Zeile „- Eintrag" (`ShoppingList.shareText`).
-  Geteilt wird nur, was noch offen ist; das Abgehakte ist schon gekauft. Ist
-  nichts offen, sagt ein Toast das, statt eine leere Nachricht zu öffnen. Die
-  Empfänger brauchen kein Joe. Es ist ein Schnappschuss und keine gemeinsame
-  Liste: Was danach abgehakt wird, sieht nur das eigene Gerät. Joe spricht
-  dafür nicht ins Netz, das Verschicken macht die gewählte App.
+  Rechts auf der Karte sitzt **„Liste teilen"** mit zwei Wegen:
+  - **„Als Text senden"** reicht die gezeigte Liste als Text an das
+    Teilen-Blatt des Systems weiter (Messenger, Mail): oben der Name,
+    darunter je Zeile „- Eintrag" (`ShoppingList.shareText`). Geteilt wird
+    nur, was noch offen ist, denn das Abgehakte ist schon gekauft. Ist nichts
+    offen, sagt ein Toast das, statt eine leere Nachricht zu öffnen. Das ist
+    ein Schnappschuss: Was danach abgehakt wird, sieht nur das eigene Gerät.
+  - **„Gemeinsam bearbeiten"** macht daraus eine **geteilte Liste**: Alle mit
+    dem Link sehen und ändern dieselbe Liste, mit Joe oder im Browser (auch
+    auf dem iPhone). Die Liste liegt Ende-zu-Ende verschlüsselt auf dem
+    eigenen Sync-Server (`server/`, siehe unten). Den Schlüssel trägt der
+    Link hinter dem `#`, der Server kann nichts lesen. Auf Wunsch kommt ein
+    6-stelliger **Code** dazu, der getrennt vom Link weitergegeben wird. Eine
+    geteilte Liste trägt eine Wolke am Chip und darunter eine Statuszeile
+    („Geteilt · abgeglichen vor 2 Min.", „Offline – Änderungen gehen später
+    raus", „1 Konflikt zu klären"). Joe gleicht nur ab, solange die Liste
+    offen ist: beim Öffnen, dann alle 15 Sekunden, kurz nach jeder eigenen
+    Änderung und beim Herunterziehen. Offline geht alles weiter, die
+    Änderungen warten. **Beitreten**: den Link statt eines Namens unter
+    „Neue Liste" einfügen, bei Bedarf fragt Joe nach dem Code. Ändern zwei
+    Leute **gleichzeitig dasselbe** (denselben Titel, oder der eine löscht,
+    was der andere ändert), trägt der Eintrag ein Zeichen. Wer zu spät kam,
+    entscheidet mit „Meins" oder „Das andere", alle anderen sehen „wird
+    geklärt". Verschiedene Felder werden einfach zusammengeführt, und
+    Abhaken hält Löschen nicht auf. Langes Drücken auf den Chip bietet
+    zusätzlich **„Teilen verlassen"** (die Liste bleibt lokal) und beim
+    Ersteller **„Für alle löschen"**. Wird eine Liste ein Jahr lang von
+    niemandem benutzt, endet das Teilen. Der Ersteller bekommt 14 Tage
+    vorher eine Benachrichtigung und beim Ende noch eine. Das Konzept steht
+    in [`plans/geteilte-einkaufslisten/00-konzept.md`](plans/geteilte-einkaufslisten/00-konzept.md).
   Hinzugefügt wird über ein Eingabefeld **am unteren Rand**, dort ist der
   Daumen, die Tastatur schiebt es mit hoch, und neue Einträge landen genau
   darüber, unten bei den offenen – dort, wo der Blick beim Tippen gerade
@@ -436,6 +458,9 @@ app/                  Flutter-Projekt (Android)
   lib/agenda.dart     Eigene + Geraete-Termine in einer Liste (rechnend)
   lib/wellbeing.dart  Befinden: Stimmung, Symptom-Katalog, Eintrag mit Uhrzeit
   lib/reminders.dart  Erinnerungsplan (rechnend) + Zustellung (Plugin-Kapsel)
+  lib/shared_lists.dart     Abgleich geteilter Einkaufslisten (nur offene)
+  lib/shared_expiry.dart    Hinweise vor dem Entteilen (lokal + Nachfrage)
+  android/.../SharedExpiry.kt   die Nachfrage im Hintergrund (WorkManager)
   lib/home_widget.dart      Schnappschuss fuer die Widgets (rechnend) + Kanal
   android/.../widget/       Die Widgets selbst: Daten lesen, zeichnen, wecken
   android/app/src/main/res/layout/joe_widget_*.xml   ihre Layouts
@@ -452,7 +477,8 @@ app/                  Flutter-Projekt (Android)
                       Farbwaehler, Loeschkarte
   lib/screens/        Dashboard, Aufgaben, Termine, Kalender, Notizen,
                       Befinden (Kategorie in der Notiz), Einkaufsliste
-                      (shopping.dart), Historie, Einstellungen
+                      (shopping.dart, geteilt: shopping_shared.dart),
+                      Historie, Einstellungen
   assets/themes/      Hintergründe – Originale + ausgelieferte compressed/
   assets/pets/        Begleiter als WebP, ein Ordner je Gruppe
   test/               Unit-Tests (Wiederholung, Priorität, Notiz-Datum,
@@ -470,9 +496,17 @@ app/                  Flutter-Projekt (Android)
                       Einkaufslisten als Modell samt Uebernahme der einen
                       Liste bis 1.2.0 (shopping_model_test) und in beiden
                       Modi (shopping_test), Ganztags- und
-                      mehrtaegige Geraete-Termine (device_calendar_test)
+                      mehrtaegige Geraete-Termine (device_calendar_test),
+                      geteilte Listen gegen einen Server im Speicher
+                      (shared_lists_test, shared_shopping_test,
+                      shared_expiry_test, support/fake_sync_server.dart)
 maestro/              Maestro-UI-Flows (01–10, 10 = Einkaufsliste im
-                      eigenen Reiter) + Screenshots in shots/
+                      eigenen Reiter) + Screenshots in shots/;
+                      geteilt/ (11–13) braucht den lokalen Sync-Server
+packages/joe_sync/    Gemeinsamer Kern geteilter Listen (reines Dart):
+                      Operationen, Zusammenfuehrung, Kryptografie, Client
+server/               Sync-Server (Dart, SQLite, Docker) + Webseite (web/),
+                      siehe server/README.md
 requirements/         Original-Anforderungen (PDF + Layout-Referenzbild)
 ```
 
@@ -488,7 +522,30 @@ flutter test                      # Unit-Tests
 cd ..\maestro
 maestro test .                    # alle UI-Flows auf dem Emulator
                                   # (braucht JOE_MOCK_DATA=true, siehe "Schalter")
+
+cd ..\packages\joe_sync; dart test  # Kern geteilter Listen
+cd ..\..\server; dart test          # Sync-Server, Abgleich Ende zu Ende
+cd web; node --test                 # Webseite gegen dieselben Testvektoren
 ```
+
+### Geteilte Listen lokal ausprobieren
+
+```powershell
+# Sync-Server in Docker (Port 8787, weil 8080 oft belegt ist)
+$env:JOE_SYNC_PORT=8787; docker compose -f server/compose.yaml up --build -d
+# app/env/.env: JOE_SYNC_URL=http://10.0.2.2:8787 (Emulator -> Rechner), dann
+.\build-debug-apk.ps1 -Install -Device emulator-5554
+# ein zweites "Geraet" auf dem Rechner, Link zum Beitreten oder fuer den Browser
+cd server; dart run tool/smoke.dart http://localhost:8787 --keep
+adb reverse tcp:8787 tcp:8787   # damit der Emulator localhost erreicht
+cd ..\maestro\geteilt
+maestro test 11_teilen.yaml
+maestro test -e LINK='<Link>' 12_beitreten.yaml
+```
+
+Debug-Builds dürfen unverschlüsseltes HTTP nur zu `10.0.2.2`, `localhost`
+und `127.0.0.1` (`app/src/debug/res/xml/network_security_config.xml`),
+alles andere bleibt HTTPS.
 
 ## Schalter (env)
 
@@ -510,6 +567,7 @@ Copy-Item app\env\.env.example app\env\.env
 | Schluessel | Standard | Bedeutung |
 | --- | --- | --- |
 | `JOE_MOCK_DATA` | `false` | Beispieldaten beim allerersten Start (`AppState._seed`): Aufgaben, Termine, Willkommensnotiz. Aus heisst: Joe startet leer. |
+| `JOE_SYNC_URL` | leer | Sync-Server für neu geteilte Einkaufslisten, z. B. `https://sync.example.org`. Leer: dieser Build teilt keine Listen neu, beitreten geht trotzdem (die Adresse steht im Link). |
 
 Sie werden **nicht zur Laufzeit gelesen und sind kein Asset** – sie gehen beim
 Bauen mit:
@@ -792,10 +850,14 @@ privaten Einstellungen der App, kein anderes Programm kommt daran, und
 „Logs teilen" fasst den Schnappschuss nicht an (das Log hält Titel weiterhin
 draußen). Die Widgets brauchen **keine zusätzliche Berechtigung**: der Wecker
 um Mitternacht ist ein ungefährer.
-Die App spricht nicht ins Netz: keine Netzwerk-Abhängigkeit,
-und die INTERNET-Permission steht nur in den Debug-/Profile-Manifesten fürs
-Flutter-Tooling, nicht im Release. Androids Auto-Backup bleibt auf dem
-Standard (an), damit der Bestand Gerätewechsel überlebt.
+Joe spricht **nur für geteilte Einkaufslisten** ins Netz, **nur mit dem
+Server aus ihrem Link**, **nur verschlüsselt** und **nur, solange die Liste
+offen ist**. Die eine Ausnahme: Beim Ersteller fragt ein Hintergrundauftrag
+kurz nach Ablauf der Frist einmal nach, ob die Liste wirklich nicht mehr
+geteilt ist (`SharedExpiry.kt`, Konzept 6.6). Alles andere bleibt auf dem
+Gerät. Dafür steht INTERNET seit den geteilten Listen im Haupt-Manifest.
+Androids Auto-Backup bleibt auf dem Standard (an), damit der Bestand
+Gerätewechsel überlebt.
 
 Das **Befinden** ist von allem, was Joe speichert, das Empfindlichste –
 Gesundheitsangaben. Es liegt im selben lokalen Schlüssel und geht denselben
@@ -813,9 +875,16 @@ beiden Modi dieselben. Bis 1.2.0 stand dort genau eine Liste unter
 `shopping`; `load()` übernimmt sie als erste Liste, beim nächsten Speichern
 fällt der alte Schlüssel weg. Das Log nennt nur IDs und die Anzahl, nie
 einen Eintrag oder Listennamen, und in den Widget-Schnappschuss kommen sie
-nicht. „Liste teilen" ist der einzige Weg, auf dem Einträge das Gerät
-verlassen, und nur auf Knopfdruck und an die App, die man im Teilen-Blatt
-wählt; das Log vermerkt dabei nur die ID der Liste.
+nicht. Einträge verlassen das Gerät auf zwei Wegen: „Als Text senden"
+auf Knopfdruck an die App, die man im Teilen-Blatt wählt, oder als
+geteilte Liste verschlüsselt an den Sync-Server. Eine geteilte Liste trägt
+zusätzlich `share` (Server, Listen-ID, Geheimnis, gegebenenfalls Code und
+Ersteller-Geheimnis, letzter Stand, Warteschlange), dazu kommt eine
+zufällige Geräte-ID (`syncDevice`). Die Geheimnisse liegen damit im selben
+Schlüssel und gehen wie das Befinden ins **Android-Auto-Backup**: Wer das
+Google-Konto hat, hat auch den Zugang zu den geteilten Listen. Das Log nennt
+auch hier nur lokale IDs und Ergebnisse, **nie Links, Geheimnisse oder
+Codes** (geprüft in `shared_lists_test`).
 
 Für die Erinnerungen kommen POST_NOTIFICATIONS (ab Android 13 zur Laufzeit
 bestätigt), RECEIVE_BOOT_COMPLETED (Plan nach einem Neustart neu stellen) und
@@ -1007,6 +1076,10 @@ das blosse `more than one device/emulator` von adb zu laufen. Das kommt nach
 dem fertigen Build und sieht sonst wie ein Build-Fehler aus.
 
 ## CI
+
+`.github/workflows/joe-sync.yml` testet Paket, Server und Webseite der
+geteilten Listen (bei Änderungen unter `packages/` oder `server/`); ein
+Docker-Image baut er nicht, das entsteht auf TrueNAS (`server/README.md`).
 
 `.github/workflows/joe-todo-apk.yml` baut bei jedem Push auf `main` und in
 jedem PR `flutter analyze`, `flutter test` und das Debug-APK und haengt das

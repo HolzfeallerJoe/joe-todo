@@ -1,0 +1,19 @@
+appId: dev.joe.joe_todo
+name: Geteilte Einkaufsliste - fremde Aenderung kommt an
+# Laeuft nach 12_beitreten.yaml, ohne clearState. Vorher benennt ein
+# anderes Geraet den ersten offenen Eintrag in "Hafermilch" um (etwa mit
+# einem SyncClient, siehe server/tool/smoke.dart); Joe gleicht alle 15
+# Sekunden ab, solange die Liste offen ist.
+---
+- launchApp
+- scrollUntilVisible:
+    element: "Einkaufsliste"
+    direction: DOWN
+    centerElement: true
+- tapOn:
+    text: "Einkaufsliste"
+    retryTapIfNoChange: false
+- extendedWaitUntil:
+    visible: "Hafermilch"
+    timeout: 40000
+- takeScreenshot: ../shots/13_geteilt_abgleich

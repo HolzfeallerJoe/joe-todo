@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:joe_sync/joe_sync.dart' as sync;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'almanac.dart';
@@ -623,16 +624,50 @@ const defaultShoppingListName = 'Einkaufsliste';
 
 /// Eine Einkaufsliste mit Namen. Es gibt beliebig viele, aber immer
 /// mindestens eine (siehe [AppState.shoppingLists]).
+///
+/// Eine geteilte Liste traegt [share] (Konzept 6.1). Dann ist [share] die
+/// Wahrheit: Name und Eintraege hier sind nur ihr sichtbarer Stand, nach
+/// jeder Aenderung neu daraus abgeleitet ([adoptShareView]). So lesen
+/// Anzeige, Sortierung und Teilen als Text weiter dieselben Felder.
 class ShoppingList {
   final String id;
   String name;
   final List<ShoppingItem> items;
+  sync.ShareState? share;
 
   ShoppingList({
     required this.id,
     required this.name,
     List<ShoppingItem>? items,
+    this.share,
   }) : items = items ?? [];
+
+  bool get isShared => share != null;
+
+  /// Name und Eintraege aus dem sichtbaren Stand der Freigabe.
+  void adoptShareView() {
+    final view = share?.view;
+    if (view == null) return;
+    final sharedName = view.nameValue;
+    if (sharedName != null && sharedName.trim().isNotEmpty) name = sharedName;
+    items
+      ..clear()
+      ..addAll([
+        for (final item in view.visibleItems)
+          ShoppingItem(
+            id: item.id,
+            title: item.titleValue,
+            done: item.isDone,
+            createdAt: item.createdAt.toLocal(),
+          ),
+      ]);
+  }
+
+  /// Offene Konflikte, die dieses Geraet entscheiden soll (Konzept 5.4).
+  List<sync.SyncConflict> conflictsFor(String device) => [
+        for (final c in share?.view.conflicts.values ?? <sync.SyncConflict>[])
+          if (c.device == device) c,
+      ];
 
   /// Die Eintraege in Anzeigereihenfolge: offene zuerst, darin aelteste
   /// oben (neue landen unten, nahe am Eingabefeld); danach die abgehakten.
@@ -665,27 +700,44 @@ class ShoppingList {
     return [name, for (final item in open) '- ${item.title}'].join('\n');
   }
 
+  /// Die Eintraege stehen auch bei einer geteilten Liste mit drin: faellt
+  /// die Freigabe beim Laden aus, bleibt so wenigstens die Liste.
   Map<String, dynamic> toJson() => {
         'id': id,
         'name': name,
         'items': items.map((i) => i.toJson()).toList(),
+        if (share != null) 'share': share!.toJson(),
       };
 
   /// Ein kaputter Eintrag kostet nur sich selbst ([onLoss]), und ein
-  /// unbrauchbarer Name ist kein Grund, die Eintraege zu verlieren.
+  /// unbrauchbarer Name ist kein Grund, die Eintraege zu verlieren. Eine
+  /// unlesbare Freigabe ebenso wenig: dann bleibt eine lokale Liste.
   factory ShoppingList.fromJson(
     Map<String, dynamic> json, {
     required void Function() onLoss,
   }) {
     final name = json['name'];
-    return ShoppingList(
+    sync.ShareState? share;
+    final rawShare = json['share'];
+    if (rawShare != null) {
+      try {
+        share = sync.ShareState.fromJson(
+            (rawShare as Map).cast<String, Object?>());
+      } catch (_) {
+        onLoss();
+      }
+    }
+    final list = ShoppingList(
       id: json['id'] as String,
       name: name is String && name.trim().isNotEmpty
           ? name
           : defaultShoppingListName,
       items: AppState._readList(json['items'], ShoppingItem.fromJson,
           onLoss: onLoss),
+      share: share,
     );
+    list.adoptShareView();
+    return list;
   }
 }
 
@@ -716,6 +768,15 @@ class AppState extends ChangeNotifier {
   /// heisst: die erste.
   String? shoppingListId;
   ShoppingListMode shoppingMode = ShoppingListMode.tab;
+
+  /// Zufaellige ID dieses Geraets fuer geteilte Listen; steht in jeder
+  /// eigenen Operation (Konzept 6.1). Entsteht beim ersten Laden.
+  String syncDevice = sync.newId();
+
+  /// Wird nach jeder eigenen Aenderung an einer geteilten Liste gerufen,
+  /// damit sie bald hochgeht (siehe shared_lists.dart). Ohne Empfaenger
+  /// (Tests) wartet sie bis zum naechsten Abgleich.
+  void Function(ShoppingList list)? onSharedEdit;
   int themeIndex = 0;
   bool showPet = true;
   String petId = defaultPetId;
@@ -836,6 +897,10 @@ class AppState extends ChangeNotifier {
     final storedListId = data['shoppingListId'];
     shoppingListId = storedListId is String ? storedListId : null;
     shoppingMode = ShoppingListMode.fromJson(data['shoppingMode']);
+    final storedDevice = data['syncDevice'];
+    if (storedDevice is String && storedDevice.isNotEmpty) {
+      syncDevice = storedDevice;
+    }
     // Falsch getypte Einstellungen sind kein Verlust, nur ihr Standardwert.
     // 'showCat' ist der alte Schluessel aus der Zeit vor den Begleiterbildern.
     final storedTheme = data['themeIndex'];
@@ -858,8 +923,9 @@ class AppState extends ChangeNotifier {
     final storedMoon = data['showMoon'];
     showMoon = storedMoon is bool ? storedMoon : true;
     holidayRegion = HolidayRegion.fromJson(data['holidayRegion']);
-    final storedDevice = data['showDeviceCalendar'];
-    showDeviceCalendar = storedDevice is bool ? storedDevice : false;
+    final storedDeviceCalendar = data['showDeviceCalendar'];
+    showDeviceCalendar =
+        storedDeviceCalendar is bool ? storedDeviceCalendar : false;
     final storedCalendarIds = data['deviceCalendarIds'];
     deviceCalendarIds = storedCalendarIds is List
         ? storedCalendarIds.whereType<String>().toSet()
@@ -877,7 +943,8 @@ class AppState extends ChangeNotifier {
     JoeLog.log('Geladen: ${tasks.length} Aufgaben, '
         '${appointments.length} Termine, ${notes.length} Notizen, '
         '${wellbeing.length} Befinden, '
-        '${shoppingLists.length} Einkaufslisten');
+        '${shoppingLists.length} Einkaufslisten '
+        '(${shoppingLists.where((l) => l.isShared).length} geteilt)');
     // Aus der Zeit, als das Befinden noch am Tag hing (siehe dort).
     adoptOrphanWellbeing();
     if (losses > 0) {
@@ -1006,6 +1073,7 @@ class AppState extends ChangeNotifier {
           'shoppingLists': shoppingLists.map((l) => l.toJson()).toList(),
           'shoppingListId': shoppingListId,
           'shoppingMode': shoppingMode.name,
+          'syncDevice': syncDevice,
           'themeIndex': themeIndex,
           'showPet': showPet,
           'petId': petId,
@@ -1415,6 +1483,24 @@ class AppState extends ChangeNotifier {
   /// [ShoppingList.sortedItems]).
   List<ShoppingItem> get shoppingItems => currentShoppingList.sortedItems;
 
+  /// Die Liste, in der [item] steht; null, wenn keine (mehr).
+  ShoppingList? shoppingListOf(ShoppingItem item) {
+    for (final list in shoppingLists) {
+      if (list.items.any((s) => s.id == item.id)) return list;
+    }
+    return null;
+  }
+
+  /// Eine eigene Aenderung an einer geteilten Liste (Konzept 6.1): als
+  /// Operation in die Warteschlange, den sichtbaren Stand neu ableiten,
+  /// speichern und bald hochladen.
+  void _recordShared(ShoppingList list, sync.Op op) {
+    list.share!.record(op);
+    list.adoptShareView();
+    _changed();
+    onSharedEdit?.call(list);
+  }
+
   /// Legt einen Eintrag in der aktuellen Liste an und gibt ihn zurueck; ein
   /// leerer Titel legt nichts an (null).
   ShoppingItem? addShoppingItem(String title) {
@@ -1426,12 +1512,31 @@ class AppState extends ChangeNotifier {
       createdAt: DateTime.now(),
     );
     JoeLog.log('Einkauf angelegt (${item.id})');
-    currentShoppingList.items.add(item);
+    final list = currentShoppingList;
+    final share = list.share;
+    if (share != null) {
+      _recordShared(
+        list,
+        sync.Op.add(sync.newId(), syncDevice,
+            item: item.id, title: item.title, createdAt: item.createdAt),
+      );
+      return item;
+    }
+    list.items.add(item);
     _changed();
     return item;
   }
 
   void toggleShoppingItem(ShoppingItem item) {
+    final list = shoppingListOf(item);
+    final share = list?.share;
+    if (share != null) {
+      _recordShared(
+        list!,
+        sync.Op.done(sync.newId(), syncDevice, share.view, item.id, !item.done),
+      );
+      return;
+    }
     item.done = !item.done;
     _changed();
   }
@@ -1440,16 +1545,93 @@ class AppState extends ChangeNotifier {
   /// [deleteShoppingItem], mit Rueckfrage.
   void renameShoppingItem(ShoppingItem item, String title) {
     final trimmed = title.trim();
-    if (trimmed.isEmpty) return;
+    if (trimmed.isEmpty || trimmed == item.title) return;
+    final list = shoppingListOf(item);
+    final share = list?.share;
+    if (share != null) {
+      _recordShared(
+        list!,
+        sync.Op.title(sync.newId(), syncDevice, share.view, item.id, trimmed),
+      );
+      return;
+    }
     item.title = trimmed;
     _changed();
   }
 
   void deleteShoppingItem(ShoppingItem item) {
     JoeLog.log('Einkauf geloescht (${item.id})');
+    final list = shoppingListOf(item);
+    final share = list?.share;
+    if (share != null) {
+      _recordShared(
+        list!,
+        sync.Op.delete(sync.newId(), syncDevice, share.view, item.id),
+      );
+      return;
+    }
     for (final list in shoppingLists) {
       list.items.removeWhere((s) => s.id == item.id);
     }
+    _changed();
+  }
+
+  /// Entscheidet einen Konflikt (Konzept 5.4): [keepMine] nimmt den
+  /// eigenen Wert, sonst bleibt der andere.
+  void resolveShoppingConflict(
+      ShoppingList list, sync.SyncConflict conflict, bool keepMine) {
+    if (list.share == null) return;
+    JoeLog.log('Konflikt entschieden (${conflict.kind.name}, '
+        '${keepMine ? 'meins' : 'das andere'})');
+    _recordShared(
+      list,
+      sync.Op.resolve(sync.newId(), syncDevice, conflict.id, keepMine),
+    );
+  }
+
+  /// Macht [list] zur geteilten Liste ([share] kommt vom Server zurueck).
+  void attachShare(ShoppingList list, sync.ShareState share) {
+    list.share = share;
+    list.adoptShareView();
+    JoeLog.log('Einkaufsliste geteilt (${list.id}, Code: ${share.hasCode})');
+    _changed();
+  }
+
+  /// Eine beigetretene Liste kommt als neue Liste dazu und wird gezeigt.
+  /// War sie schon da (zweimal derselbe Link), wird nur die vorhandene
+  /// gezeigt.
+  ShoppingList addSharedShoppingList(sync.ShareState share) {
+    for (final list in shoppingLists) {
+      if (list.share?.listId == share.listId) {
+        shoppingListId = list.id;
+        _changed();
+        return list;
+      }
+    }
+    final list = _newShoppingList(
+      name: share.view.nameValue ?? defaultShoppingListName,
+    )..share = share;
+    list.adoptShareView();
+    JoeLog.log('Geteilter Liste beigetreten (${list.id})');
+    shoppingLists.add(list);
+    shoppingListId = list.id;
+    _changed();
+    return list;
+  }
+
+  /// Nach einem Abgleich: Stand neu ableiten und speichern.
+  void sharedShoppingListUpdated(ShoppingList list) {
+    list.adoptShareView();
+    _changed();
+  }
+
+  /// Teilen verlassen, entteilt oder fuer alle geloescht (G6): die Liste
+  /// bleibt als gewoehnliche lokale Liste mit ihrem letzten Stand.
+  void detachShare(ShoppingList list, {required String reason}) {
+    if (list.share == null) return;
+    list.adoptShareView();
+    list.share = null;
+    JoeLog.log('Einkaufsliste nicht mehr geteilt (${list.id}, $reason)');
     _changed();
   }
 
@@ -1474,7 +1656,15 @@ class AppState extends ChangeNotifier {
   /// Ein leerer Name aendert nichts.
   void renameShoppingList(ShoppingList list, String name) {
     final trimmed = name.trim();
-    if (trimmed.isEmpty) return;
+    if (trimmed.isEmpty || trimmed == list.name) return;
+    final share = list.share;
+    if (share != null) {
+      _recordShared(
+        list,
+        sync.Op.rename(sync.newId(), syncDevice, share.view, trimmed),
+      );
+      return;
+    }
     list.name = trimmed;
     _changed();
   }

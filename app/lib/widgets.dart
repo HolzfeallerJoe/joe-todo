@@ -1114,13 +1114,15 @@ Future<String?> showTextEntrySheet(
 /// derselbe Griff zum selben Blatt.
 ///
 /// Ohne [onDelete] fehlt "Löschen" – fuer etwas, das bleiben muss, wie die
-/// letzte Einkaufsliste.
+/// letzte Einkaufsliste. [extra] steht zwischen Bearbeiten und Loeschen,
+/// etwa "Teilen verlassen" bei einer geteilten Liste.
 void showEntryOptions(
   BuildContext context, {
   required String deleteTitle,
   required String subject,
   required VoidCallback onEdit,
   required VoidCallback? onDelete,
+  List<EntryAction> extra = const [],
 }) {
   final theme = joeThemeOf(context);
   showJoeSheet(
@@ -1137,6 +1139,23 @@ void showEntryOptions(
               onEdit();
             },
           ),
+          for (final action in extra)
+            ListTile(
+              leading: Icon(
+                action.icon,
+                color: action.destructive ? theme.accent : theme.ink,
+              ),
+              title: Text(
+                action.label,
+                style: TextStyle(
+                  color: action.destructive ? theme.accent : theme.ink,
+                ),
+              ),
+              onTap: () {
+                Navigator.pop(sheetContext);
+                action.onTap();
+              },
+            ),
           if (onDelete != null)
             ListTile(
               leading: Icon(Icons.delete_outline, color: theme.accent),
@@ -1155,6 +1174,23 @@ void showEntryOptions(
       ),
     ),
   );
+}
+
+/// Ein weiterer Eintrag im Blatt von [showEntryOptions].
+class EntryAction {
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  /// In der Akzentfarbe wie "Löschen" – fuer alles, was etwas aufgibt.
+  final bool destructive;
+
+  const EntryAction({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.destructive = false,
+  });
 }
 
 void showTaskOptions(BuildContext context, Task task) {

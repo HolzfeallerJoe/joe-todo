@@ -1,4 +1,11 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Geteilte Einkaufslisten: Joe spricht nur fuer geteilte Listen, nur
+         mit dem Server aus ihrem Link, nur verschluesselt und nur, solange
+         die Liste offen ist (dazu einmal kurz nach Ablauf beim Ersteller,
+         siehe SharedExpiry.kt). Bis 1.3.0 stand INTERNET nur in den Debug-
+         und Profile-Manifesten; die veroeffentlichten Debug-APKs hatten sie
+         damit schon, ab jetzt ist es Absicht. -->
+    <uses-permission android:name="android.permission.INTERNET" />
     <!-- Geraete-Kalender: Joe liest nur - es gibt keine Stelle in der App,
          die einen Geraete-Termin anlegt oder aendert. WRITE_CALENDAR steht
          trotzdem hier, weil device_calendar_plus zum *Lesen* die Stufe

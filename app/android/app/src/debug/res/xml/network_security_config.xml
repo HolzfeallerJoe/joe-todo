@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Nur fuer Debug-Builds: unverschluesseltes HTTP zum eigenen Rechner, damit
+     ein lokaler Sync-Server (server/compose.yaml) ohne Zertifikat geht. Der
+     Emulator erreicht den Rechner unter 10.0.2.2, mit "adb reverse" auch
+     unter localhost. Jede andere Adresse bleibt HTTPS-only; im Release-Build
+     steht diese Datei gar nicht. -->
+<network-security-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">10.0.2.2</domain>
+        <domain includeSubdomains="false">localhost</domain>
+        <domain includeSubdomains="false">127.0.0.1</domain>
+    </domain-config>
+</network-security-config>
