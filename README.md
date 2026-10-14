@@ -242,8 +242,19 @@ Dashboard, Kalender, wiederkehrenden Aufgaben, Notizen und Historie.
      mit „Notizen", der Umschalter merkt sich nichts. Im Modus „Eigener
      Reiter" sieht die Notizen-Seite genau aus wie vorher.
 
-  Es gibt genau **eine** Liste, und sie hängt an keinem Tag: Der Modus sagt
-  nur, wo sie steht. Umschalten ändert an den Einträgen also nichts.
+  Es gibt **beliebig viele Listen**, mindestens eine. Sie hängen an keinem
+  Tag, und der Modus sagt nur, wo sie stehen. Umschalten ändert an den
+  Einträgen also nichts. Ganz oben steht eine Karte mit den Listen als Chips,
+  dahinter „Neue Liste". Chips statt einer Ausklappliste, weil man beim
+  Einkaufen sehen soll, welche Listen es gibt, und mit einem Tipp wechseln
+  will. Eine neue Liste wird gleich gezeigt, und welche gerade gezeigt wird,
+  merkt sich Joe (`shoppingListId`): Wer im Laden die App neu öffnet, steht
+  wieder vor derselben Liste. Langes Drücken auf einen Chip öffnet das
+  bekannte Blatt („Bearbeiten" benennt um, „Löschen" fragt nach und nennt,
+  wie viele Einträge mitgehen). Die letzte Liste lässt sich nur umbenennen:
+  Irgendwohin muss das Eingabefeld schreiben. Die eine Liste aus der Zeit vor
+  mehreren Listen (bis 1.2.0) wird beim ersten Start zur Liste
+  „Einkaufsliste", mit allen Einträgen.
   Hinzugefügt wird über ein Eingabefeld **am unteren Rand**, dort ist der
   Daumen, die Tastatur schiebt es mit hoch, und neue Einträge landen genau
   darüber, unten bei den offenen – dort, wo der Blick beim Tippen gerade
@@ -255,9 +266,10 @@ Dashboard, Kalender, wiederkehrenden Aufgaben, Notizen und Historie.
   abgehakte Einträge bleiben durchgestrichen unter den offenen stehen,
   automatisch gelöscht wird nichts. Langes Drücken öffnet das bekannte Blatt
   mit „Bearbeiten" und „Löschen". Im Kalender und in den
-  Startbildschirm-Widgets taucht die Liste nicht auf. Die Oberfläche steht
-  in `lib/screens/shopping.dart` (`ShoppingList` für beide Modi,
-  `ShoppingListScreen` für den Reiter).
+  Startbildschirm-Widgets tauchen die Listen nicht auf. Die Oberfläche steht
+  in `lib/screens/shopping.dart` (`ShoppingListView` für beide Modi,
+  `ShoppingListScreen` für den Reiter); `ShoppingList` ist das Modell einer
+  Liste in `lib/models.dart`.
 - **Historie** – alle erledigten Aufgaben, nach Tag gruppiert. Eine
   wiederkehrende Aufgabe wird unter dem Starttag ihrer Wiederholung
   abgehakt, und diesen Tag zeigt auch die Historie – bei „Mo bis Do",
@@ -447,8 +459,9 @@ app/                  Flutter-Projekt (Android)
                       (recurrence_test), Aufgaben- und Terminblatt
                       (task_sheet_test), Einstellungen: Begleiter-Groesse,
                       Prioritaetsfarben, Einkaufs-Modus (settings_test),
-                      Einkaufsliste als Modell (shopping_model_test) und
-                      in beiden Modi (shopping_test), Ganztags- und
+                      Einkaufslisten als Modell samt Uebernahme der einen
+                      Liste bis 1.2.0 (shopping_model_test) und in beiden
+                      Modi (shopping_test), Ganztags- und
                       mehrtaegige Geraete-Termine (device_calendar_test)
 maestro/              Maestro-UI-Flows (01–10, 10 = Einkaufsliste im
                       eigenen Reiter) + Screenshots in shots/
@@ -786,10 +799,13 @@ Standard (an) und sichert den ganzen Schlüssel in das Google-Konto des
 Geräts – das Befinden also mit. Wer das nicht will, schaltet das Backup für
 Joe in den Android-Einstellungen ab.
 
-Die **Einkaufsliste** liegt ebenfalls in `joe_data_v1` (`shopping`, dazu
-`shoppingMode`) – eine Liste, in beiden Modi dieselbe. Das
-Log nennt nur IDs und die Anzahl, nie einen Eintrag, und in den
-Widget-Schnappschuss kommt sie nicht.
+Die **Einkaufslisten** liegen ebenfalls in `joe_data_v1` (`shoppingLists`,
+jede mit Name und Einträgen, dazu `shoppingListId` und `shoppingMode`) – in
+beiden Modi dieselben. Bis 1.2.0 stand dort genau eine Liste unter
+`shopping`; `load()` übernimmt sie als erste Liste, beim nächsten Speichern
+fällt der alte Schlüssel weg. Das Log nennt nur IDs und die Anzahl, nie
+einen Eintrag oder Listennamen, und in den Widget-Schnappschuss kommen sie
+nicht.
 
 Für die Erinnerungen kommen POST_NOTIFICATIONS (ab Android 13 zur Laufzeit
 bestätigt), RECEIVE_BOOT_COMPLETED (Plan nach einem Neustart neu stellen) und

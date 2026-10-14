@@ -41,7 +41,7 @@ class _NotesScreenState extends State<NotesScreen> {
       title: 'Notizen',
       body: SafeArea(
         child: shopping
-            ? ShoppingList(header: [_header(context)])
+            ? ShoppingListView(header: [_header(context)])
             : _notesList(
                 context,
                 page,

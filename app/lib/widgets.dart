@@ -1112,12 +1112,15 @@ Future<String?> showTextEntrySheet(
 /// Blatt, der Termin loeschte auf langen Druck sofort nach einer Rueckfrage,
 /// die Notiz nur ueber den Papierkorb im Editor. Jetzt fuehrt ueberall
 /// derselbe Griff zum selben Blatt.
+///
+/// Ohne [onDelete] fehlt "Löschen" – fuer etwas, das bleiben muss, wie die
+/// letzte Einkaufsliste.
 void showEntryOptions(
   BuildContext context, {
   required String deleteTitle,
   required String subject,
   required VoidCallback onEdit,
-  required VoidCallback onDelete,
+  required VoidCallback? onDelete,
 }) {
   final theme = joeThemeOf(context);
   showJoeSheet(
@@ -1134,19 +1137,20 @@ void showEntryOptions(
               onEdit();
             },
           ),
-          ListTile(
-            leading: Icon(Icons.delete_outline, color: theme.accent),
-            title: Text('Löschen', style: TextStyle(color: theme.accent)),
-            onTap: () async {
-              Navigator.pop(sheetContext);
-              final confirmed = await confirmDelete(
-                context,
-                title: deleteTitle,
-                subject: subject,
-              );
-              if (confirmed) onDelete();
-            },
-          ),
+          if (onDelete != null)
+            ListTile(
+              leading: Icon(Icons.delete_outline, color: theme.accent),
+              title: Text('Löschen', style: TextStyle(color: theme.accent)),
+              onTap: () async {
+                Navigator.pop(sheetContext);
+                final confirmed = await confirmDelete(
+                  context,
+                  title: deleteTitle,
+                  subject: subject,
+                );
+                if (confirmed) onDelete();
+              },
+            ),
         ],
       ),
     ),

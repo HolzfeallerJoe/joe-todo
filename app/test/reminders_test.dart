@@ -263,9 +263,11 @@ void main() {
       // Taeglich ab heute 18:00, jeder Tag einer – und jede Nummer nur
       // einmal, sonst ueberschriebe eine Erinnerung die naechste.
       expect(reminders.first.when, heute.add(const Duration(hours: 18)));
+      // Als Kalendertag gerechnet, nicht als Dauer: liegt eine Zeitumstellung
+      // im Monat, waeren 29 Tage und 18 Stunden sonst 17:00 oder 19:00.
       expect(
         reminders.last.when,
-        heute.add(Duration(days: remindersPerTask - 1, hours: 18)),
+        DateTime(heute.year, heute.month, heute.day + remindersPerTask - 1, 18),
       );
       expect(reminders.map((r) => r.id).toSet(), hasLength(remindersPerTask));
     });

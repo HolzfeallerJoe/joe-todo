@@ -33,4 +33,23 @@ name: Einkaufsliste im eigenen Reiter
 - assertNotVisible: "Brot"
 - assertVisible: "Milch"
 - takeScreenshot: shots/10_shopping
+# Zweite Liste: wird gleich gezeigt, die Eintraege bleiben getrennt.
+- tapOn: "Neue Liste"
+- inputText: "Baumarkt"
+- tapOn: "Speichern"
+- assertVisible: "(?s).*Noch nichts auf der Liste.*"
+- assertNotVisible: "Milch"
+- tapOn: "Was fehlt?"
+- inputText: "Schrauben"
+- pressKey: Enter
+- hideKeyboard
+- assertVisible: "Schrauben"
+# Zurueck zur ersten Liste. "Einkaufsliste" steht auch im Titel, der Chip
+# ist der zweite Treffer.
+- tapOn:
+    text: "Einkaufsliste"
+    index: 1
+- assertVisible: "Milch"
+- assertNotVisible: "Schrauben"
+- takeScreenshot: shots/10_shopping_listen
 - back

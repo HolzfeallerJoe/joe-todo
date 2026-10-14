@@ -559,10 +559,10 @@ class HistoryEntry {
   HistoryEntry(this.day, this.task);
 }
 
-/// Wo die Einkaufsliste wohnt (Einstellungen).
+/// Wo die Einkaufslisten wohnen (Einstellungen).
 ///
-/// Es gibt genau eine Liste ([AppState.shopping]), sie haengt an keinem Tag.
-/// Der Modus bestimmt nur, wo sie zu sehen ist.
+/// Die Listen ([AppState.shoppingLists]) haengen an keinem Tag. Der Modus
+/// bestimmt nur, wo sie zu sehen sind – in beiden Modi dieselben.
 enum ShoppingListMode {
   /// Ein eigener Reiter auf der ersten Seite.
   tab('Eigener Reiter', 'Die Liste hat einen eigenen Reiter'),
@@ -617,6 +617,65 @@ class ShoppingItem {
       );
 }
 
+/// Name der Liste, die es von Anfang an gibt – und unter dem die eine
+/// Liste aus der Zeit vor mehreren Listen (bis 1.2.0) weiterlebt.
+const defaultShoppingListName = 'Einkaufsliste';
+
+/// Eine Einkaufsliste mit Namen. Es gibt beliebig viele, aber immer
+/// mindestens eine (siehe [AppState.shoppingLists]).
+class ShoppingList {
+  final String id;
+  String name;
+  final List<ShoppingItem> items;
+
+  ShoppingList({
+    required this.id,
+    required this.name,
+    List<ShoppingItem>? items,
+  }) : items = items ?? [];
+
+  /// Die Eintraege in Anzeigereihenfolge: offene zuerst, darin aelteste
+  /// oben (neue landen unten, nahe am Eingabefeld); danach die abgehakten.
+  List<ShoppingItem> get sortedItems {
+    // Die Stelle in der Liste bricht einen Gleichstand der Zeit: zwei
+    // schnell hintereinander getippte Eintraege koennen dieselbe haben, und
+    // List.sort ist nicht stabil.
+    final indexed = [
+      for (var i = 0; i < items.length; i++) (i, items[i]),
+    ]..sort((a, b) {
+        final done = (a.$2.done ? 1 : 0) - (b.$2.done ? 1 : 0);
+        if (done != 0) return done;
+        final time = a.$2.createdAt.compareTo(b.$2.createdAt);
+        if (time != 0) return time;
+        return a.$1 - b.$1;
+      });
+    return [for (final (_, item) in indexed) item];
+  }
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'name': name,
+        'items': items.map((i) => i.toJson()).toList(),
+      };
+
+  /// Ein kaputter Eintrag kostet nur sich selbst ([onLoss]), und ein
+  /// unbrauchbarer Name ist kein Grund, die Eintraege zu verlieren.
+  factory ShoppingList.fromJson(
+    Map<String, dynamic> json, {
+    required void Function() onLoss,
+  }) {
+    final name = json['name'];
+    return ShoppingList(
+      id: json['id'] as String,
+      name: name is String && name.trim().isNotEmpty
+          ? name
+          : defaultShoppingListName,
+      items: AppState._readList(json['items'], ShoppingItem.fromJson,
+          onLoss: onLoss),
+    );
+  }
+}
+
 class AppState extends ChangeNotifier {
   static const _storageKey = 'joe_data_v1';
 
@@ -635,8 +694,14 @@ class AppState extends ChangeNotifier {
   /// Selbst angelegte Symptome, zusaetzlich zu den zehn festen.
   List<Symptom> customSymptoms = [];
 
-  /// Die Einkaufsliste – eine fuer alle Tage (siehe [ShoppingListMode]).
-  List<ShoppingItem> shopping = [];
+  /// Die Einkaufslisten, in der Reihenfolge ihres Anlegens. Nie leer:
+  /// [currentShoppingList] legt notfalls wieder eine an.
+  late List<ShoppingList> shoppingLists = [_newShoppingList()];
+
+  /// Welche Liste gerade zu sehen ist. Gespeichert, damit man im Laden
+  /// wieder bei derselben Liste landet; eine ID, die es nicht (mehr) gibt,
+  /// heisst: die erste.
+  String? shoppingListId;
   ShoppingListMode shoppingMode = ShoppingListMode.tab;
   int themeIndex = 0;
   bool showPet = true;
@@ -739,7 +804,24 @@ class AppState extends ChangeNotifier {
         onLoss: loss);
     customSymptoms =
         _readList(data['customSymptoms'], Symptom.fromJson, onLoss: loss);
-    shopping = _readList(data['shopping'], ShoppingItem.fromJson, onLoss: loss);
+    shoppingLists = data.containsKey('shoppingLists')
+        ? _readList(
+            data['shoppingLists'],
+            (json) => ShoppingList.fromJson(json, onLoss: loss),
+            onLoss: loss,
+          )
+        // Bis 1.2.0 gab es genau eine Liste, unter 'shopping'. Sie wird zur
+        // ersten der Listen; beim naechsten Speichern faellt der alte
+        // Schluessel weg.
+        : [
+            _newShoppingList(
+              items: _readList(data['shopping'], ShoppingItem.fromJson,
+                  onLoss: loss),
+            ),
+          ];
+    if (shoppingLists.isEmpty) shoppingLists = [_newShoppingList()];
+    final storedListId = data['shoppingListId'];
+    shoppingListId = storedListId is String ? storedListId : null;
     shoppingMode = ShoppingListMode.fromJson(data['shoppingMode']);
     // Falsch getypte Einstellungen sind kein Verlust, nur ihr Standardwert.
     // 'showCat' ist der alte Schluessel aus der Zeit vor den Begleiterbildern.
@@ -781,7 +863,8 @@ class AppState extends ChangeNotifier {
 
     JoeLog.log('Geladen: ${tasks.length} Aufgaben, '
         '${appointments.length} Termine, ${notes.length} Notizen, '
-        '${wellbeing.length} Befinden, ${shopping.length} Einkauf');
+        '${wellbeing.length} Befinden, '
+        '${shoppingLists.length} Einkaufslisten');
     // Aus der Zeit, als das Befinden noch am Tag hing (siehe dort).
     adoptOrphanWellbeing();
     if (losses > 0) {
@@ -907,7 +990,8 @@ class AppState extends ChangeNotifier {
           'notes': notes.map((n) => n.toJson()).toList(),
           'wellbeing': wellbeing.map((w) => w.toJson()).toList(),
           'customSymptoms': customSymptoms.map((s) => s.toJson()).toList(),
-          'shopping': shopping.map((s) => s.toJson()).toList(),
+          'shoppingLists': shoppingLists.map((l) => l.toJson()).toList(),
+          'shoppingListId': shoppingListId,
           'shoppingMode': shoppingMode.name,
           'themeIndex': themeIndex,
           'showPet': showPet,
@@ -1295,28 +1379,31 @@ class AppState extends ChangeNotifier {
     _changed();
   }
 
-  // ---- Einkaufsliste ----
+  // ---- Einkaufslisten ----
 
-  /// Die Eintraege in Anzeigereihenfolge: offene zuerst, darin aelteste
-  /// oben (neue landen unten, nahe am Eingabefeld); danach die abgehakten.
-  List<ShoppingItem> get shoppingItems {
-    // Die Stelle in der Liste bricht einen Gleichstand der Zeit: zwei
-    // schnell hintereinander getippte Eintraege koennen dieselbe haben, und
-    // List.sort ist nicht stabil.
-    final indexed = [
-      for (var i = 0; i < shopping.length; i++) (i, shopping[i]),
-    ]..sort((a, b) {
-        final done = (a.$2.done ? 1 : 0) - (b.$2.done ? 1 : 0);
-        if (done != 0) return done;
-        final time = a.$2.createdAt.compareTo(b.$2.createdAt);
-        if (time != 0) return time;
-        return a.$1 - b.$1;
-      });
-    return [for (final (_, item) in indexed) item];
+  ShoppingList _newShoppingList({
+    String name = defaultShoppingListName,
+    List<ShoppingItem>? items,
+  }) =>
+      ShoppingList(id: nextId(), name: name, items: items);
+
+  /// Die Liste, die gerade zu sehen ist (siehe [shoppingListId]).
+  ShoppingList get currentShoppingList {
+    // Leer wird die Sammlung nur, wenn sie jemand von aussen leert (Tests):
+    // Laden und Loeschen lassen immer eine stehen.
+    if (shoppingLists.isEmpty) shoppingLists.add(_newShoppingList());
+    return shoppingLists.firstWhere(
+      (l) => l.id == shoppingListId,
+      orElse: () => shoppingLists.first,
+    );
   }
 
-  /// Legt einen Eintrag an und gibt ihn zurueck; ein leerer Titel legt
-  /// nichts an (null).
+  /// Die Eintraege der aktuellen Liste in Anzeigereihenfolge (siehe
+  /// [ShoppingList.sortedItems]).
+  List<ShoppingItem> get shoppingItems => currentShoppingList.sortedItems;
+
+  /// Legt einen Eintrag in der aktuellen Liste an und gibt ihn zurueck; ein
+  /// leerer Titel legt nichts an (null).
   ShoppingItem? addShoppingItem(String title) {
     final trimmed = title.trim();
     if (trimmed.isEmpty) return null;
@@ -1326,7 +1413,7 @@ class AppState extends ChangeNotifier {
       createdAt: DateTime.now(),
     );
     JoeLog.log('Einkauf angelegt (${item.id})');
-    shopping.add(item);
+    currentShoppingList.items.add(item);
     _changed();
     return item;
   }
@@ -1347,7 +1434,44 @@ class AppState extends ChangeNotifier {
 
   void deleteShoppingItem(ShoppingItem item) {
     JoeLog.log('Einkauf geloescht (${item.id})');
-    shopping.removeWhere((s) => s.id == item.id);
+    for (final list in shoppingLists) {
+      list.items.removeWhere((s) => s.id == item.id);
+    }
+    _changed();
+  }
+
+  /// Legt eine Liste an, zeigt sie gleich und gibt sie zurueck; ein leerer
+  /// Name legt nichts an (null).
+  ShoppingList? addShoppingList(String name) {
+    final trimmed = name.trim();
+    if (trimmed.isEmpty) return null;
+    final list = _newShoppingList(name: trimmed);
+    JoeLog.log('Einkaufsliste angelegt (${list.id})');
+    shoppingLists.add(list);
+    shoppingListId = list.id;
+    _changed();
+    return list;
+  }
+
+  void selectShoppingList(ShoppingList list) {
+    shoppingListId = list.id;
+    _changed();
+  }
+
+  /// Ein leerer Name aendert nichts.
+  void renameShoppingList(ShoppingList list, String name) {
+    final trimmed = name.trim();
+    if (trimmed.isEmpty) return;
+    list.name = trimmed;
+    _changed();
+  }
+
+  /// Loescht eine Liste samt ihren Eintraegen. Die letzte bleibt stehen:
+  /// irgendwohin muss das Eingabefeld schreiben.
+  void deleteShoppingList(ShoppingList list) {
+    if (shoppingLists.length <= 1) return;
+    JoeLog.log('Einkaufsliste geloescht (${list.id})');
+    shoppingLists.removeWhere((l) => l.id == list.id);
     _changed();
   }
 

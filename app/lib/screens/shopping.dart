@@ -14,31 +14,32 @@ class ShoppingListScreen extends StatelessWidget {
     return const JoeScaffold(
       page: PetPage.shopping,
       title: 'Einkaufsliste',
-      body: SafeArea(child: ShoppingList()),
+      body: SafeArea(child: ShoppingListView()),
     );
   }
 }
 
-/// Eine Einkaufsliste: die Eintraege auf einer Karte, darunter die
-/// Eingabeleiste. Im Reiter und in den Notizen ist es dieselbe Liste
-/// ([AppState.shoppingItems]), sie haengt an keinem Tag.
+/// Die Einkaufslisten: oben die Wahl der Liste, darunter die Eintraege der
+/// gewaehlten auf einer Karte, unten die Eingabeleiste. Im Reiter und in den
+/// Notizen sind es dieselben Listen ([AppState.shoppingLists]), sie haengen
+/// an keinem Tag.
 ///
 /// Das Eingabefeld steht unten und nicht oben: dort ist der Daumen, die
 /// Tastatur schiebt es mit hoch, und neue Eintraege landen genau darueber –
 /// dort, wo der Blick beim Tippen gerade ist.
-class ShoppingList extends StatefulWidget {
+class ShoppingListView extends StatefulWidget {
   /// Was ueber der Karte mitscrollt – in den Notizen der Umschalter. Er
   /// steht *in* der Liste und nicht darueber, damit der Begleiter auf der
   /// obersten Karte sitzt und mit ihr wegscrollt (siehe [petPadding]).
   final List<Widget> header;
 
-  const ShoppingList({super.key, this.header = const []});
+  const ShoppingListView({super.key, this.header = const []});
 
   @override
-  State<ShoppingList> createState() => _ShoppingListState();
+  State<ShoppingListView> createState() => _ShoppingListViewState();
 }
 
-class _ShoppingListState extends State<ShoppingList> {
+class _ShoppingListViewState extends State<ShoppingListView> {
   final _input = TextEditingController();
   final _focus = FocusNode();
 
@@ -93,6 +94,7 @@ class _ShoppingListState extends State<ShoppingList> {
             ),
             children: [
               ...widget.header,
+              const _ListPicker(),
               // Auch der leere Zustand steht auf Papier: frei auf dem
               // Hintergrund waere er auf einem Foto-Design nicht zu lesen.
               if (items.isEmpty)
@@ -124,6 +126,96 @@ class _ShoppingListState extends State<ShoppingList> {
         ),
         _InputBar(controller: _input, focusNode: _focus, onAdd: _add),
       ],
+    );
+  }
+}
+
+/// Die Karte mit der Wahl der Liste: jede Liste ein Chip, dahinter
+/// "Neue Liste". Ein Tipp zeigt die Liste, langer Druck fuehrt wie bei den
+/// Eintraegen auf Bearbeiten und Loeschen.
+///
+/// Chips und keine Ausklappliste: beim Einkaufen soll man sehen, welche
+/// Listen es gibt, und mit einem Tipp wechseln.
+class _ListPicker extends StatelessWidget {
+  const _ListPicker();
+
+  Future<void> _add(BuildContext context) async {
+    final state = AppScope.of(context);
+    final name = await showTextEntrySheet(
+      context,
+      title: 'Neue Liste',
+      hint: 'Wie heißt die Liste?',
+    );
+    if (name != null) state.addShoppingList(name);
+  }
+
+  void _options(BuildContext context, ShoppingList list) {
+    final state = AppScope.of(context);
+    final count = list.items.length;
+    showEntryOptions(
+      context,
+      deleteTitle: 'Liste löschen?',
+      subject: count == 0
+          ? list.name
+          : '${list.name} – '
+              '$count ${count == 1 ? 'Eintrag geht' : 'Einträge gehen'} mit.',
+      onEdit: () async {
+        final name = await showTextEntrySheet(
+          context,
+          title: 'Liste umbenennen',
+          hint: 'Wie heißt die Liste?',
+          initialText: list.name,
+        );
+        if (name != null) state.renameShoppingList(list, name);
+      },
+      // Die letzte Liste bleibt: irgendwohin muss das Eingabefeld schreiben.
+      onDelete: state.shoppingLists.length > 1
+          ? () => state.deleteShoppingList(list)
+          : null,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final state = AppScope.of(context);
+    final theme = joeThemeOf(context);
+    final current = state.currentShoppingList;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: PaperCard(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        child: SizedBox(
+          width: double.infinity,
+          child: Wrap(
+            spacing: 8,
+            runSpacing: 4,
+            children: [
+              for (final list in state.shoppingLists)
+                // Der Chip selbst kennt keinen langen Druck; der Detektor
+                // darueber bekommt ihn, der Tipp bleibt beim Chip.
+                Semantics(
+                  onLongPress: () => _options(context, list),
+                  child: GestureDetector(
+                    onLongPress: () => _options(context, list),
+                    child: ChoiceChip(
+                      label: Text(list.name),
+                      selected: list.id == current.id,
+                      selectedColor: theme.accent.withValues(alpha: 0.25),
+                      labelStyle: TextStyle(color: theme.ink),
+                      onSelected: (_) => state.selectShoppingList(list),
+                    ),
+                  ),
+                ),
+              ActionChip(
+                avatar: Icon(Icons.add, size: 18, color: theme.accent),
+                label: const Text('Neue Liste'),
+                labelStyle: TextStyle(color: theme.ink),
+                onPressed: () => _add(context),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

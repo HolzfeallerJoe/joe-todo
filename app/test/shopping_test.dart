@@ -22,7 +22,13 @@ void main() {
       ..tasks = []
       ..appointments = []
       ..notes = []
-      ..shopping = [...items]
+      ..shoppingLists = [
+        ShoppingList(
+          id: 'l1',
+          name: defaultShoppingListName,
+          items: [...items],
+        ),
+      ]
       ..showPet = false;
     await tester.pumpWidget(JoeApp(state: state));
     await tester.pumpAndSettle();
@@ -84,7 +90,7 @@ void main() {
       // Enter auf leerem Feld: nichts.
       await tester.testTextInput.receiveAction(TextInputAction.done);
       await tester.pumpAndSettle();
-      expect(state.shopping, hasLength(1));
+      expect(state.currentShoppingList.items, hasLength(1));
 
       // Der Knopf daneben tut dasselbe; neue Eintraege landen unten.
       await tester.enterText(find.byType(TextField), 'Brot');
@@ -105,7 +111,7 @@ void main() {
       await tap(tester, find.text('Einkaufsliste'));
 
       await tap(tester, find.text('Milch'));
-      expect(state.shopping.first.done, isTrue);
+      expect(state.currentShoppingList.items.first.done, isTrue);
       expect(titles(state), ['Brot', 'Milch']);
       expect(
         tester.getTopLeft(find.text('Brot')).dy,
@@ -116,7 +122,7 @@ void main() {
 
       // Zweiter Tipp nimmt den Haken zurueck.
       await tap(tester, find.text('Milch'));
-      expect(state.shopping.first.done, isFalse);
+      expect(state.currentShoppingList.items.first.done, isFalse);
     });
 
     testWidgets('langer Druck: Bearbeiten aendert den Titel', (tester) async {
@@ -133,7 +139,7 @@ void main() {
       await tester.enterText(find.byType(TextField).last, 'Hafermilch');
       await tap(tester, find.text('Speichern'));
 
-      expect(state.shopping.single.title, 'Hafermilch');
+      expect(state.currentShoppingList.items.single.title, 'Hafermilch');
       expect(find.text('Hafermilch'), findsOneWidget);
     });
 
@@ -154,7 +160,7 @@ void main() {
       expect(find.text('Bitte gib etwas ein.'), findsOneWidget);
       expect(find.text('Bitte gib einen Namen ein.'), findsNothing);
       expect(find.text('Eintrag bearbeiten'), findsOneWidget);
-      expect(state.shopping.single.title, 'Milch');
+      expect(state.currentShoppingList.items.single.title, 'Milch');
       await tester.pump(JoeToast.showDuration);
       await tester.pumpAndSettle();
     });
@@ -168,10 +174,10 @@ void main() {
       await tester.pumpAndSettle();
       await tap(tester, find.text('Löschen'));
       expect(find.text('Eintrag löschen?'), findsOneWidget);
-      expect(state.shopping, hasLength(1));
+      expect(state.currentShoppingList.items, hasLength(1));
 
       await tap(tester, find.text('Löschen'));
-      expect(state.shopping, isEmpty);
+      expect(state.currentShoppingList.items, isEmpty);
       expect(find.text('Milch'), findsNothing);
     });
   });
@@ -242,7 +248,98 @@ void main() {
       await tap(tester, find.text('Notizen/Einkaufsliste'));
       await tap(tester, find.text('Einkaufsliste'));
       expect(find.text('Milch'), findsOneWidget);
-      expect(state.shopping, hasLength(1));
+      expect(state.currentShoppingList.items, hasLength(1));
+    });
+  });
+
+  group('Mehrere Listen', () {
+    Finder chip(String name) => find.widgetWithText(ChoiceChip, name);
+
+    bool isChosen(WidgetTester tester, String name) =>
+        tester.widget<ChoiceChip>(chip(name)).selected;
+
+    /// Legt ueber "Neue Liste" eine Liste namens [name] an.
+    Future<void> addList(WidgetTester tester, String name) async {
+      await tap(tester, find.text('Neue Liste'));
+      expect(find.text('Wie heißt die Liste?'), findsOneWidget);
+      await tester.enterText(find.byType(TextField).last, name);
+      await tap(tester, find.text('Speichern'));
+    }
+
+    testWidgets('anlegen, gleich zeigen, und jede Liste hat ihre Eintraege',
+        (tester) async {
+      final state = await pump(tester, items: [item('1', 'Milch')]);
+      await tap(tester, find.text('Einkaufsliste'));
+      expect(isChosen(tester, 'Einkaufsliste'), isTrue);
+
+      await addList(tester, 'Baumarkt');
+      expect(state.shoppingLists, hasLength(2));
+      expect(isChosen(tester, 'Baumarkt'), isTrue);
+      expect(isChosen(tester, 'Einkaufsliste'), isFalse);
+      expect(find.text('Milch'), findsNothing);
+      expect(find.textContaining('Noch nichts auf der Liste'), findsOneWidget);
+
+      await type(tester, 'Schrauben');
+      expect(find.text('Schrauben'), findsOneWidget);
+
+      await tap(tester, chip('Einkaufsliste'));
+      expect(find.text('Milch'), findsOneWidget);
+      expect(find.text('Schrauben'), findsNothing);
+      expect(titles(state), ['Milch']);
+    });
+
+    testWidgets('langer Druck auf eine Liste: umbenennen', (tester) async {
+      final state = await pump(tester);
+      await tap(tester, find.text('Einkaufsliste'));
+
+      await tester.longPress(chip('Einkaufsliste'));
+      await tester.pumpAndSettle();
+      // Die letzte Liste laesst sich nicht loeschen.
+      expect(find.text('Bearbeiten'), findsOneWidget);
+      expect(find.text('Löschen'), findsNothing);
+
+      await tap(tester, find.text('Bearbeiten'));
+      expect(find.text('Liste umbenennen'), findsOneWidget);
+      await tester.enterText(find.byType(TextField).last, 'Wocheneinkauf');
+      await tap(tester, find.text('Speichern'));
+
+      expect(state.currentShoppingList.name, 'Wocheneinkauf');
+      expect(chip('Wocheneinkauf'), findsOneWidget);
+    });
+
+    testWidgets('Liste loeschen fragt nach und nennt, was mitgeht',
+        (tester) async {
+      final state = await pump(tester, items: [item('1', 'Milch')]);
+      await tap(tester, find.text('Einkaufsliste'));
+      await addList(tester, 'Baumarkt');
+      await type(tester, 'Schrauben');
+      await type(tester, 'Dübel');
+
+      await tester.longPress(chip('Baumarkt'));
+      await tester.pumpAndSettle();
+      await tap(tester, find.text('Löschen'));
+      expect(find.text('Liste löschen?'), findsOneWidget);
+      expect(find.textContaining('2 Einträge gehen mit'), findsOneWidget);
+
+      await tap(tester, find.text('Löschen'));
+      expect(state.shoppingLists, hasLength(1));
+      expect(chip('Baumarkt'), findsNothing);
+      // Gezeigt wird wieder die erste Liste.
+      expect(isChosen(tester, 'Einkaufsliste'), isTrue);
+      expect(find.text('Milch'), findsOneWidget);
+    });
+
+    testWidgets('in den Notizen dieselben Listen', (tester) async {
+      final state = await pump(tester, items: [item('1', 'Milch')]);
+      state.addShoppingList('Baumarkt');
+      state.setShoppingMode(ShoppingListMode.notes);
+      await tester.pumpAndSettle();
+
+      await tap(tester, find.text('Notizen/Einkaufsliste'));
+      await tap(tester, find.text('Einkaufsliste'));
+      expect(isChosen(tester, 'Baumarkt'), isTrue);
+      await tap(tester, chip('Einkaufsliste'));
+      expect(find.text('Milch'), findsOneWidget);
     });
   });
 

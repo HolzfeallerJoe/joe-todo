@@ -362,7 +362,7 @@ void main() {
     final state = AppState();
     await state.load();
     expect(state.shoppingMode, ShoppingListMode.tab, reason: 'Standard');
-    expect(state.shopping, isEmpty);
+    expect(state.currentShoppingList.items, isEmpty);
 
     state.setShoppingMode(ShoppingListMode.notes);
     await pumpEventQueue();
