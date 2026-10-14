@@ -96,7 +96,11 @@ function goneText(reason) {
 
 async function start() {
   if (!globalThis.crypto || !globalThis.crypto.subtle) {
-    gate('Dieser Browser kann die Liste nicht entschlüsseln. Bitte die Seite über https:// öffnen.', { big: true });
+    // WebCrypto gibt es nur in einem sicheren Kontext: https:// oder
+    // localhost. Ueber http://<Adresse> (etwa 10.0.2.2 im Emulator) fehlt es.
+    gate(location.protocol === 'http:'
+      ? 'Über http:// kann der Browser die Liste nicht entschlüsseln. Bitte die Seite über https:// öffnen – oder beim Ausprobieren über localhost.'
+      : 'Dieser Browser kann die Liste nicht entschlüsseln. Bitte einen aktuellen Browser nehmen.', { big: true });
     return;
   }
   const parsed = parseLocation();

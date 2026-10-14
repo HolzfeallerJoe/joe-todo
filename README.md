@@ -533,11 +533,11 @@ cd web; node --test                 # Webseite gegen dieselben Testvektoren
 ```powershell
 # Sync-Server in Docker (Port 8787, weil 8080 oft belegt ist)
 $env:JOE_SYNC_PORT=8787; docker compose -f server/compose.yaml up --build -d
-# app/env/.env: JOE_SYNC_URL=http://10.0.2.2:8787 (Emulator -> Rechner), dann
+# app/env/.env: JOE_SYNC_URL=http://localhost:8787, dann
+adb reverse tcp:8787 tcp:8787   # Emulator-localhost -> Rechner, je Emulator-Start
 .\build-debug-apk.ps1 -Install -Device emulator-5554
 # ein zweites "Geraet" auf dem Rechner, Link zum Beitreten oder fuer den Browser
 cd server; dart run tool/smoke.dart http://localhost:8787 --keep
-adb reverse tcp:8787 tcp:8787   # damit der Emulator localhost erreicht
 cd ..\maestro\geteilt
 maestro test 11_teilen.yaml
 maestro test -e LINK='<Link>' 12_beitreten.yaml
@@ -545,7 +545,10 @@ maestro test -e LINK='<Link>' 12_beitreten.yaml
 
 Debug-Builds dürfen unverschlüsseltes HTTP nur zu `10.0.2.2`, `localhost`
 und `127.0.0.1` (`app/src/debug/res/xml/network_security_config.xml`),
-alles andere bleibt HTTPS.
+alles andere bleibt HTTPS. Warum `localhost` und nicht `10.0.2.2`: Die
+Webseite entschlüsselt mit WebCrypto, und das gibt es im Browser nur über
+`https://` oder auf `localhost`. Ein Link mit `10.0.2.2` geht in Joe, im
+Browser des Emulators dagegen nur bis zur Fehlermeldung.
 
 ## Schalter (env)
 
