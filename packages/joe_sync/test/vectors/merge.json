@@ -1,0 +1,2821 @@
+{
+ "note": "Gemeinsame Faelle fuer die Zusammenfuehrung in Dart (packages/joe_sync) und JS (server/web). Je Fall: Operationen in seq-Reihenfolge lesen und anwenden (was sich nicht lesen laesst, faellt weg), danach die Serverzeit auf now vorruecken, falls angegeben. Erwartet: Name, sichtbare Eintraege in Anlegereihenfolge, offene Konflikte in Entstehungsreihenfolge.",
+ "cases": [
+  {
+   "name": "anlegen und benennen",
+   "ops": [
+    {
+     "seq": 1,
+     "id": "a1",
+     "at": "2026-10-01T08:01:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "list.name",
+      "device": "A",
+      "name": "Einkauf"
+     }
+    },
+    {
+     "seq": 2,
+     "id": "a2",
+     "at": "2026-10-01T08:02:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "item.add",
+      "device": "A",
+      "item": "i1",
+      "title": "Milch",
+      "done": false,
+      "createdAt": "2026-10-01T08:00:00.000Z"
+     }
+    },
+    {
+     "seq": 3,
+     "id": "a3",
+     "at": "2026-10-01T08:03:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "item.add",
+      "device": "A",
+      "item": "i2",
+      "title": "Brot",
+      "done": true,
+      "createdAt": "2026-10-01T08:01:00.000Z"
+     }
+    }
+   ],
+   "expect": {
+    "name": "Einkauf",
+    "items": [
+     {
+      "id": "i1",
+      "title": "Milch",
+      "done": false
+     },
+     {
+      "id": "i2",
+      "title": "Brot",
+      "done": true
+     }
+    ],
+    "conflicts": []
+   }
+  },
+  {
+   "name": "normale Aenderung",
+   "ops": [
+    {
+     "seq": 1,
+     "id": "a1",
+     "at": "2026-10-01T08:01:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "list.name",
+      "device": "A",
+      "name": "Einkauf"
+     }
+    },
+    {
+     "seq": 2,
+     "id": "a2",
+     "at": "2026-10-01T08:02:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "item.add",
+      "device": "A",
+      "item": "i1",
+      "title": "Milch",
+      "done": false,
+      "createdAt": "2026-10-01T08:00:00.000Z"
+     }
+    },
+    {
+     "seq": 3,
+     "id": "b3",
+     "at": "2026-10-01T08:03:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "item.title",
+      "device": "B",
+      "item": "i1",
+      "title": "Hafermilch",
+      "base": {
+       "title": "a2",
+       "done": "a2",
+       "deleted": "a2"
+      }
+     }
+    }
+   ],
+   "expect": {
+    "name": "Einkauf",
+    "items": [
+     {
+      "id": "i1",
+      "title": "Hafermilch",
+      "done": false
+     }
+    ],
+    "conflicts": []
+   }
+  },
+  {
+   "name": "verschiedene Felder werden zusammengefuehrt",
+   "ops": [
+    {
+     "seq": 1,
+     "id": "a1",
+     "at": "2026-10-01T08:01:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "list.name",
+      "device": "A",
+      "name": "Einkauf"
+     }
+    },
+    {
+     "seq": 2,
+     "id": "a2",
+     "at": "2026-10-01T08:02:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "item.add",
+      "device": "A",
+      "item": "i1",
+      "title": "Milch",
+      "done": false,
+      "createdAt": "2026-10-01T08:00:00.000Z"
+     }
+    },
+    {
+     "seq": 3,
+     "id": "b3",
+     "at": "2026-10-01T08:03:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "item.title",
+      "device": "B",
+      "item": "i1",
+      "title": "Hafermilch",
+      "base": {
+       "title": "a2",
+       "done": "a2",
+       "deleted": "a2"
+      }
+     }
+    },
+    {
+     "seq": 4,
+     "id": "c4",
+     "at": "2026-10-01T08:04:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "item.done",
+      "device": "C",
+      "item": "i1",
+      "done": true,
+      "base": {
+       "title": "a2",
+       "done": "a2",
+       "deleted": "a2"
+      }
+     }
+    }
+   ],
+   "expect": {
+    "name": "Einkauf",
+    "items": [
+     {
+      "id": "i1",
+      "title": "Hafermilch",
+      "done": true
+     }
+    ],
+    "conflicts": []
+   }
+  },
+  {
+   "name": "gleicher Wert ist kein Konflikt",
+   "ops": [
+    {
+     "seq": 1,
+     "id": "a1",
+     "at": "2026-10-01T08:01:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "list.name",
+      "device": "A",
+      "name": "Einkauf"
+     }
+    },
+    {
+     "seq": 2,
+     "id": "a2",
+     "at": "2026-10-01T08:02:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "item.add",
+      "device": "A",
+      "item": "i1",
+      "title": "Milch",
+      "done": false,
+      "createdAt": "2026-10-01T08:00:00.000Z"
+     }
+    },
+    {
+     "seq": 3,
+     "id": "b3",
+     "at": "2026-10-01T08:03:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "item.done",
+      "device": "B",
+      "item": "i1",
+      "done": true,
+      "base": {
+       "title": "a2",
+       "done": "a2",
+       "deleted": "a2"
+      }
+     }
+    },
+    {
+     "seq": 4,
+     "id": "c4",
+     "at": "2026-10-01T08:04:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "item.done",
+      "device": "C",
+      "item": "i1",
+      "done": true,
+      "base": {
+       "title": "a2",
+       "done": "a2",
+       "deleted": "a2"
+      }
+     }
+    },
+    {
+     "seq": 5,
+     "id": "d5",
+     "at": "2026-10-01T08:05:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "item.title",
+      "device": "D",
+      "item": "i1",
+      "title": "Milch 1l",
+      "base": {
+       "title": "a2",
+       "done": "a2",
+       "deleted": "a2"
+      }
+     }
+    },
+    {
+     "seq": 6,
+     "id": "e6",
+     "at": "2026-10-01T08:06:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "item.title",
+      "device": "E",
+      "item": "i1",
+      "title": "Milch 1l",
+      "base": {
+       "title": "a2",
+       "done": "a2",
+       "deleted": "a2"
+      }
+     }
+    }
+   ],
+   "expect": {
+    "name": "Einkauf",
+    "items": [
+     {
+      "id": "i1",
+      "title": "Milch 1l",
+      "done": true
+     }
+    ],
+    "conflicts": []
+   }
+  },
+  {
+   "name": "Feldkonflikt: der spaeter angekommene entscheidet",
+   "ops": [
+    {
+     "seq": 1,
+     "id": "a1",
+     "at": "2026-10-01T08:01:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "list.name",
+      "device": "A",
+      "name": "Einkauf"
+     }
+    },
+    {
+     "seq": 2,
+     "id": "a2",
+     "at": "2026-10-01T08:02:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "item.add",
+      "device": "A",
+      "item": "i1",
+      "title": "Milch",
+      "done": false,
+      "createdAt": "2026-10-01T08:00:00.000Z"
+     }
+    },
+    {
+     "seq": 3,
+     "id": "b3",
+     "at": "2026-10-01T08:03:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "item.title",
+      "device": "B",
+      "item": "i1",
+      "title": "Hafermilch",
+      "base": {
+       "title": "a2",
+       "done": "a2",
+       "deleted": "a2"
+      }
+     }
+    },
+    {
+     "seq": 4,
+     "id": "c4",
+     "at": "2026-10-01T08:04:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "item.title",
+      "device": "C",
+      "item": "i1",
+      "title": "Sojamilch",
+      "base": {
+       "title": "a2",
+       "done": "a2",
+       "deleted": "a2"
+      }
+     }
+    }
+   ],
+   "expect": {
+    "name": "Einkauf",
+    "items": [
+     {
+      "id": "i1",
+      "title": "Hafermilch",
+      "done": false
+     }
+    ],
+    "conflicts": [
+     {
+      "id": "c4",
+      "kind": "field",
+      "item": "i1",
+      "field": "title",
+      "value": "Sojamilch",
+      "device": "C"
+     }
+    ]
+   }
+  },
+  {
+   "name": "Konflikt entschieden: Meins",
+   "ops": [
+    {
+     "seq": 1,
+     "id": "a1",
+     "at": "2026-10-01T08:01:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "list.name",
+      "device": "A",
+      "name": "Einkauf"
+     }
+    },
+    {
+     "seq": 2,
+     "id": "a2",
+     "at": "2026-10-01T08:02:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "item.add",
+      "device": "A",
+      "item": "i1",
+      "title": "Milch",
+      "done": false,
+      "createdAt": "2026-10-01T08:00:00.000Z"
+     }
+    },
+    {
+     "seq": 3,
+     "id": "b3",
+     "at": "2026-10-01T08:03:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "item.title",
+      "device": "B",
+      "item": "i1",
+      "title": "Hafermilch",
+      "base": {
+       "title": "a2",
+       "done": "a2",
+       "deleted": "a2"
+      }
+     }
+    },
+    {
+     "seq": 4,
+     "id": "c4",
+     "at": "2026-10-01T08:04:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "item.title",
+      "device": "C",
+      "item": "i1",
+      "title": "Sojamilch",
+      "base": {
+       "title": "a2",
+       "done": "a2",
+       "deleted": "a2"
+      }
+     }
+    },
+    {
+     "seq": 5,
+     "id": "c5",
+     "at": "2026-10-01T08:05:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "conflict.resolve",
+      "device": "C",
+      "conflict": "c4",
+      "keep": "mine"
+     }
+    }
+   ],
+   "expect": {
+    "name": "Einkauf",
+    "items": [
+     {
+      "id": "i1",
+      "title": "Sojamilch",
+      "done": false
+     }
+    ],
+    "conflicts": []
+   }
+  },
+  {
+   "name": "Konflikt entschieden: Das andere",
+   "ops": [
+    {
+     "seq": 1,
+     "id": "a1",
+     "at": "2026-10-01T08:01:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "list.name",
+      "device": "A",
+      "name": "Einkauf"
+     }
+    },
+    {
+     "seq": 2,
+     "id": "a2",
+     "at": "2026-10-01T08:02:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "item.add",
+      "device": "A",
+      "item": "i1",
+      "title": "Milch",
+      "done": false,
+      "createdAt": "2026-10-01T08:00:00.000Z"
+     }
+    },
+    {
+     "seq": 3,
+     "id": "b3",
+     "at": "2026-10-01T08:03:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "item.title",
+      "device": "B",
+      "item": "i1",
+      "title": "Hafermilch",
+      "base": {
+       "title": "a2",
+       "done": "a2",
+       "deleted": "a2"
+      }
+     }
+    },
+    {
+     "seq": 4,
+     "id": "c4",
+     "at": "2026-10-01T08:04:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "item.title",
+      "device": "C",
+      "item": "i1",
+      "title": "Sojamilch",
+      "base": {
+       "title": "a2",
+       "done": "a2",
+       "deleted": "a2"
+      }
+     }
+    },
+    {
+     "seq": 5,
+     "id": "c5",
+     "at": "2026-10-01T08:05:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "conflict.resolve",
+      "device": "C",
+      "conflict": "c4",
+      "keep": "theirs"
+     }
+    }
+   ],
+   "expect": {
+    "name": "Einkauf",
+    "items": [
+     {
+      "id": "i1",
+      "title": "Hafermilch",
+      "done": false
+     }
+    ],
+    "conflicts": []
+   }
+  },
+  {
+   "name": "ein offener Konflikt blockiert nichts",
+   "ops": [
+    {
+     "seq": 1,
+     "id": "a1",
+     "at": "2026-10-01T08:01:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "list.name",
+      "device": "A",
+      "name": "Einkauf"
+     }
+    },
+    {
+     "seq": 2,
+     "id": "a2",
+     "at": "2026-10-01T08:02:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "item.add",
+      "device": "A",
+      "item": "i1",
+      "title": "Milch",
+      "done": false,
+      "createdAt": "2026-10-01T08:00:00.000Z"
+     }
+    },
+    {
+     "seq": 3,
+     "id": "b3",
+     "at": "2026-10-01T08:03:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "item.title",
+      "device": "B",
+      "item": "i1",
+      "title": "Hafermilch",
+      "base": {
+       "title": "a2",
+       "done": "a2",
+       "deleted": "a2"
+      }
+     }
+    },
+    {
+     "seq": 4,
+     "id": "c4",
+     "at": "2026-10-01T08:04:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "item.title",
+      "device": "C",
+      "item": "i1",
+      "title": "Sojamilch",
+      "base": {
+       "title": "a2",
+       "done": "a2",
+       "deleted": "a2"
+      }
+     }
+    },
+    {
+     "seq": 5,
+     "id": "a5",
+     "at": "2026-10-01T08:05:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "item.done",
+      "device": "A",
+      "item": "i1",
+      "done": true,
+      "base": {
+       "title": "a2",
+       "done": "a2",
+       "deleted": "a2"
+      }
+     }
+    },
+    {
+     "seq": 6,
+     "id": "a6",
+     "at": "2026-10-01T08:06:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "item.add",
+      "device": "A",
+      "item": "i2",
+      "title": "Brot",
+      "createdAt": "2026-10-01T08:05:00.000Z"
+     }
+    }
+   ],
+   "expect": {
+    "name": "Einkauf",
+    "items": [
+     {
+      "id": "i1",
+      "title": "Hafermilch",
+      "done": true
+     },
+     {
+      "id": "i2",
+      "title": "Brot",
+      "done": false
+     }
+    ],
+    "conflicts": [
+     {
+      "id": "c4",
+      "kind": "field",
+      "item": "i1",
+      "field": "title",
+      "value": "Sojamilch",
+      "device": "C"
+     }
+    ]
+   }
+  },
+  {
+   "name": "eigene Offline-Folge ist kein Konflikt",
+   "ops": [
+    {
+     "seq": 1,
+     "id": "a1",
+     "at": "2026-10-01T08:01:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "list.name",
+      "device": "A",
+      "name": "Einkauf"
+     }
+    },
+    {
+     "seq": 2,
+     "id": "a2",
+     "at": "2026-10-01T08:02:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "item.add",
+      "device": "A",
+      "item": "i1",
+      "title": "Milch",
+      "done": false,
+      "createdAt": "2026-10-01T08:00:00.000Z"
+     }
+    },
+    {
+     "seq": 3,
+     "id": "b3",
+     "at": "2026-10-01T08:03:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "item.title",
+      "device": "B",
+      "item": "i1",
+      "title": "Hafer",
+      "base": {
+       "title": "a2",
+       "done": "a2",
+       "deleted": "a2"
+      }
+     }
+    },
+    {
+     "seq": 4,
+     "id": "b4",
+     "at": "2026-10-01T08:04:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "item.title",
+      "device": "B",
+      "item": "i1",
+      "title": "Hafermilch",
+      "base": {
+       "title": "b3",
+       "done": "a2",
+       "deleted": "a2"
+      }
+     }
+    }
+   ],
+   "expect": {
+    "name": "Einkauf",
+    "items": [
+     {
+      "id": "i1",
+      "title": "Hafermilch",
+      "done": false
+     }
+    ],
+    "conflicts": []
+   }
+  },
+  {
+   "name": "verkettete Offline-Folge aendert den Konflikt, statt einen neuen anzulegen",
+   "ops": [
+    {
+     "seq": 1,
+     "id": "a1",
+     "at": "2026-10-01T08:01:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "list.name",
+      "device": "A",
+      "name": "Einkauf"
+     }
+    },
+    {
+     "seq": 2,
+     "id": "a2",
+     "at": "2026-10-01T08:02:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "item.add",
+      "device": "A",
+      "item": "i1",
+      "title": "Milch",
+      "done": false,
+      "createdAt": "2026-10-01T08:00:00.000Z"
+     }
+    },
+    {
+     "seq": 3,
+     "id": "b3",
+     "at": "2026-10-01T08:03:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "item.title",
+      "device": "B",
+      "item": "i1",
+      "title": "Hafermilch",
+      "base": {
+       "title": "a2",
+       "done": "a2",
+       "deleted": "a2"
+      }
+     }
+    },
+    {
+     "seq": 4,
+     "id": "c4",
+     "at": "2026-10-01T08:04:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "item.title",
+      "device": "C",
+      "item": "i1",
+      "title": "Sojamilch",
+      "base": {
+       "title": "a2",
+       "done": "a2",
+       "deleted": "a2"
+      }
+     }
+    },
+    {
+     "seq": 5,
+     "id": "c5",
+     "at": "2026-10-01T08:05:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "item.title",
+      "device": "C",
+      "item": "i1",
+      "title": "Sojamilch 1l",
+      "base": {
+       "title": "c4",
+       "done": "a2",
+       "deleted": "a2"
+      }
+     }
+    }
+   ],
+   "expect": {
+    "name": "Einkauf",
+    "items": [
+     {
+      "id": "i1",
+      "title": "Hafermilch",
+      "done": false
+     }
+    ],
+    "conflicts": [
+     {
+      "id": "c4",
+      "kind": "field",
+      "item": "i1",
+      "field": "title",
+      "value": "Sojamilch 1l",
+      "device": "C"
+     }
+    ]
+   }
+  },
+  {
+   "name": "ein gleicher Wert zaehlt als gesehen",
+   "ops": [
+    {
+     "seq": 1,
+     "id": "a1",
+     "at": "2026-10-01T08:01:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "list.name",
+      "device": "A",
+      "name": "Einkauf"
+     }
+    },
+    {
+     "seq": 2,
+     "id": "a2",
+     "at": "2026-10-01T08:02:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "item.add",
+      "device": "A",
+      "item": "i1",
+      "title": "Milch",
+      "done": false,
+      "createdAt": "2026-10-01T08:00:00.000Z"
+     }
+    },
+    {
+     "seq": 3,
+     "id": "b3",
+     "at": "2026-10-01T08:03:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "item.title",
+      "device": "B",
+      "item": "i1",
+      "title": "Hafermilch",
+      "base": {
+       "title": "a2",
+       "done": "a2",
+       "deleted": "a2"
+      }
+     }
+    },
+    {
+     "seq": 4,
+     "id": "c4",
+     "at": "2026-10-01T08:04:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "item.title",
+      "device": "C",
+      "item": "i1",
+      "title": "Hafermilch",
+      "base": {
+       "title": "a2",
+       "done": "a2",
+       "deleted": "a2"
+      }
+     }
+    },
+    {
+     "seq": 5,
+     "id": "c5",
+     "at": "2026-10-01T08:05:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "item.title",
+      "device": "C",
+      "item": "i1",
+      "title": "Hafermilch 1l",
+      "base": {
+       "title": "c4",
+       "done": "a2",
+       "deleted": "a2"
+      }
+     }
+    }
+   ],
+   "expect": {
+    "name": "Einkauf",
+    "items": [
+     {
+      "id": "i1",
+      "title": "Hafermilch 1l",
+      "done": false
+     }
+    ],
+    "conflicts": []
+   }
+  },
+  {
+   "name": "neue Aenderung desselben Geraets ersetzt seine Frage",
+   "ops": [
+    {
+     "seq": 1,
+     "id": "a1",
+     "at": "2026-10-01T08:01:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "list.name",
+      "device": "A",
+      "name": "Einkauf"
+     }
+    },
+    {
+     "seq": 2,
+     "id": "a2",
+     "at": "2026-10-01T08:02:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "item.add",
+      "device": "A",
+      "item": "i1",
+      "title": "Milch",
+      "done": false,
+      "createdAt": "2026-10-01T08:00:00.000Z"
+     }
+    },
+    {
+     "seq": 3,
+     "id": "b3",
+     "at": "2026-10-01T08:03:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "item.title",
+      "device": "B",
+      "item": "i1",
+      "title": "Hafermilch",
+      "base": {
+       "title": "a2",
+       "done": "a2",
+       "deleted": "a2"
+      }
+     }
+    },
+    {
+     "seq": 4,
+     "id": "c4",
+     "at": "2026-10-01T08:04:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "item.title",
+      "device": "C",
+      "item": "i1",
+      "title": "Sojamilch",
+      "base": {
+       "title": "a2",
+       "done": "a2",
+       "deleted": "a2"
+      }
+     }
+    },
+    {
+     "seq": 5,
+     "id": "c5",
+     "at": "2026-10-01T08:05:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "item.title",
+      "device": "C",
+      "item": "i1",
+      "title": "Kuhmilch",
+      "base": {
+       "title": "b3",
+       "done": "a2",
+       "deleted": "a2"
+      }
+     }
+    }
+   ],
+   "expect": {
+    "name": "Einkauf",
+    "items": [
+     {
+      "id": "i1",
+      "title": "Kuhmilch",
+      "done": false
+     }
+    ],
+    "conflicts": []
+   }
+  },
+  {
+   "name": "fremde Aenderung auf den strittigen Wert erledigt den Konflikt",
+   "ops": [
+    {
+     "seq": 1,
+     "id": "a1",
+     "at": "2026-10-01T08:01:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "list.name",
+      "device": "A",
+      "name": "Einkauf"
+     }
+    },
+    {
+     "seq": 2,
+     "id": "a2",
+     "at": "2026-10-01T08:02:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "item.add",
+      "device": "A",
+      "item": "i1",
+      "title": "Milch",
+      "done": false,
+      "createdAt": "2026-10-01T08:00:00.000Z"
+     }
+    },
+    {
+     "seq": 3,
+     "id": "b3",
+     "at": "2026-10-01T08:03:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "item.title",
+      "device": "B",
+      "item": "i1",
+      "title": "Hafermilch",
+      "base": {
+       "title": "a2",
+       "done": "a2",
+       "deleted": "a2"
+      }
+     }
+    },
+    {
+     "seq": 4,
+     "id": "c4",
+     "at": "2026-10-01T08:04:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "item.title",
+      "device": "C",
+      "item": "i1",
+      "title": "Sojamilch",
+      "base": {
+       "title": "a2",
+       "done": "a2",
+       "deleted": "a2"
+      }
+     }
+    },
+    {
+     "seq": 5,
+     "id": "d5",
+     "at": "2026-10-01T08:05:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "item.title",
+      "device": "D",
+      "item": "i1",
+      "title": "Sojamilch",
+      "base": {
+       "title": "b3",
+       "done": "a2",
+       "deleted": "a2"
+      }
+     }
+    }
+   ],
+   "expect": {
+    "name": "Einkauf",
+    "items": [
+     {
+      "id": "i1",
+      "title": "Sojamilch",
+      "done": false
+     }
+    ],
+    "conflicts": []
+   }
+  },
+  {
+   "name": "Konflikt verfaellt nach 30 Tagen Serverzeit",
+   "ops": [
+    {
+     "seq": 1,
+     "id": "a1",
+     "at": "2026-10-01T08:01:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "list.name",
+      "device": "A",
+      "name": "Einkauf"
+     }
+    },
+    {
+     "seq": 2,
+     "id": "a2",
+     "at": "2026-10-01T08:02:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "item.add",
+      "device": "A",
+      "item": "i1",
+      "title": "Milch",
+      "done": false,
+      "createdAt": "2026-10-01T08:00:00.000Z"
+     }
+    },
+    {
+     "seq": 3,
+     "id": "b3",
+     "at": "2026-10-01T08:03:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "item.title",
+      "device": "B",
+      "item": "i1",
+      "title": "Hafermilch",
+      "base": {
+       "title": "a2",
+       "done": "a2",
+       "deleted": "a2"
+      }
+     }
+    },
+    {
+     "seq": 4,
+     "id": "c4",
+     "at": "2026-10-01T08:04:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "item.title",
+      "device": "C",
+      "item": "i1",
+      "title": "Sojamilch",
+      "base": {
+       "title": "a2",
+       "done": "a2",
+       "deleted": "a2"
+      }
+     }
+    },
+    {
+     "seq": 5,
+     "id": "a5",
+     "at": "2026-10-31T08:05:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "item.add",
+      "device": "A",
+      "item": "i2",
+      "title": "Brot",
+      "createdAt": "2026-10-31T08:00:00.000Z"
+     }
+    }
+   ],
+   "expect": {
+    "name": "Einkauf",
+    "items": [
+     {
+      "id": "i1",
+      "title": "Hafermilch",
+      "done": false
+     },
+     {
+      "id": "i2",
+      "title": "Brot",
+      "done": false
+     }
+    ],
+    "conflicts": []
+   }
+  },
+  {
+   "name": "nach 29 Tagen ist der Konflikt noch offen",
+   "ops": [
+    {
+     "seq": 1,
+     "id": "a1",
+     "at": "2026-10-01T08:01:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "list.name",
+      "device": "A",
+      "name": "Einkauf"
+     }
+    },
+    {
+     "seq": 2,
+     "id": "a2",
+     "at": "2026-10-01T08:02:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "item.add",
+      "device": "A",
+      "item": "i1",
+      "title": "Milch",
+      "done": false,
+      "createdAt": "2026-10-01T08:00:00.000Z"
+     }
+    },
+    {
+     "seq": 3,
+     "id": "b3",
+     "at": "2026-10-01T08:03:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "item.title",
+      "device": "B",
+      "item": "i1",
+      "title": "Hafermilch",
+      "base": {
+       "title": "a2",
+       "done": "a2",
+       "deleted": "a2"
+      }
+     }
+    },
+    {
+     "seq": 4,
+     "id": "c4",
+     "at": "2026-10-01T08:04:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "item.title",
+      "device": "C",
+      "item": "i1",
+      "title": "Sojamilch",
+      "base": {
+       "title": "a2",
+       "done": "a2",
+       "deleted": "a2"
+      }
+     }
+    },
+    {
+     "seq": 5,
+     "id": "a5",
+     "at": "2026-10-30T08:05:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "item.add",
+      "device": "A",
+      "item": "i2",
+      "title": "Brot",
+      "createdAt": "2026-10-30T08:00:00.000Z"
+     }
+    }
+   ],
+   "expect": {
+    "name": "Einkauf",
+    "items": [
+     {
+      "id": "i1",
+      "title": "Hafermilch",
+      "done": false
+     },
+     {
+      "id": "i2",
+      "title": "Brot",
+      "done": false
+     }
+    ],
+    "conflicts": [
+     {
+      "id": "c4",
+      "kind": "field",
+      "item": "i1",
+      "field": "title",
+      "value": "Sojamilch",
+      "device": "C"
+     }
+    ]
+   }
+  },
+  {
+   "name": "Konflikt verfaellt auch ohne neue Operation, wenn die Serverzeit fortschreitet",
+   "ops": [
+    {
+     "seq": 1,
+     "id": "a1",
+     "at": "2026-10-01T08:01:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "list.name",
+      "device": "A",
+      "name": "Einkauf"
+     }
+    },
+    {
+     "seq": 2,
+     "id": "a2",
+     "at": "2026-10-01T08:02:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "item.add",
+      "device": "A",
+      "item": "i1",
+      "title": "Milch",
+      "done": false,
+      "createdAt": "2026-10-01T08:00:00.000Z"
+     }
+    },
+    {
+     "seq": 3,
+     "id": "b3",
+     "at": "2026-10-01T08:03:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "item.title",
+      "device": "B",
+      "item": "i1",
+      "title": "Hafermilch",
+      "base": {
+       "title": "a2",
+       "done": "a2",
+       "deleted": "a2"
+      }
+     }
+    },
+    {
+     "seq": 4,
+     "id": "c4",
+     "at": "2026-10-01T08:04:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "item.title",
+      "device": "C",
+      "item": "i1",
+      "title": "Sojamilch",
+      "base": {
+       "title": "a2",
+       "done": "a2",
+       "deleted": "a2"
+      }
+     }
+    }
+   ],
+   "now": "2026-11-01T08:00:00.000Z",
+   "expect": {
+    "name": "Einkauf",
+    "items": [
+     {
+      "id": "i1",
+      "title": "Hafermilch",
+      "done": false
+     }
+    ],
+    "conflicts": []
+   }
+  },
+  {
+   "name": "geloescht gegen bearbeitet",
+   "ops": [
+    {
+     "seq": 1,
+     "id": "a1",
+     "at": "2026-10-01T08:01:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "list.name",
+      "device": "A",
+      "name": "Einkauf"
+     }
+    },
+    {
+     "seq": 2,
+     "id": "a2",
+     "at": "2026-10-01T08:02:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "item.add",
+      "device": "A",
+      "item": "i1",
+      "title": "Milch",
+      "done": false,
+      "createdAt": "2026-10-01T08:00:00.000Z"
+     }
+    },
+    {
+     "seq": 3,
+     "id": "b3",
+     "at": "2026-10-01T08:03:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "item.delete",
+      "device": "B",
+      "item": "i1",
+      "base": {
+       "title": "a2",
+       "done": "a2",
+       "deleted": "a2"
+      }
+     }
+    },
+    {
+     "seq": 4,
+     "id": "c4",
+     "at": "2026-10-01T08:04:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "item.title",
+      "device": "C",
+      "item": "i1",
+      "title": "Hafermilch",
+      "base": {
+       "title": "a2",
+       "done": "a2",
+       "deleted": "a2"
+      }
+     }
+    }
+   ],
+   "expect": {
+    "name": "Einkauf",
+    "items": [],
+    "conflicts": [
+     {
+      "id": "c4",
+      "kind": "deleted",
+      "item": "i1",
+      "field": "title",
+      "value": "Hafermilch",
+      "device": "C"
+     }
+    ]
+   }
+  },
+  {
+   "name": "geloescht gegen bearbeitet: mit meiner Aenderung behalten",
+   "ops": [
+    {
+     "seq": 1,
+     "id": "a1",
+     "at": "2026-10-01T08:01:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "list.name",
+      "device": "A",
+      "name": "Einkauf"
+     }
+    },
+    {
+     "seq": 2,
+     "id": "a2",
+     "at": "2026-10-01T08:02:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "item.add",
+      "device": "A",
+      "item": "i1",
+      "title": "Milch",
+      "done": false,
+      "createdAt": "2026-10-01T08:00:00.000Z"
+     }
+    },
+    {
+     "seq": 3,
+     "id": "b3",
+     "at": "2026-10-01T08:03:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "item.delete",
+      "device": "B",
+      "item": "i1",
+      "base": {
+       "title": "a2",
+       "done": "a2",
+       "deleted": "a2"
+      }
+     }
+    },
+    {
+     "seq": 4,
+     "id": "c4",
+     "at": "2026-10-01T08:04:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "item.title",
+      "device": "C",
+      "item": "i1",
+      "title": "Hafermilch",
+      "base": {
+       "title": "a2",
+       "done": "a2",
+       "deleted": "a2"
+      }
+     }
+    },
+    {
+     "seq": 5,
+     "id": "c5",
+     "at": "2026-10-01T08:05:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "conflict.resolve",
+      "device": "C",
+      "conflict": "c4",
+      "keep": "mine"
+     }
+    }
+   ],
+   "expect": {
+    "name": "Einkauf",
+    "items": [
+     {
+      "id": "i1",
+      "title": "Hafermilch",
+      "done": false
+     }
+    ],
+    "conflicts": []
+   }
+  },
+  {
+   "name": "geloescht gegen bearbeitet: loeschen lassen",
+   "ops": [
+    {
+     "seq": 1,
+     "id": "a1",
+     "at": "2026-10-01T08:01:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "list.name",
+      "device": "A",
+      "name": "Einkauf"
+     }
+    },
+    {
+     "seq": 2,
+     "id": "a2",
+     "at": "2026-10-01T08:02:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "item.add",
+      "device": "A",
+      "item": "i1",
+      "title": "Milch",
+      "done": false,
+      "createdAt": "2026-10-01T08:00:00.000Z"
+     }
+    },
+    {
+     "seq": 3,
+     "id": "b3",
+     "at": "2026-10-01T08:03:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "item.delete",
+      "device": "B",
+      "item": "i1",
+      "base": {
+       "title": "a2",
+       "done": "a2",
+       "deleted": "a2"
+      }
+     }
+    },
+    {
+     "seq": 4,
+     "id": "c4",
+     "at": "2026-10-01T08:04:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "item.title",
+      "device": "C",
+      "item": "i1",
+      "title": "Hafermilch",
+      "base": {
+       "title": "a2",
+       "done": "a2",
+       "deleted": "a2"
+      }
+     }
+    },
+    {
+     "seq": 5,
+     "id": "c5",
+     "at": "2026-10-01T08:05:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "conflict.resolve",
+      "device": "C",
+      "conflict": "c4",
+      "keep": "theirs"
+     }
+    }
+   ],
+   "expect": {
+    "name": "Einkauf",
+    "items": [],
+    "conflicts": []
+   }
+  },
+  {
+   "name": "geloescht gegen bearbeitet: verkettete Aenderung",
+   "ops": [
+    {
+     "seq": 1,
+     "id": "a1",
+     "at": "2026-10-01T08:01:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "list.name",
+      "device": "A",
+      "name": "Einkauf"
+     }
+    },
+    {
+     "seq": 2,
+     "id": "a2",
+     "at": "2026-10-01T08:02:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "item.add",
+      "device": "A",
+      "item": "i1",
+      "title": "Milch",
+      "done": false,
+      "createdAt": "2026-10-01T08:00:00.000Z"
+     }
+    },
+    {
+     "seq": 3,
+     "id": "b3",
+     "at": "2026-10-01T08:03:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "item.delete",
+      "device": "B",
+      "item": "i1",
+      "base": {
+       "title": "a2",
+       "done": "a2",
+       "deleted": "a2"
+      }
+     }
+    },
+    {
+     "seq": 4,
+     "id": "c4",
+     "at": "2026-10-01T08:04:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "item.title",
+      "device": "C",
+      "item": "i1",
+      "title": "Hafermilch",
+      "base": {
+       "title": "a2",
+       "done": "a2",
+       "deleted": "a2"
+      }
+     }
+    },
+    {
+     "seq": 5,
+     "id": "c5",
+     "at": "2026-10-01T08:05:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "item.title",
+      "device": "C",
+      "item": "i1",
+      "title": "Hafermilch 1l",
+      "base": {
+       "title": "c4",
+       "done": "a2",
+       "deleted": "a2"
+      }
+     }
+    }
+   ],
+   "expect": {
+    "name": "Einkauf",
+    "items": [],
+    "conflicts": [
+     {
+      "id": "c4",
+      "kind": "deleted",
+      "item": "i1",
+      "field": "title",
+      "value": "Hafermilch 1l",
+      "device": "C"
+     }
+    ]
+   }
+  },
+  {
+   "name": "bearbeitet gegen geloescht",
+   "ops": [
+    {
+     "seq": 1,
+     "id": "a1",
+     "at": "2026-10-01T08:01:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "list.name",
+      "device": "A",
+      "name": "Einkauf"
+     }
+    },
+    {
+     "seq": 2,
+     "id": "a2",
+     "at": "2026-10-01T08:02:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "item.add",
+      "device": "A",
+      "item": "i1",
+      "title": "Milch",
+      "done": false,
+      "createdAt": "2026-10-01T08:00:00.000Z"
+     }
+    },
+    {
+     "seq": 3,
+     "id": "b3",
+     "at": "2026-10-01T08:03:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "item.title",
+      "device": "B",
+      "item": "i1",
+      "title": "Hafermilch",
+      "base": {
+       "title": "a2",
+       "done": "a2",
+       "deleted": "a2"
+      }
+     }
+    },
+    {
+     "seq": 4,
+     "id": "c4",
+     "at": "2026-10-01T08:04:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "item.delete",
+      "device": "C",
+      "item": "i1",
+      "base": {
+       "title": "a2",
+       "done": "a2",
+       "deleted": "a2"
+      }
+     }
+    }
+   ],
+   "expect": {
+    "name": "Einkauf",
+    "items": [
+     {
+      "id": "i1",
+      "title": "Hafermilch",
+      "done": false
+     }
+    ],
+    "conflicts": [
+     {
+      "id": "c4",
+      "kind": "edited",
+      "item": "i1",
+      "field": "deleted",
+      "value": true,
+      "device": "C"
+     }
+    ]
+   }
+  },
+  {
+   "name": "bearbeitet gegen geloescht: trotzdem loeschen",
+   "ops": [
+    {
+     "seq": 1,
+     "id": "a1",
+     "at": "2026-10-01T08:01:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "list.name",
+      "device": "A",
+      "name": "Einkauf"
+     }
+    },
+    {
+     "seq": 2,
+     "id": "a2",
+     "at": "2026-10-01T08:02:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "item.add",
+      "device": "A",
+      "item": "i1",
+      "title": "Milch",
+      "done": false,
+      "createdAt": "2026-10-01T08:00:00.000Z"
+     }
+    },
+    {
+     "seq": 3,
+     "id": "b3",
+     "at": "2026-10-01T08:03:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "item.title",
+      "device": "B",
+      "item": "i1",
+      "title": "Hafermilch",
+      "base": {
+       "title": "a2",
+       "done": "a2",
+       "deleted": "a2"
+      }
+     }
+    },
+    {
+     "seq": 4,
+     "id": "c4",
+     "at": "2026-10-01T08:04:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "item.delete",
+      "device": "C",
+      "item": "i1",
+      "base": {
+       "title": "a2",
+       "done": "a2",
+       "deleted": "a2"
+      }
+     }
+    },
+    {
+     "seq": 5,
+     "id": "c5",
+     "at": "2026-10-01T08:05:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "conflict.resolve",
+      "device": "C",
+      "conflict": "c4",
+      "keep": "mine"
+     }
+    }
+   ],
+   "expect": {
+    "name": "Einkauf",
+    "items": [],
+    "conflicts": []
+   }
+  },
+  {
+   "name": "bearbeitet gegen geloescht: behalten",
+   "ops": [
+    {
+     "seq": 1,
+     "id": "a1",
+     "at": "2026-10-01T08:01:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "list.name",
+      "device": "A",
+      "name": "Einkauf"
+     }
+    },
+    {
+     "seq": 2,
+     "id": "a2",
+     "at": "2026-10-01T08:02:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "item.add",
+      "device": "A",
+      "item": "i1",
+      "title": "Milch",
+      "done": false,
+      "createdAt": "2026-10-01T08:00:00.000Z"
+     }
+    },
+    {
+     "seq": 3,
+     "id": "b3",
+     "at": "2026-10-01T08:03:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "item.title",
+      "device": "B",
+      "item": "i1",
+      "title": "Hafermilch",
+      "base": {
+       "title": "a2",
+       "done": "a2",
+       "deleted": "a2"
+      }
+     }
+    },
+    {
+     "seq": 4,
+     "id": "c4",
+     "at": "2026-10-01T08:04:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "item.delete",
+      "device": "C",
+      "item": "i1",
+      "base": {
+       "title": "a2",
+       "done": "a2",
+       "deleted": "a2"
+      }
+     }
+    },
+    {
+     "seq": 5,
+     "id": "c5",
+     "at": "2026-10-01T08:05:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "conflict.resolve",
+      "device": "C",
+      "conflict": "c4",
+      "keep": "theirs"
+     }
+    }
+   ],
+   "expect": {
+    "name": "Einkauf",
+    "items": [
+     {
+      "id": "i1",
+      "title": "Hafermilch",
+      "done": false
+     }
+    ],
+    "conflicts": []
+   }
+  },
+  {
+   "name": "Abhaken haelt das Loeschen nicht auf",
+   "ops": [
+    {
+     "seq": 1,
+     "id": "a1",
+     "at": "2026-10-01T08:01:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "list.name",
+      "device": "A",
+      "name": "Einkauf"
+     }
+    },
+    {
+     "seq": 2,
+     "id": "a2",
+     "at": "2026-10-01T08:02:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "item.add",
+      "device": "A",
+      "item": "i1",
+      "title": "Milch",
+      "done": false,
+      "createdAt": "2026-10-01T08:00:00.000Z"
+     }
+    },
+    {
+     "seq": 3,
+     "id": "b3",
+     "at": "2026-10-01T08:03:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "item.done",
+      "device": "B",
+      "item": "i1",
+      "done": true,
+      "base": {
+       "title": "a2",
+       "done": "a2",
+       "deleted": "a2"
+      }
+     }
+    },
+    {
+     "seq": 4,
+     "id": "c4",
+     "at": "2026-10-01T08:04:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "item.delete",
+      "device": "C",
+      "item": "i1",
+      "base": {
+       "title": "a2",
+       "done": "a2",
+       "deleted": "a2"
+      }
+     }
+    }
+   ],
+   "expect": {
+    "name": "Einkauf",
+    "items": [],
+    "conflicts": []
+   }
+  },
+  {
+   "name": "Abhaken eines geloeschten Eintrags ist kein Konflikt",
+   "ops": [
+    {
+     "seq": 1,
+     "id": "a1",
+     "at": "2026-10-01T08:01:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "list.name",
+      "device": "A",
+      "name": "Einkauf"
+     }
+    },
+    {
+     "seq": 2,
+     "id": "a2",
+     "at": "2026-10-01T08:02:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "item.add",
+      "device": "A",
+      "item": "i1",
+      "title": "Milch",
+      "done": false,
+      "createdAt": "2026-10-01T08:00:00.000Z"
+     }
+    },
+    {
+     "seq": 3,
+     "id": "b3",
+     "at": "2026-10-01T08:03:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "item.delete",
+      "device": "B",
+      "item": "i1",
+      "base": {
+       "title": "a2",
+       "done": "a2",
+       "deleted": "a2"
+      }
+     }
+    },
+    {
+     "seq": 4,
+     "id": "c4",
+     "at": "2026-10-01T08:04:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "item.done",
+      "device": "C",
+      "item": "i1",
+      "done": true,
+      "base": {
+       "title": "a2",
+       "done": "a2",
+       "deleted": "a2"
+      }
+     }
+    }
+   ],
+   "expect": {
+    "name": "Einkauf",
+    "items": [],
+    "conflicts": []
+   }
+  },
+  {
+   "name": "zweimal geloescht ist kein Konflikt",
+   "ops": [
+    {
+     "seq": 1,
+     "id": "a1",
+     "at": "2026-10-01T08:01:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "list.name",
+      "device": "A",
+      "name": "Einkauf"
+     }
+    },
+    {
+     "seq": 2,
+     "id": "a2",
+     "at": "2026-10-01T08:02:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "item.add",
+      "device": "A",
+      "item": "i1",
+      "title": "Milch",
+      "done": false,
+      "createdAt": "2026-10-01T08:00:00.000Z"
+     }
+    },
+    {
+     "seq": 3,
+     "id": "b3",
+     "at": "2026-10-01T08:03:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "item.delete",
+      "device": "B",
+      "item": "i1",
+      "base": {
+       "title": "a2",
+       "done": "a2",
+       "deleted": "a2"
+      }
+     }
+    },
+    {
+     "seq": 4,
+     "id": "c4",
+     "at": "2026-10-01T08:04:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "item.delete",
+      "device": "C",
+      "item": "i1",
+      "base": {
+       "title": "a2",
+       "done": "a2",
+       "deleted": "a2"
+      }
+     }
+    }
+   ],
+   "expect": {
+    "name": "Einkauf",
+    "items": [],
+    "conflicts": []
+   }
+  },
+  {
+   "name": "wer den Eintrag geloescht gesehen hat, aendert nichts",
+   "ops": [
+    {
+     "seq": 1,
+     "id": "a1",
+     "at": "2026-10-01T08:01:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "list.name",
+      "device": "A",
+      "name": "Einkauf"
+     }
+    },
+    {
+     "seq": 2,
+     "id": "a2",
+     "at": "2026-10-01T08:02:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "item.add",
+      "device": "A",
+      "item": "i1",
+      "title": "Milch",
+      "done": false,
+      "createdAt": "2026-10-01T08:00:00.000Z"
+     }
+    },
+    {
+     "seq": 3,
+     "id": "b3",
+     "at": "2026-10-01T08:03:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "item.delete",
+      "device": "B",
+      "item": "i1",
+      "base": {
+       "title": "a2",
+       "done": "a2",
+       "deleted": "a2"
+      }
+     }
+    },
+    {
+     "seq": 4,
+     "id": "b4",
+     "at": "2026-10-01T08:04:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "item.title",
+      "device": "B",
+      "item": "i1",
+      "title": "Hafermilch",
+      "base": {
+       "title": "a2",
+       "done": "a2",
+       "deleted": "b3"
+      }
+     }
+    }
+   ],
+   "expect": {
+    "name": "Einkauf",
+    "items": [],
+    "conflicts": []
+   }
+  },
+  {
+   "name": "Loeschen raeumt die Konflikte des Eintrags ab",
+   "ops": [
+    {
+     "seq": 1,
+     "id": "a1",
+     "at": "2026-10-01T08:01:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "list.name",
+      "device": "A",
+      "name": "Einkauf"
+     }
+    },
+    {
+     "seq": 2,
+     "id": "a2",
+     "at": "2026-10-01T08:02:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "item.add",
+      "device": "A",
+      "item": "i1",
+      "title": "Milch",
+      "done": false,
+      "createdAt": "2026-10-01T08:00:00.000Z"
+     }
+    },
+    {
+     "seq": 3,
+     "id": "b3",
+     "at": "2026-10-01T08:03:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "item.title",
+      "device": "B",
+      "item": "i1",
+      "title": "Hafermilch",
+      "base": {
+       "title": "a2",
+       "done": "a2",
+       "deleted": "a2"
+      }
+     }
+    },
+    {
+     "seq": 4,
+     "id": "c4",
+     "at": "2026-10-01T08:04:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "item.title",
+      "device": "C",
+      "item": "i1",
+      "title": "Sojamilch",
+      "base": {
+       "title": "a2",
+       "done": "a2",
+       "deleted": "a2"
+      }
+     }
+    },
+    {
+     "seq": 5,
+     "id": "d5",
+     "at": "2026-10-01T08:05:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "item.delete",
+      "device": "D",
+      "item": "i1",
+      "base": {
+       "title": "b3",
+       "done": "a2",
+       "deleted": "a2"
+      }
+     }
+    }
+   ],
+   "expect": {
+    "name": "Einkauf",
+    "items": [],
+    "conflicts": []
+   }
+  },
+  {
+   "name": "Loeschen nach eigener verlorener Aenderung fragt nach",
+   "ops": [
+    {
+     "seq": 1,
+     "id": "a1",
+     "at": "2026-10-01T08:01:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "list.name",
+      "device": "A",
+      "name": "Einkauf"
+     }
+    },
+    {
+     "seq": 2,
+     "id": "a2",
+     "at": "2026-10-01T08:02:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "item.add",
+      "device": "A",
+      "item": "i1",
+      "title": "Milch",
+      "done": false,
+      "createdAt": "2026-10-01T08:00:00.000Z"
+     }
+    },
+    {
+     "seq": 3,
+     "id": "b3",
+     "at": "2026-10-01T08:03:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "item.title",
+      "device": "B",
+      "item": "i1",
+      "title": "Hafermilch",
+      "base": {
+       "title": "a2",
+       "done": "a2",
+       "deleted": "a2"
+      }
+     }
+    },
+    {
+     "seq": 4,
+     "id": "c4",
+     "at": "2026-10-01T08:04:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "item.title",
+      "device": "C",
+      "item": "i1",
+      "title": "Sojamilch",
+      "base": {
+       "title": "a2",
+       "done": "a2",
+       "deleted": "a2"
+      }
+     }
+    },
+    {
+     "seq": 5,
+     "id": "c5",
+     "at": "2026-10-01T08:05:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "item.delete",
+      "device": "C",
+      "item": "i1",
+      "base": {
+       "title": "c4",
+       "done": "a2",
+       "deleted": "a2"
+      }
+     }
+    }
+   ],
+   "expect": {
+    "name": "Einkauf",
+    "items": [
+     {
+      "id": "i1",
+      "title": "Hafermilch",
+      "done": false
+     }
+    ],
+    "conflicts": [
+     {
+      "id": "c5",
+      "kind": "edited",
+      "item": "i1",
+      "field": "deleted",
+      "value": true,
+      "device": "C"
+     }
+    ]
+   }
+  },
+  {
+   "name": "Listenname: Konflikt",
+   "ops": [
+    {
+     "seq": 1,
+     "id": "a1",
+     "at": "2026-10-01T08:01:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "list.name",
+      "device": "A",
+      "name": "Einkauf"
+     }
+    },
+    {
+     "seq": 2,
+     "id": "a2",
+     "at": "2026-10-01T08:02:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "item.add",
+      "device": "A",
+      "item": "i1",
+      "title": "Milch",
+      "done": false,
+      "createdAt": "2026-10-01T08:00:00.000Z"
+     }
+    },
+    {
+     "seq": 3,
+     "id": "b3",
+     "at": "2026-10-01T08:03:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "list.name",
+      "device": "B",
+      "name": "Baumarkt",
+      "base": {
+       "name": "a1"
+      }
+     }
+    },
+    {
+     "seq": 4,
+     "id": "c4",
+     "at": "2026-10-01T08:04:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "list.name",
+      "device": "C",
+      "name": "Garten",
+      "base": {
+       "name": "a1"
+      }
+     }
+    }
+   ],
+   "expect": {
+    "name": "Baumarkt",
+    "items": [
+     {
+      "id": "i1",
+      "title": "Milch",
+      "done": false
+     }
+    ],
+    "conflicts": [
+     {
+      "id": "c4",
+      "kind": "field",
+      "item": null,
+      "field": "name",
+      "value": "Garten",
+      "device": "C"
+     }
+    ]
+   }
+  },
+  {
+   "name": "Listenname: Meins",
+   "ops": [
+    {
+     "seq": 1,
+     "id": "a1",
+     "at": "2026-10-01T08:01:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "list.name",
+      "device": "A",
+      "name": "Einkauf"
+     }
+    },
+    {
+     "seq": 2,
+     "id": "a2",
+     "at": "2026-10-01T08:02:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "item.add",
+      "device": "A",
+      "item": "i1",
+      "title": "Milch",
+      "done": false,
+      "createdAt": "2026-10-01T08:00:00.000Z"
+     }
+    },
+    {
+     "seq": 3,
+     "id": "b3",
+     "at": "2026-10-01T08:03:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "list.name",
+      "device": "B",
+      "name": "Baumarkt",
+      "base": {
+       "name": "a1"
+      }
+     }
+    },
+    {
+     "seq": 4,
+     "id": "c4",
+     "at": "2026-10-01T08:04:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "list.name",
+      "device": "C",
+      "name": "Garten",
+      "base": {
+       "name": "a1"
+      }
+     }
+    },
+    {
+     "seq": 5,
+     "id": "c5",
+     "at": "2026-10-01T08:05:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "conflict.resolve",
+      "device": "C",
+      "conflict": "c4",
+      "keep": "mine"
+     }
+    }
+   ],
+   "expect": {
+    "name": "Garten",
+    "items": [
+     {
+      "id": "i1",
+      "title": "Milch",
+      "done": false
+     }
+    ],
+    "conflicts": []
+   }
+  },
+  {
+   "name": "doppeltes Anlegen: wer zuerst kam, gilt",
+   "ops": [
+    {
+     "seq": 1,
+     "id": "a1",
+     "at": "2026-10-01T08:01:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "list.name",
+      "device": "A",
+      "name": "Einkauf"
+     }
+    },
+    {
+     "seq": 2,
+     "id": "a2",
+     "at": "2026-10-01T08:02:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "item.add",
+      "device": "A",
+      "item": "i1",
+      "title": "Milch",
+      "done": false,
+      "createdAt": "2026-10-01T08:00:00.000Z"
+     }
+    },
+    {
+     "seq": 3,
+     "id": "b3",
+     "at": "2026-10-01T08:03:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "item.add",
+      "device": "B",
+      "item": "i1",
+      "title": "Andere",
+      "createdAt": "2026-10-01T09:00:00.000Z"
+     }
+    }
+   ],
+   "expect": {
+    "name": "Einkauf",
+    "items": [
+     {
+      "id": "i1",
+      "title": "Milch",
+      "done": false
+     }
+    ],
+    "conflicts": []
+   }
+  },
+  {
+   "name": "unbekannter Eintrag und unbekannter Konflikt aendern nichts",
+   "ops": [
+    {
+     "seq": 1,
+     "id": "a1",
+     "at": "2026-10-01T08:01:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "list.name",
+      "device": "A",
+      "name": "Einkauf"
+     }
+    },
+    {
+     "seq": 2,
+     "id": "a2",
+     "at": "2026-10-01T08:02:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "item.add",
+      "device": "A",
+      "item": "i1",
+      "title": "Milch",
+      "done": false,
+      "createdAt": "2026-10-01T08:00:00.000Z"
+     }
+    },
+    {
+     "seq": 3,
+     "id": "b3",
+     "at": "2026-10-01T08:03:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "item.title",
+      "device": "B",
+      "item": "i9",
+      "title": "X",
+      "base": {}
+     }
+    },
+    {
+     "seq": 4,
+     "id": "b4",
+     "at": "2026-10-01T08:04:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "conflict.resolve",
+      "device": "B",
+      "conflict": "zz",
+      "keep": "mine"
+     }
+    }
+   ],
+   "expect": {
+    "name": "Einkauf",
+    "items": [
+     {
+      "id": "i1",
+      "title": "Milch",
+      "done": false
+     }
+    ],
+    "conflicts": []
+   }
+  },
+  {
+   "name": "neuere Version, unbekannte Art und Unvollstaendiges werden uebersprungen",
+   "note": "Jede Operation wird gelesen wie vom Server; was dabei scheitert, faellt weg, der Rest gilt.",
+   "ops": [
+    {
+     "seq": 1,
+     "id": "a1",
+     "at": "2026-10-01T08:01:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "list.name",
+      "device": "A",
+      "name": "Einkauf"
+     }
+    },
+    {
+     "seq": 2,
+     "id": "a2",
+     "at": "2026-10-01T08:02:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "item.add",
+      "device": "A",
+      "item": "i1",
+      "title": "Milch",
+      "done": false,
+      "createdAt": "2026-10-01T08:00:00.000Z"
+     }
+    },
+    {
+     "seq": 3,
+     "id": "b3",
+     "at": "2026-10-01T08:03:00.000Z",
+     "op": {
+      "v": 2,
+      "op": "item.title",
+      "device": "B",
+      "item": "i1",
+      "title": "Hafermilch",
+      "base": {
+       "title": "a2",
+       "done": "a2",
+       "deleted": "a2"
+      }
+     }
+    },
+    {
+     "seq": 4,
+     "id": "b4",
+     "at": "2026-10-01T08:04:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "item.colour",
+      "device": "B",
+      "item": "i1"
+     }
+    },
+    {
+     "seq": 5,
+     "id": "b5",
+     "at": "2026-10-01T08:05:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "item.title",
+      "device": "B",
+      "item": "i1"
+     }
+    },
+    {
+     "seq": 6,
+     "id": "b6",
+     "at": "2026-10-01T08:06:00.000Z",
+     "op": {
+      "v": 1,
+      "op": "item.done",
+      "device": "B",
+      "item": "i1",
+      "done": "ja"
+     }
+    }
+   ],
+   "expect": {
+    "name": "Einkauf",
+    "items": [
+     {
+      "id": "i1",
+      "title": "Milch",
+      "done": false
+     }
+    ],
+    "conflicts": []
+   }
+  }
+ ]
+}

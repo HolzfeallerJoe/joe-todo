@@ -1,0 +1,21 @@
+name: joe_sync
+description: >-
+  Gemeinsamer Kern fuer geteilte Einkaufslisten: Operationen,
+  Zusammenfuehrung mit Konflikten, Kryptografie und Link-Format. Reines
+  Dart, benutzt von Joe (app/) und vom Sync-Server (server/).
+publish_to: 'none'
+version: 0.1.0
+
+environment:
+  sdk: ^3.10.0
+
+dependencies:
+  # HKDF, AES-256-GCM und SHA-256 in reinem Dart; laeuft damit in der App
+  # und auf dem Server gleich.
+  cryptography: ^2.9.0
+  # Fuer den Abgleich (lib/src/client.dart); reines Dart wie der Rest.
+  http: ^1.6.0
+
+dev_dependencies:
+  lints: ^6.1.0
+  test: ^1.26.0

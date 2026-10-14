@@ -1,0 +1,34 @@
+{
+  "cases": [
+    {
+      "listId": "AAECAwQFBgcICQoLDA0ODw",
+      "secret": "AQgPFh0kKzI5QEdOVVxjanF4f4aNlJuiqbC3vsXM09o",
+      "code": "",
+      "ownerSecret": "ZGtyeYCHjpWco6qxuL_GzdTb4unw9_4FDBMaISgvNj0",
+      "key": "avMwqXKU8Fpauz5aV4sWJd39k6IyGDCASUmOMpzRQfw",
+      "accessToken": "n9OnNnCW6rqJBWGCrx3i_pZxyg4kWSzHE73yBfW-4tc",
+      "accessHash": "Pwa1JW6Vqjk5gj-xuX7niFxkx3jBBeRSrP_Mqv19bbk",
+      "ownerToken": "kBA1SetNok2mFJE6b-1Fo4R1DFRwGewjk3uAMv0bdBQ",
+      "ownerHash": "T4DllAs_j8cDI8vpCMWQAeCGzL0ddZcaiJOIjj_JC6w",
+      "opId": "op_AAECAwQFBgcICQoLDA0",
+      "nonce": "MjlAR05VXGNqcXh_",
+      "plain": "{\"v\":1,\"op\":\"item.add\",\"device\":\"dev1\",\"item\":\"item1\",\"title\":\"Hafermilch – 2× 1 l\",\"done\":false,\"createdAt\":\"2026-10-14T08:00:00.000Z\"}",
+      "blob": "MjlAR05VXGNqcXh_8HCBFWu431p0v-zAVTDnS7-jK1maebfpKrWiAyMFZtsIR5L6oQvC0uLW2QhAis9MvFBfxV9wAktBXrBDe65k1KdViL6oL97Ffv8STvx4twPQq7CtDII07_bZt8IJnFQ0l00X_vG7dDanmWZfyPwOY-2vpbjnekfZLRhs2YXkCTVXHgH3buFI-TQEKnrLgn0pAPGdloXzkfK7cw8"
+    },
+    {
+      "listId": "q83vASNFZ4mrze8BI0VniQ",
+      "secret": "yM_W3eTr8vkABw4VHCMqMTg_Rk1UW2JpcHd-hYyTmqE",
+      "code": "042317",
+      "ownerSecret": "AwoRGB8mLTQ7QklQV15lbHN6gYiPlp2kq7K5wMfO1dw",
+      "key": "ZDceUzKIlYN56hr2FZRufxHCsQmeWQEYi1d8IXf1S5o",
+      "accessToken": "PMPLTZc_9sh7iypRR6vzcSWCcSqxKIK3cXYjKKYtCY0",
+      "accessHash": "LhrbantEEv-D55xpl8yVQs973nov7h1Sk11OziDdAHg",
+      "ownerToken": "nuoMgpHpObMyzsq_KgCOGmKsSOEetnv4QOnXI7HpZyo",
+      "ownerHash": "qi2X8Qfkdy2pJkDEZN95qheqVoRpGiyU2QkACP1zrBI",
+      "opId": "op_q83vASNFZ4mrze8BI0V",
+      "nonce": "MjlAR05VXGNqcXh_",
+      "plain": "{\"v\":1,\"op\":\"item.add\",\"device\":\"dev1\",\"item\":\"item1\",\"title\":\"Hafermilch – 2× 1 l\",\"done\":false,\"createdAt\":\"2026-10-14T08:00:00.000Z\"}",
+      "blob": "MjlAR05VXGNqcXh_6IsEmPWn-wpTNQKCEl-qLZw01pSxfKuEHHgyP8TLmapzFdLGCeIdp5N5W9pBU8sSV4YzpbDYkDvTesEmvHm_umo2itwb1AcNFs-Q7Dwcb50qiuTZ_eLTbjJcycvUo1jbTfvAXz7E065qAUT9DuT1ZFcZA5yzrcB7B9tXtVo3vlrLX_OTrRbGpzSqH6XLxcz-_wctBkeBxqLYl5c"
+    }
+  ]
+}
