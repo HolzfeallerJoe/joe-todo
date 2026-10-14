@@ -9,13 +9,14 @@ import 'package:joe_sync/joe_sync.dart';
 ///   dart run tool/smoke.dart https://sync.example.org
 ///
 /// Mit `--keep` bleibt die Liste stehen, und der Link wird ausgegeben, etwa
-/// um sie im Browser oder in Joe zu oeffnen.
+/// um sie im Browser oder in Joe zu oeffnen. `--code` teilt mit Code.
 Future<void> main(List<String> args) async {
   final server = args.firstWhere(
     (a) => !a.startsWith('--'),
     orElse: () => 'http://localhost:8787',
   );
   final keep = args.contains('--keep');
+  final withCode = args.contains('--code');
   final transport = HttpSyncTransport();
   final anna = SyncClient(transport: transport, device: 'smoke-anna');
   final ben = SyncClient(transport: transport, device: 'smoke-ben');
@@ -30,6 +31,7 @@ Future<void> main(List<String> args) async {
     final mine = await anna.create(
       server: server,
       name: 'Rauchtest',
+      withCode: withCode,
       items: [
         SnapshotItem(id: newId(), title: 'Milch', done: false, createdAt: now),
         SnapshotItem(id: newId(), title: 'Brot', done: true, createdAt: now),
@@ -37,7 +39,7 @@ Future<void> main(List<String> args) async {
     );
     check(mine.outbox.isEmpty, 'geteilt, alles hochgeladen');
 
-    final theirs = await ben.join(mine.link);
+    final theirs = await ben.join(mine.link, code: mine.code);
     check(theirs.view.nameValue == 'Rauchtest', 'beigetreten, Name stimmt');
     check(theirs.view.visibleItems.length == 2, 'beide Eintraege da');
 
@@ -65,6 +67,7 @@ Future<void> main(List<String> args) async {
 
     if (keep) {
       stdout.writeln('\nLink: ${mine.link}');
+      if (mine.hasCode) stdout.writeln('Code: ${mine.code}');
     } else {
       await anna.deleteForAll(mine);
       final gone = await ben.sync(theirs);

@@ -1,0 +1,273 @@
+/* Warm und schlicht wie Joe: Papierkarte auf ruhigem Hintergrund
+   (Farben aus app/lib/theme.dart, Thema „Papier“). */
+:root {
+  --bg-top: #f6efdc;
+  --bg-bottom: #eadfc4;
+  --paper: #fffdf6;
+  --ink: #453a2e;
+  --ink-soft: #7d7264;
+  --accent: #b25438;
+  --accent-ink: #fffdf6;
+  --line: #e6dcc7;
+  --warn: #9a5b12;
+  --warn-bg: #fbecd2;
+  --shadow: 0 1px 2px rgb(69 58 46 / 0.08), 0 8px 24px rgb(69 58 46 / 0.10);
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg-top: #2a241e;
+    --bg-bottom: #1f1a15;
+    --paper: #362e26;
+    --ink: #f1e8d8;
+    --ink-soft: #b9ab97;
+    --accent: #e08a68;
+    --accent-ink: #2a1a12;
+    --line: #4a4036;
+    --warn: #f0c27a;
+    --warn-bg: #4a3a22;
+    --shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 8px 24px rgb(0 0 0 / 0.3);
+    color-scheme: dark;
+  }
+}
+
+* { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: linear-gradient(var(--bg-top), var(--bg-bottom)) fixed;
+  color: var(--ink);
+  font: 17px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+.sheet {
+  max-width: 34rem;
+  margin: 0 auto;
+  padding: max(16px, env(safe-area-inset-top)) 16px 32px;
+}
+
+.card {
+  background: var(--paper);
+  border-radius: 18px;
+  box-shadow: var(--shadow);
+  padding: 20px 18px;
+  margin-top: 16px;
+}
+
+[hidden] { display: none !important; }
+
+button, input {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  border: 1px solid var(--line);
+  background: transparent;
+  border-radius: 999px;
+  padding: 8px 16px;
+  cursor: pointer;
+  min-height: 40px;
+}
+
+button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 600;
+}
+
+button:focus-visible, input:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  outline-offset: 2px;
+}
+
+input {
+  border: 1px solid var(--line);
+  background: var(--bg-top);
+  border-radius: 12px;
+  padding: 9px 12px;
+  min-height: 44px;
+  width: 100%;
+  min-width: 0;
+}
+
+.icon-button {
+  border: none;
+  min-width: 40px;
+  padding: 6px;
+  color: var(--ink-soft);
+  font-size: 1.15rem;
+}
+
+/* Tor: Laden, Code, Fehler */
+.gate-text { margin: 0; }
+.gate-text.big { font-size: 1.1rem; font-weight: 600; }
+
+.code-form {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.code-form input {
+  font-size: 1.4rem;
+  letter-spacing: 0.3em;
+  text-align: center;
+}
+
+.error { color: var(--accent); margin: 0; }
+
+/* Kopf der Liste */
+.list-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.list-name {
+  flex: 1;
+  margin: 0;
+  font-size: 1.5rem;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
+.rename-form, .add-form, .edit-form {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.rename-form { margin-top: 8px; flex-wrap: wrap; }
+.rename-form input { flex: 1 1 12rem; }
+
+.status {
+  margin: 6px 0 10px;
+  color: var(--ink-soft);
+  font-size: 0.9rem;
+  min-height: 1.3em;
+}
+
+.status.warn { color: var(--warn); }
+
+/* Eintraege */
+.items {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.item:last-child { border-bottom: none; }
+
+.check {
+  appearance: none;
+  flex: none;
+  width: 26px;
+  height: 26px;
+  min-height: 0;
+  padding: 0;
+  margin: 0;
+  border: 2px solid var(--ink-soft);
+  border-radius: 8px;
+  background: transparent;
+  cursor: pointer;
+  display: grid;
+  place-content: center;
+}
+
+.check:checked {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.check:checked::after {
+  content: "✓";
+  color: var(--accent-ink);
+  font-weight: 700;
+  font-size: 0.95rem;
+  line-height: 1;
+}
+
+.title {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  border: none;
+  border-radius: 8px;
+  padding: 6px 4px;
+  overflow-wrap: anywhere;
+}
+
+.item.done .title {
+  color: var(--ink-soft);
+  text-decoration: line-through;
+}
+
+.edit-form { flex: 1; min-width: 0; }
+
+.badge {
+  flex: none;
+  font-size: 0.8rem;
+  border-radius: 999px;
+  padding: 3px 10px;
+  min-height: 0;
+  background: var(--warn-bg);
+  border-color: transparent;
+  color: var(--warn);
+}
+
+.empty {
+  color: var(--ink-soft);
+  margin: 10px 0;
+}
+
+.add-form { margin-top: 14px; }
+
+.add-form button {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  font-size: 1.4rem;
+}
+
+.footnote {
+  color: var(--ink-soft);
+  font-size: 0.82rem;
+  margin: 18px 6px 0;
+}
+
+/* Rueckfragen */
+.dialog {
+  border: none;
+  border-radius: 18px;
+  background: var(--paper);
+  color: var(--ink);
+  box-shadow: var(--shadow);
+  padding: 20px;
+  width: min(26rem, calc(100vw - 32px));
+}
+
+.dialog::backdrop { background: rgb(0 0 0 / 0.35); }
+
+.dialog-text { margin: 0 0 16px; }
+
+.dialog-buttons {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}

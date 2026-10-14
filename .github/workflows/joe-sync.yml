@@ -1,0 +1,61 @@
+# Tests fuer geteilte Listen: Paket joe_sync, Server und Webseite.
+# Baut und veroeffentlicht kein Image (G11), das entsteht auf TrueNAS.
+name: joe-sync · Tests
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'packages/**'
+      - 'server/**'
+      - '.github/workflows/joe-sync.yml'
+  pull_request:
+    paths:
+      - 'packages/**'
+      - 'server/**'
+      - '.github/workflows/joe-sync.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: joe-sync-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Paket, Server, Webseite
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      # Dieselbe Dart-Version, die Flutter 3.47.1 mitbringt (siehe
+      # joe-todo-apk.yml) und die das Dockerfile nimmt.
+      - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: '3.13'
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '24'
+
+      - name: Paket joe_sync
+        working-directory: packages/joe_sync
+        run: |
+          dart pub get
+          dart analyze --fatal-infos
+          dart test
+
+      - name: Server
+        working-directory: server
+        run: |
+          dart pub get
+          dart analyze --fatal-infos
+          dart test
+
+      # Die JS-Fassung der Zusammenfuehrung und Kryptografie gegen dieselben
+      # Testvektoren wie Dart.
+      - name: Webseite
+        working-directory: server/web
+        run: node --test

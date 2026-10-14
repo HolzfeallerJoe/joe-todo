@@ -1,0 +1,5 @@
+{
+  "private": true,
+  "type": "module",
+  "description": "Webseite fuer geteilte Listen; Tests: node --test"
+}
