@@ -168,6 +168,33 @@ void main() {
     });
   });
 
+  group('Teilen', () {
+    test('Name, darunter die offenen Eintraege in Anzeigereihenfolge', () {
+      final state = withItems([
+        ShoppingItem(id: '2', title: 'Brot', createdAt: DateTime(2026, 9, 2)),
+        ShoppingItem(
+          id: '1',
+          title: 'Käse',
+          createdAt: DateTime(2026, 9, 1),
+          done: true,
+        ),
+        ShoppingItem(id: '3', title: 'Eier', createdAt: DateTime(2026, 9, 3)),
+        ShoppingItem(id: '0', title: 'Milch', createdAt: DateTime(2026, 9, 1)),
+      ]);
+      expect(
+        state.currentShoppingList.shareText,
+        'Einkaufsliste\n- Milch\n- Brot\n- Eier',
+      );
+    });
+
+    test('nichts Offenes heisst: nichts zu teilen', () {
+      final state = AppState();
+      expect(state.currentShoppingList.shareText, isNull);
+      state.toggleShoppingItem(state.addShoppingItem('Milch')!);
+      expect(state.currentShoppingList.shareText, isNull);
+    });
+  });
+
   group('Bestand', () {
     test('JSON-Rundreise', () {
       final item = ShoppingItem(

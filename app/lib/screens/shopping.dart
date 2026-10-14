@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:share_plus/share_plus.dart';
 
+import '../log.dart';
 import '../models.dart';
+import '../toast.dart';
 import '../widgets.dart';
 
 /// Die Einkaufsliste als eigener Reiter (Modus [ShoppingListMode.tab]).
@@ -132,7 +135,8 @@ class _ShoppingListViewState extends State<ShoppingListView> {
 
 /// Die Karte mit der Wahl der Liste: jede Liste ein Chip, dahinter
 /// "Neue Liste". Ein Tipp zeigt die Liste, langer Druck fuehrt wie bei den
-/// Eintraegen auf Bearbeiten und Loeschen.
+/// Eintraegen auf Bearbeiten und Loeschen. Rechts daneben das Teilen der
+/// gezeigten Liste.
 ///
 /// Chips und keine Ausklappliste: beim Einkaufen soll man sehen, welche
 /// Listen es gibt, und mit einem Tipp wechseln.
@@ -175,45 +179,86 @@ class _ListPicker extends StatelessWidget {
     );
   }
 
+  /// Schickt die offenen Eintraege als Text an den Share-Intent des Systems
+  /// (siehe [ShoppingList.shareText]) – Messenger, Mail, was das Geraet hat.
+  /// Die Empfaenger brauchen dafuer kein Joe.
+  Future<void> _share(BuildContext context, ShoppingList list) async {
+    final text = list.shareText;
+    if (text == null) {
+      JoeToast.info('Auf der Liste fehlt gerade nichts.');
+      return;
+    }
+    // Auf iPad und Mac ist das Teilen-Blatt ein Popover und will wissen,
+    // woran es haengen soll (wie bei "Logs teilen").
+    final box = context.findRenderObject() as RenderBox?;
+    final origin = box != null && box.hasSize
+        ? box.localToGlobal(Offset.zero) & box.size
+        : null;
+    try {
+      await SharePlus.instance.share(
+        ShareParams(
+          text: text,
+          subject: list.name,
+          sharePositionOrigin: origin,
+        ),
+      );
+      JoeLog.log('Einkaufsliste geteilt (${list.id})');
+    } catch (e) {
+      JoeLog.log('Einkaufsliste teilen fehlgeschlagen: $e');
+      JoeToast.error('Die Liste ließ sich nicht teilen.');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final state = AppScope.of(context);
     final theme = joeThemeOf(context);
     final current = state.currentShoppingList;
+    final chips = Wrap(
+      spacing: 8,
+      runSpacing: 4,
+      children: [
+        for (final list in state.shoppingLists)
+          // Der Chip selbst kennt keinen langen Druck; der Detektor darueber
+          // bekommt ihn, der Tipp bleibt beim Chip.
+          Semantics(
+            onLongPress: () => _options(context, list),
+            child: GestureDetector(
+              onLongPress: () => _options(context, list),
+              child: ChoiceChip(
+                label: Text(list.name),
+                selected: list.id == current.id,
+                selectedColor: theme.accent.withValues(alpha: 0.25),
+                labelStyle: TextStyle(color: theme.ink),
+                onSelected: (_) => state.selectShoppingList(list),
+              ),
+            ),
+          ),
+        ActionChip(
+          avatar: Icon(Icons.add, size: 18, color: theme.accent),
+          label: const Text('Neue Liste'),
+          labelStyle: TextStyle(color: theme.ink),
+          onPressed: () => _add(context),
+        ),
+      ],
+    );
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: PaperCard(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        child: SizedBox(
-          width: double.infinity,
-          child: Wrap(
-            spacing: 8,
-            runSpacing: 4,
-            children: [
-              for (final list in state.shoppingLists)
-                // Der Chip selbst kennt keinen langen Druck; der Detektor
-                // darueber bekommt ihn, der Tipp bleibt beim Chip.
-                Semantics(
-                  onLongPress: () => _options(context, list),
-                  child: GestureDetector(
-                    onLongPress: () => _options(context, list),
-                    child: ChoiceChip(
-                      label: Text(list.name),
-                      selected: list.id == current.id,
-                      selectedColor: theme.accent.withValues(alpha: 0.25),
-                      labelStyle: TextStyle(color: theme.ink),
-                      onSelected: (_) => state.selectShoppingList(list),
-                    ),
-                  ),
-                ),
-              ActionChip(
-                avatar: Icon(Icons.add, size: 18, color: theme.accent),
-                label: const Text('Neue Liste'),
-                labelStyle: TextStyle(color: theme.ink),
-                onPressed: () => _add(context),
+        padding: const EdgeInsets.fromLTRB(12, 8, 4, 8),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(child: chips),
+            // Eigener Kontext fuer den Knopf: an ihm haengt das Popover.
+            Builder(
+              builder: (buttonContext) => IconButton(
+                icon: Icon(Icons.share_outlined, color: theme.ink),
+                tooltip: 'Liste teilen',
+                onPressed: () => _share(buttonContext, current),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );

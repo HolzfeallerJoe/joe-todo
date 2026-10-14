@@ -652,6 +652,19 @@ class ShoppingList {
     return [for (final (_, item) in indexed) item];
   }
 
+  /// Die Liste als Text zum Verschicken (Messenger, Mail): der Name, darunter
+  /// die offenen Eintraege. Abgehakte bleiben draussen – geteilt wird, was
+  /// noch fehlt. Ohne offene Eintraege null: eine Nachricht nur mit dem
+  /// Namen hilft niemandem.
+  String? get shareText {
+    final open = [
+      for (final item in sortedItems)
+        if (!item.done) item,
+    ];
+    if (open.isEmpty) return null;
+    return [name, for (final item in open) '- ${item.title}'].join('\n');
+  }
+
   Map<String, dynamic> toJson() => {
         'id': id,
         'name': name,

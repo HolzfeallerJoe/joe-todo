@@ -44,6 +44,11 @@ name: Einkaufsliste im eigenen Reiter
 - pressKey: Enter
 - hideKeyboard
 - assertVisible: "Schrauben"
+# Teilen oeffnet das Teilen-Blatt des Systems mit dem Text der Liste.
+- tapOn: "Liste teilen"
+- assertVisible: "(?s).*Schrauben.*"
+- takeScreenshot: shots/10_shopping_teilen
+- back
 # Zurueck zur ersten Liste. "Einkaufsliste" steht auch im Titel, der Chip
 # ist der zweite Treffer.
 - tapOn:

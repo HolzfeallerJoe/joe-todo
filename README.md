@@ -255,6 +255,14 @@ Dashboard, Kalender, wiederkehrenden Aufgaben, Notizen und Historie.
   Irgendwohin muss das Eingabefeld schreiben. Die eine Liste aus der Zeit vor
   mehreren Listen (bis 1.2.0) wird beim ersten Start zur Liste
   „Einkaufsliste", mit allen Einträgen.
+  Rechts auf der Karte sitzt **„Liste teilen"**: Es reicht die gezeigte
+  Liste als Text an das Teilen-Blatt des Systems weiter (Messenger, Mail),
+  oben der Name, darunter je Zeile „- Eintrag" (`ShoppingList.shareText`).
+  Geteilt wird nur, was noch offen ist; das Abgehakte ist schon gekauft. Ist
+  nichts offen, sagt ein Toast das, statt eine leere Nachricht zu öffnen. Die
+  Empfänger brauchen kein Joe. Es ist ein Schnappschuss und keine gemeinsame
+  Liste: Was danach abgehakt wird, sieht nur das eigene Gerät. Joe spricht
+  dafür nicht ins Netz, das Verschicken macht die gewählte App.
   Hinzugefügt wird über ein Eingabefeld **am unteren Rand**, dort ist der
   Daumen, die Tastatur schiebt es mit hoch, und neue Einträge landen genau
   darüber, unten bei den offenen – dort, wo der Blick beim Tippen gerade
@@ -805,7 +813,9 @@ beiden Modi dieselben. Bis 1.2.0 stand dort genau eine Liste unter
 `shopping`; `load()` übernimmt sie als erste Liste, beim nächsten Speichern
 fällt der alte Schlüssel weg. Das Log nennt nur IDs und die Anzahl, nie
 einen Eintrag oder Listennamen, und in den Widget-Schnappschuss kommen sie
-nicht.
+nicht. „Liste teilen" ist der einzige Weg, auf dem Einträge das Gerät
+verlassen, und nur auf Knopfdruck und an die App, die man im Teilen-Blatt
+wählt; das Log vermerkt dabei nur die ID der Liste.
 
 Für die Erinnerungen kommen POST_NOTIFICATIONS (ab Android 13 zur Laufzeit
 bestätigt), RECEIVE_BOOT_COMPLETED (Plan nach einem Neustart neu stellen) und
@@ -1005,7 +1015,7 @@ eingetragen (aktuell 3.47.1) und sollte mit der lokalen uebereinstimmen.
 
 Bei einem Push auf `main` landet das APK zusaetzlich als GitHub-Release unter
 dem Tag `joe-todo-v<version>` (Version aus `app/pubspec.yaml`, aktuell
-`1.2.0+6` → `joe-todo-v1.2.0+6`). Der Projektname im Tag stammt aus der Zeit
+`1.3.0+7` → `joe-todo-v1.3.0+7`). Der Projektname im Tag stammt aus der Zeit
 im Sammel-Repo AI_things und ist fuer durchgehende Tags geblieben. Solange die
 Version in `pubspec.yaml` unveraendert bleibt, wird dasselbe Release
 ueberschrieben und der Tag auf den neuen Commit gesetzt; fuer einen dauerhaft

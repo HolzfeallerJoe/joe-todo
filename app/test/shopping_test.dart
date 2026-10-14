@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:joe_todo/main.dart';
@@ -340,6 +341,56 @@ void main() {
       expect(isChosen(tester, 'Baumarkt'), isTrue);
       await tap(tester, chip('Einkaufsliste'));
       expect(find.text('Milch'), findsOneWidget);
+    });
+  });
+
+  group('Teilen', () {
+    // Der Kanal, ueber den share_plus das Teilen-Blatt des Systems ruft.
+    const channel = MethodChannel('dev.fluttercommunity.plus/share');
+
+    /// Faengt ab, was geteilt wuerde, statt ein Blatt zu oeffnen.
+    List<Map<Object?, Object?>> captureShares(WidgetTester tester) {
+      final shared = <Map<Object?, Object?>>[];
+      final messenger = tester.binding.defaultBinaryMessenger;
+      messenger.setMockMethodCallHandler(channel, (call) async {
+        shared.add(call.arguments as Map<Object?, Object?>);
+        return 'dev.fluttercommunity.plus/share/success';
+      });
+      addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
+      return shared;
+    }
+
+    testWidgets('teilt die gezeigte Liste als Text, nur das Offene',
+        (tester) async {
+      final shared = captureShares(tester);
+      await pump(
+        tester,
+        items: [
+          item('1', 'Milch'),
+          item('2', 'Brot', minute: 1),
+        ],
+      );
+      await tap(tester, find.text('Einkaufsliste'));
+      await tap(tester, find.text('Brot'));
+
+      await tap(tester, find.byTooltip('Liste teilen'));
+      expect(shared, hasLength(1));
+      expect(shared.single['text'], 'Einkaufsliste\n- Milch');
+      expect(shared.single['subject'], 'Einkaufsliste');
+    });
+
+    testWidgets('eine Liste ohne Offenes: Hinweis statt Teilen-Blatt',
+        (tester) async {
+      final shared = captureShares(tester);
+      await pump(tester);
+      await tap(tester, find.text('Einkaufsliste'));
+
+      await tester.tap(find.byTooltip('Liste teilen'));
+      await tester.pump();
+      expect(shared, isEmpty);
+      expect(find.text('Auf der Liste fehlt gerade nichts.'), findsOneWidget);
+      await tester.pump(JoeToast.showDuration);
+      await tester.pumpAndSettle();
     });
   });
 
