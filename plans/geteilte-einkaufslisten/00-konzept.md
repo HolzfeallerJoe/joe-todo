@@ -26,6 +26,9 @@ analyze/test grün) und [`README.md`](../../README.md) (wie die App gebaut ist).
 | V10 | Lange ungenutzte Listen | Werden **nicht gelöscht, sondern entteilt**. Vorher und dann gibt es eine **native Benachrichtigung**, nicht nur einen Hinweis in der App (siehe 6.6). |
 | V11 | Docker-Image | Baut der Benutzer **selbst auf TrueNAS**. Kein veröffentlichtes Image, das Dockerfile liegt nur im Repo. |
 | V12 | Pangolin | Die Sync-Ressource darf **öffentlich** sein, ohne Pangolin-Anmeldung. |
+| V13 | Wer wird benachrichtigt? | **Nur wer geteilt hat** (der Ersteller) bekommt die Benachrichtigungen zum Entteilen. |
+| V14 | Benachrichtigung „nicht mehr geteilt“ | **Variante B**: Kurz vor Ablauf fragt Joe einmal beim Server nach und benachrichtigt nur, wenn die Liste wirklich abläuft. |
+| V15 | Konflikte | Die Regelung aus 5.4 (entscheiden muss, wessen Änderung später ankam; offene Konflikte blockieren nichts und verfallen nach 30 Tagen) ist **bestätigt**. |
 
 ---
 
@@ -74,7 +77,7 @@ Wo die Vorgaben offen sind, habe ich gewählt. Wer etwas anders will, ändert es
 | G6 | **Verlassen** heißt: Die Liste bleibt als gewöhnliche lokale Liste stehen und gleicht nicht mehr ab. Löschen kann man sie danach wie jede Liste. |
 | G7 | **Abgleich nur bei offener Liste** (V4): beim Öffnen, danach alle **15 Sekunden**, solange sie sichtbar ist und Joe im Vordergrund läuft, außerdem 1–2 Sekunden nach einer eigenen Änderung und per Herunterziehen. **Kein** Hintergrund-Abgleich, keine Push-Nachrichten. |
 | G8 | **Konflikte nach ABC-Todo** (V9, Einzelheiten in 5.4): Jede Änderung nennt die Version, die sie gesehen hat. Verschiedene Felder werden zusammengeführt. Dasselbe Feld mit **verschiedenem** Wert oder Löschen gegen Bearbeiten ist ein Konflikt. Entscheiden muss, **wessen Änderung später beim Server ankam** (wie die 409-Antwort in ABC-Todo). Bis dahin gilt für alle der Stand, der zuerst ankam. |
-| G9 | **Entteilen nach 12 Monaten** (V10, Einzelheiten in 6.6): Hat 12 Monate niemand die Liste abgeglichen (Joe oder Webseite), wird sie entteilt. Der Server verwirft seine verschlüsselten Daten und merkt sich nur „abgelaufen“. In Joe bleibt die Liste als lokale Liste stehen. 14 Tage vorher und beim Entteilen gibt es eine native Benachrichtigung. Der Zeitraum ist auf dem Server einstellbar. |
+| G9 | **Entteilen nach 12 Monaten** (V10, Einzelheiten in 6.6): Hat 12 Monate niemand die Liste abgeglichen (Joe oder Webseite), wird sie entteilt. Der Server verwirft seine verschlüsselten Daten und merkt sich nur „abgelaufen“. In Joe bleibt die Liste als lokale Liste stehen. **Beim Ersteller** (V13) gibt es 14 Tage vorher und beim Entteilen eine native Benachrichtigung, die zweite erst nach einer Nachfrage beim Server (V14). Der Zeitraum ist auf dem Server einstellbar. |
 | G10 | **Grenzen**: Operation höchstens 4 KB, höchstens 500 Operationen je Anfrage, höchstens 50 neue Listen je IP und Tag, Fehlversuche beim Code gebremst (z. B. 10 je Stunde und Liste). |
 | G11 | **Docker** (V11): Dockerfile und `compose.yaml` liegen im Repo, gebaut wird auf TrueNAS. Die CI testet nur, sie baut und veröffentlicht kein Image. Der Server bekommt eigene Versionsnummern, unabhängig von der App. |
 | G13 | **Gleicher Wert ist kein Konflikt**: Haken zwei Personen denselben Eintrag gleichzeitig ab oder geben ihm denselben Titel, gibt es nichts zu entscheiden. |
@@ -164,7 +167,7 @@ einschließlich derselben offenen Konflikte.
 | Methode | Pfad | Zweck |
 | --- | --- | --- |
 | `PUT` | `/api/lists/<id>` | Liste anlegen: Hash von `A`, Hash des Ersteller-Tokens, ob ein Code nötig ist. Idempotent. Kennt der Server die ID schon, gilt das als Fehler. |
-| `GET` | `/api/lists/<id>/meta` | Ohne Token: nur „gibt es“ und „Code nötig“. Damit fragt die Webseite rechtzeitig nach dem Code. |
+| `GET` | `/api/lists/<id>/meta` | Ohne Token: nur „gibt es“ und „Code nötig“. Damit fragt die Webseite rechtzeitig nach dem Code. Mit Ersteller-Token zusätzlich `expiresAt` (für 6.6). Zählt **nicht** als Zugriff. |
 | `GET` | `/api/lists/<id>/ops?after=<seq>` | Neue Operationen seit `seq`, jede mit fortlaufender Server-Nummer. |
 | `POST` | `/api/lists/<id>/ops` | Eigene Operationen hochladen. Idempotent über die Operations-ID, sodass ein wiederholter Versuch nach einem Netzfehler nichts verdoppelt. |
 | `DELETE` | `/api/lists/<id>` | Für alle löschen (Ersteller-Token). Der Server merkt sich die ID als gelöscht. |
@@ -331,30 +334,37 @@ mit verloren; das ist hinnehmbar.
 - Der Server führt je Liste `lastAccess`. Jede Anfrage mit gültigem Token
   zählt, egal ob aus Joe oder der Webseite. `expiresAt = lastAccess + 12
   Monate` geht mit jeder Antwort zurück.
-- **Joe plant zwei lokale Benachrichtigungen** über `flutter_local_notifications`
-  (dieselbe Kapsel wie die Erinnerungen, `lib/reminders.dart`):
-  1. 14 Tage vor `expiresAt`: „‚Baumarkt‘ wird in 14 Tagen nicht mehr geteilt.
-     Öffne die Liste, damit sie geteilt bleibt.“ Ein Tipp öffnet die Liste,
-     und das Öffnen gleicht ab und verlängert damit.
-  2. Zu `expiresAt`: „‚Baumarkt‘ wird nicht mehr geteilt. Sie bleibt auf
-     deinem Gerät.“
-  Nach jedem Abgleich werden beide neu geplant. Das braucht **kein Netz im
-  Hintergrund** (V4), weil die Termine schon beim letzten Abgleich bekannt
-  waren.
-- **Die Lücke dabei**: Öffnet ein anderer die Liste, verlängert sich die Frist,
-  aber Joe erfährt das erst beim nächsten eigenen Abgleich. Die Warnung nach 14
-  Tagen kann also unnötig kommen. Sie ist deshalb so formuliert, dass sie auch
-  dann stimmt („Öffne die Liste, damit sie geteilt bleibt“). Die zweite
-  Benachrichtigung darf nicht falsch sein. Deshalb gibt es zwei Möglichkeiten,
-  zu entscheiden in Abschnitt 10:
-  - **A (rein lokal)**: Die zweite Benachrichtigung entfällt. Wer die Liste das
-    nächste Mal öffnet, bekommt `410` mit „abgelaufen“, und erst **dann**
-    kommt die native Benachrichtigung „wird nicht mehr geteilt“.
-  - **B (eine Anfrage im Hintergrund)**: Kurz vor `expiresAt` fragt Joe einmal
-    beim Server nach (Android WorkManager). Ist die Liste noch aktiv, wird neu
-    geplant. Ist sie abgelaufen, kommt die Benachrichtigung. Das ist die
-    einzige Ausnahme von V4.
-- Der Hauptschalter „Erinnerungen“ in den Einstellungen gilt hier **nicht**:
+- **Nur beim Ersteller** (V13): Die Benachrichtigungen bekommt nur das Gerät,
+  das die Liste geteilt hat, erkennbar am Ersteller-Geheimnis (4.3). Alle
+  anderen erfahren es erst beim nächsten Öffnen (`410` mit „abgelaufen“), dann
+  mit einem Hinweis in der App und ohne native Benachrichtigung.
+- **Erste Benachrichtigung, rein lokal**: 14 Tage vor `expiresAt` „‚Baumarkt‘
+  wird in 14 Tagen nicht mehr geteilt. Öffne die Liste, damit sie geteilt
+  bleibt.“ Geplant über `flutter_local_notifications` (dieselbe Kapsel wie die
+  Erinnerungen, `lib/reminders.dart`) und nach jedem Abgleich neu gesetzt, also
+  ohne Netz im Hintergrund. Ein Tipp öffnet die Liste, und das Öffnen gleicht
+  ab und verlängert damit. Hat inzwischen jemand anderes die Liste benutzt,
+  kann diese Warnung unnötig sein. Sie ist so formuliert, dass sie auch dann
+  stimmt.
+- **Zweite Benachrichtigung, mit Nachfrage** (V14, Variante B): Kurz vor
+  `expiresAt` (z. B. 1 Tag vorher) startet ein Android-**WorkManager**-Auftrag
+  und fragt einmal `GET /api/lists/<id>/meta` mit Ersteller-Token.
+  - Ist die Frist inzwischen verlängert (jemand hat die Liste benutzt): beide
+    Benachrichtigungen mit dem neuen `expiresAt` neu planen, sonst nichts.
+  - Läuft sie wirklich ab: native Benachrichtigung „‚Baumarkt‘ wird nicht mehr
+    geteilt. Sie bleibt auf deinem Gerät.“ Danach macht Joe daraus eine lokale
+    Liste.
+  - Kein Netz: Der Auftrag wiederholt sich mit Wartezeit (WorkManager-
+    Bedingung „verbunden“). Ist die Frist darüber verstrichen, kommt die
+    Meldung beim nächsten Netzkontakt.
+  Diese eine Anfrage ist die **einzige Ausnahme** von V4. Sie geht nur an den
+  Server der Liste und nur mit dem Ersteller-Token. Die Abfrage selbst
+  verlängert die Frist **nicht** (`meta` zählt nicht als Zugriff), sonst liefe
+  eine vergessene Liste nie ab.
+- **Ersteller nicht mehr da**: Hat der Ersteller Joe gelöscht oder die Liste
+  verlassen, bekommt niemand eine native Benachrichtigung. Die anderen sehen
+  es beim nächsten Öffnen. Das ist eine bewusste Folge von V13.
+- Der Hauptschalter „Erinnerungen“ in den Einstellungen gilt auch hier **nicht**:
   Diese Benachrichtigung betrifft Daten, keine Termine. Fehlt die Berechtigung
   für Benachrichtigungen, sagt es die Statuszeile der Liste.
 - **Auf dem Server**: Ist `expiresAt` vorbei, löscht der tägliche Lauf die
@@ -458,15 +468,10 @@ Etappe 4 hängt nur an 1 und 2 und kann parallel zu 3 laufen.
 1. **Sync-Domain**: noch offen, der Benutzer entscheidet selbst. Sie steht in
    jedem geteilten Link und lässt sich später nur mit neuen Links ändern.
    **Muss vor Etappe 3 feststehen**, Etappen 1 und 2 brauchen sie nicht.
-2. **Entteilen-Benachrichtigung** (6.6): **A** rein lokal (die Meldung „nicht
-   mehr geteilt“ kommt erst beim nächsten Öffnen) oder **B** eine einzelne
-   Anfrage im Hintergrund kurz vor Ablauf?
-3. **Konflikte** (5.4): Passt es, dass nur der entscheidet, dessen Änderung
-   später ankam, und dass ein offener Konflikt nach 30 Tagen verfällt?
-4. **Entscheidungen G1–G14**: passen sie so?
 
-Erledigt: Pangolin öffentlich ist in Ordnung (V12). Das Image baut der
-Benutzer selbst auf TrueNAS (V11).
+Erledigt (14.10.2026): Pangolin öffentlich (V12), Image selbst auf TrueNAS
+(V11), Benachrichtigungen nur beim Ersteller (V13) und mit Nachfrage
+(Variante B, V14), Konfliktregelung (V15). Zu G1–G14 gab es keine Einwände.
 
 ---
 
