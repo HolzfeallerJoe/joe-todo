@@ -3,6 +3,12 @@
 Flutter-App nach dem „Joe-Konzept": ein warmes, ruhiges To-do-Notizbuch mit
 Dashboard, Kalender, wiederkehrenden Aufgaben, Notizen und Historie.
 
+## Renovate-Test
+
+Die Konfiguration und lokale Probeläufe für Dependency-Updates stehen in
+[plans/renovate-test.md](plans/renovate-test.md). Der Versuch zielt auf
+`test/renovate`; Updates benötigen eine Freigabe und werden manuell gemergt.
+
 ## Features
 
 - **Dashboard** – **eine** Heute-Karte für alles von heute. Oben das Datum,

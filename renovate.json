@@ -1,0 +1,51 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended"],
+  "baseBranchPatterns": ["test/renovate"],
+  "branchPrefix": "renovate-test/",
+  "enabledManagers": ["pub", "gradle", "gradle-wrapper", "github-actions", "dockerfile"],
+  "timezone": "Europe/Berlin",
+  "dependencyDashboard": true,
+  "dependencyDashboardApproval": true,
+  "automerge": false,
+  "prConcurrentLimit": 3,
+  "prHourlyLimit": 2,
+  "lockFileMaintenance": { "enabled": false },
+  "vulnerabilityAlerts": { "enabled": false },
+  "packageRules": [
+    {
+      "description": "Der Flutter-Plugin-Loader kommt aus dem lokalen Flutter-SDK, nicht aus Maven.",
+      "matchManagers": ["gradle"],
+      "matchPackageNames": ["dev.flutter.flutter-plugin-loader"],
+      "enabled": false
+    },
+    {
+      "matchManagers": ["pub"],
+      "matchDatasources": ["dart"],
+      "rangeStrategy": "bump"
+    },
+    {
+      "description": "Dart-Pakete in App, Server und gemeinsamem Paket zusammen aktualisieren.",
+      "matchManagers": ["pub"],
+      "matchDatasources": ["dart"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "groupName": "Dart packages (non-major)"
+    },
+    {
+      "description": "Android-Buildwerkzeuge fuer kleinere Updates zusammenhalten.",
+      "matchManagers": ["gradle", "gradle-wrapper"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "groupName": "Android build tools (non-major)"
+    },
+    {
+      "matchManagers": ["github-actions"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "groupName": "GitHub Actions (non-major)"
+    },
+    {
+      "matchManagers": ["dockerfile"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "groupName": "Docker images (non-major)"
+    }
+  ]
+}
